@@ -156,6 +156,8 @@ func (s *ChangeSummarizer) changesFromPRs(sinceRef, untilRef string) ([]change.C
 						URL:  fmt.Sprintf("https://%s/%s", s.config.Host, pr.Author),
 					},
 				},
+				EntryType: "githubPR",
+				Entry:     pr,
 			})
 		}
 	}
@@ -205,6 +207,8 @@ func (s *ChangeSummarizer) changesFromIssues(sinceRef, untilRef string) ([]chang
 					},
 					// TODO: add assignee(s) name + url
 				},
+				EntryType: "githubIssue",
+				Entry:     issue,
 			})
 		}
 	}

@@ -19,7 +19,7 @@ func HeadTagOrCommit(repoPath string) (string, error) {
 	tagRefs, _ := r.Tags()
 	var tagName string
 
-	tagRefs.ForEach(func(t *plumbing.Reference) error {
+	_ = tagRefs.ForEach(func(t *plumbing.Reference) error {
 		if t.Hash().String() == ref.Hash().String() {
 			tagName = t.Name().Short()
 			return fmt.Errorf("found")

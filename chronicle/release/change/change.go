@@ -12,6 +12,8 @@ type Change struct {
 	ChangeTypes []Type
 	Timestamp   time.Time
 	References  []Reference
+	EntryType   string
+	Entry       interface{}
 }
 
 type Reference struct {
