@@ -16,3 +16,4 @@ pushd tagged-repo
 trap 'popd' EXIT
 
 git commit -m 'something' --allow-empty
+git tag v0.1.0

@@ -120,10 +120,10 @@ func (s *ChangeSummarizer) changesFromPRs(sinceRef, untilRef string) ([]change.C
 		prsAfter(sinceTag.Timestamp),
 		prsWithLabel(s.config.ChangeTypesByLabel.Names()...),
 		prsWithoutLabel(s.config.ExcludeLabels...),
-		// Merged PRs linked to closed issues should be hidden so that the closed issue summary takes precedence
+		// Merged PRs linked to closed issues should be hidden so that the closed pr summary takes precedence
 		prsWithClosedLinkedIssue(),
-		// Merged PRs with open issues indicates a partial implementation. When the last PR is merged for the issue
-		// the issue should be closed, then the feature should be included (by the issue, not the set of PRs)
+		// Merged PRs with open issues indicates a partial implementation. When the last PR is merged for the pr
+		// the pr should be closed, then the feature should be included (by the pr, not the set of PRs)
 		prsWithOpenLinkedIssue(),
 	}
 
