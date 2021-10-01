@@ -21,7 +21,6 @@ func SearchForTag(repoPath, tagRef string) (*Tag, error) {
 	r, err := git.PlainOpen(repoPath)
 	if err != nil {
 		return nil, err
-
 	}
 
 	// TODO: only supports tags, should support commits and other tree-ish things

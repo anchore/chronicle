@@ -20,7 +20,7 @@ func TestRemoteUrl(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			actual, err := RemoteUrl(test.path)
+			actual, err := RemoteURL(test.path)
 			assert.NoError(t, err)
 			assert.Equal(t, test.expects, actual)
 		})

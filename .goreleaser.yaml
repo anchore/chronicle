@@ -23,7 +23,7 @@ builds:
       -w
       -s
       -extldflags '-static'
-      -X github.com/anchore/syft/internal/version.version={{.Version}}
-      -X github.com/anchore/syft/internal/version.gitCommit={{.Commit}}
-      -X github.com/anchore/syft/internal/version.buildDate={{.Date}}
-      -X github.com/anchore/syft/internal/version.gitTreeState={{.Env.BUILD_GIT_TREE_STATE}}
+      -X github.com/anchore/chronicle/internal/version.version={{.Version}}
+      -X github.com/anchore/chronicle/internal/version.gitCommit={{.Commit}}
+      -X github.com/anchore/chronicle/internal/version.buildDate={{.Date}}
+      -X github.com/anchore/chronicle/internal/version.gitTreeState={{.Env.BUILD_GIT_TREE_STATE}}

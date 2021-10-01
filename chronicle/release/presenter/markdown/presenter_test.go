@@ -1,4 +1,4 @@
-package presenter
+package markdown
 
 import (
 	"bytes"
@@ -18,7 +18,7 @@ import (
 var updateMarkdownPresenterGoldenFiles = flag.Bool("update-markdown", false, "update the *.golden files for markdown presenters")
 
 func TestMarkdownPresenter_Present(t *testing.T) {
-	must := func(m *MarkdownPresenter, err error) *MarkdownPresenter {
+	must := func(m *Presenter, err error) *Presenter {
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
@@ -27,18 +27,36 @@ func TestMarkdownPresenter_Present(t *testing.T) {
 	assertPresenterAgainstGoldenSnapshot(
 		t,
 		must(
-			NewMarkdownPresenter(MarkdownConfig{
+			NewMarkdownPresenter(Config{
 				Title: "Changelog",
-				Release: release.Release{
-					Version: "v0.19.1",
-					Date:    time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
-				},
 				Description: release.Description{
+					SupportedChanges: []change.TypeTitle{
+						{
+							ChangeType: "bug",
+							Title:      "Bug Fixes",
+						},
+						{
+							ChangeType: "added",
+							Title:      "Added Features",
+						},
+						{
+							ChangeType: "breaking",
+							Title:      "Breaking Changes",
+						},
+						{
+							ChangeType: "removed",
+							Title:      "Removed Features",
+						},
+					},
+					Release: release.Release{
+						Version: "v0.19.1",
+						Date:    time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+					},
 					VCSTagURL:     "https://github.com/anchore/syft/tree/v0.19.1",
 					VCSChangesURL: "https://github.com/anchore/syft/compare/v0.19.0...v0.19.1",
-					Changes: []change.Summary{
+					Changes: []change.Change{
 						{
-							ChangeTypes: []change.Type{change.BugFix},
+							ChangeTypes: []change.Type{"bug"},
 							Text:        "Redirect cursor hide/show to stderr",
 							References: []change.Reference{
 								{
@@ -48,28 +66,16 @@ func TestMarkdownPresenter_Present(t *testing.T) {
 							},
 						},
 						{
-							ChangeTypes: []change.Type{change.AddedFeature},
+							ChangeTypes: []change.Type{"added"},
 							Text:        "added feature",
 						},
 						{
-							ChangeTypes: []change.Type{change.AddedFeature},
+							ChangeTypes: []change.Type{"added"},
 							Text:        "another added feature",
 						},
 						{
-							ChangeTypes: []change.Type{change.ChangedFeature},
-							Text:        "changed feature",
-						},
-						{
-							ChangeTypes: []change.Type{change.RemovedFeature},
-							Text:        "removed feature",
-						},
-						{
-							ChangeTypes: []change.Type{change.DeprecatedFeature},
-							Text:        "deprecated feature",
-						},
-						{
-							ChangeTypes: []change.Type{change.Vulnerability},
-							Text:        "security problem!",
+							ChangeTypes: []change.Type{"breaking"},
+							Text:        "breaking change",
 						},
 					},
 					Notice: "notice!",
@@ -82,7 +88,7 @@ func TestMarkdownPresenter_Present(t *testing.T) {
 
 type redactor func(s []byte) []byte
 
-func assertPresenterAgainstGoldenSnapshot(t *testing.T, pres Presenter, updateSnapshot bool, redactors ...redactor) {
+func assertPresenterAgainstGoldenSnapshot(t *testing.T, pres release.Presenter, updateSnapshot bool, redactors ...redactor) {
 	t.Helper()
 
 	var buffer bytes.Buffer

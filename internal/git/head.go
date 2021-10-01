@@ -7,7 +7,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 )
 
-func HeadTag(repoPath string) (string, error) {
+func HeadTagOrCommit(repoPath string) (string, error) {
 	r, err := git.PlainOpen(repoPath)
 	if err != nil {
 		return "", fmt.Errorf("unable to open repo: %w", err)
@@ -27,5 +27,9 @@ func HeadTag(repoPath string) (string, error) {
 		return nil
 	})
 
-	return tagName, nil
+	if tagName != "" {
+		return tagName, nil
+	}
+
+	return ref.Hash().String(), nil
 }

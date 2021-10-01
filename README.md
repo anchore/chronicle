@@ -16,3 +16,4 @@ TODO:
 - Chain set of changelogs from previous release changelogs (pull from releases MD for each)
 - Markdown: add assignee(s) name + url
 - Repo extraction: extract from multiple URL sources (not just git, e.g. git@github.com:someone/project.git... should at least support https)
+- Support rate limit detection and retry

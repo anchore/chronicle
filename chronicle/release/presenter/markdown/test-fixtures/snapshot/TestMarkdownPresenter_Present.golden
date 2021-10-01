@@ -4,29 +4,17 @@
 
 [Full Changelog](https://github.com/anchore/syft/compare/v0.19.0...v0.19.1)
 
-### Added
+### Bug Fixes
+
+- Redirect cursor hide/show to stderr [[456](https://github.com/anchore/syft/pull/456)]
+
+### Added Features
 
 - added feature
 - another added feature
 
-### Changed
+### Breaking Changes
 
-- changed feature
-
-### Deprecated
-
-- deprecated feature
-
-### Fixed
-
-- Redirect cursor hide/show to stderr [[456](https://github.com/anchore/syft/pull/456)]
-
-### Removed
-
-- removed feature
-
-### Security
-
-- security problem!
+- breaking change
 
 

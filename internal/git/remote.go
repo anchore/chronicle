@@ -13,7 +13,7 @@ import (
 var remotePattern = regexp.MustCompile(`(?m)\[remote "origin"](\n.*)*url\s*=\s*(?P<url>.*)$`)
 
 // TODO: can't use r.Config for same validation reasons
-func RemoteUrl(p string) (string, error) {
+func RemoteURL(p string) (string, error) {
 	f, err := os.Open(path.Join(p, ".git", "config"))
 	if err != nil {
 		return "", fmt.Errorf("unable to open git config: %w", err)
@@ -28,7 +28,7 @@ func RemoteUrl(p string) (string, error) {
 }
 
 // TODO: can't use r.Config for same validation reasons
-//func RemoteUrl(path string) (string, error) {
+//func RemoteURL(path string) (string, error) {
 //	r, err := git.PlainOpen(path)
 //	if err != nil {
 //		return "", fmt.Errorf("unable to open repo: %w", err)
@@ -57,7 +57,7 @@ func RemoteUrl(p string) (string, error) {
 //}
 
 // TODO: it seems that this lib has a config validation problem :(
-//func RemoteUrl(path string) (string, error)  {
+//func RemoteURL(path string) (string, error)  {
 //	r, err := git.PlainOpen(path)
 //	if err != nil {
 //		return "", fmt.Errorf("unable to open repo: %w", err)

@@ -20,7 +20,7 @@ var versionCmd = &cobra.Command{
 
 func init() {
 	versionCmd.Flags().StringVarP(&outputFormat, "output", "o", "text", "format to show version information (available=[text, json])")
-	rootCmd.AddCommand(versionCmd)
+	createCmd.AddCommand(versionCmd)
 }
 
 func printVersion(_ *cobra.Command, _ []string) {

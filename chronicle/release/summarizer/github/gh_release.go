@@ -37,7 +37,6 @@ func fetchAllReleases(user, repo string) ([]ghRelease, error) {
 
 	// Query some details about a repository, an ghIssue in it, and its comments.
 	{
-
 		// TODO: act on hitting a rate limit
 		type rateLimit struct {
 			Cost      githubv4.Int

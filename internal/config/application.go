@@ -8,10 +8,10 @@ import (
 	"strings"
 
 	"github.com/adrg/xdg"
+	"github.com/anchore/chronicle/internal"
 	"github.com/mitchellh/go-homedir"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
-	"github.com/anchore/chronicle/internal"
 	"gopkg.in/yaml.v2"
 )
 
@@ -26,14 +26,15 @@ type parser interface {
 }
 
 type Application struct {
-	ConfigPath string         `yaml:",omitempty" json:"configPath"`               // the location where the application config was read from (either from -c or discovered while loading)
-	Output     string         `yaml:"output" json:"output" mapstructure:"output"` // -o, the Presenter hint string to use for report formatting
-	Quiet      bool           `yaml:"quiet" json:"quiet" mapstructure:"quiet"`    // -q, indicates to not show any status output to stderr (ETUI or logging UI)
-	Log        logging        `yaml:"log" json:"log" mapstructure:"log"`          // all logging-related options
-	RepoPath   string         `yaml:"repo-path" json:"repo-path" mapstructure:"repo-path"`
-	CliOptions CliOnlyOptions `yaml:"-" json:"-"` // all options only available through the CLI (not via env vars or config)
-	SinceTag   string         `yaml:"since-tag" json:"since-tag" mapstructure:"since-tag"`
-	UntilTag   string         `yaml:"until-tag" json:"until-tag" mapstructure:"until-tag"`
+	ConfigPath string           `yaml:",omitempty" json:"configPath"`               // the location where the application config was read from (either from -c or discovered while loading)
+	Output     string           `yaml:"output" json:"output" mapstructure:"output"` // -o, the Presenter hint string to use for report formatting
+	Quiet      bool             `yaml:"quiet" json:"quiet" mapstructure:"quiet"`    // -q, indicates to not show any status output to stderr (ETUI or logging UI)
+	Log        logging          `yaml:"log" json:"log" mapstructure:"log"`          // all logging-related options
+	CliOptions CliOnlyOptions   `yaml:"-" json:"-"`                                 // all options only available through the CLI (not via env vars or config)
+	SinceTag   string           `yaml:"since-tag" json:"since-tag" mapstructure:"since-tag"`
+	UntilTag   string           `yaml:"until-tag" json:"until-tag" mapstructure:"until-tag"`
+	Title      string           `yaml:"title" json:"title" mapstructure:"title"`
+	Github     githubSummarizer `yaml:"github" json:"github" mapstructure:"github"`
 }
 
 func newApplicationConfig(v *viper.Viper, cliOpts CliOnlyOptions) *Application {
@@ -68,7 +69,7 @@ func LoadApplicationConfig(v *viper.Viper, cliOpts CliOnlyOptions) (*Application
 // init loads the default configuration values into the viper instance (before the config values are read and parsed).
 func (cfg Application) loadDefaultValues(v *viper.Viper) {
 	// set the default values for primitive fields in this struct
-	v.SetDefault("check-for-app-update", true)
+	// TODO...
 
 	// for each field in the configuration struct, see if the field implements the defaultValueLoader interface and invoke it if it does
 	value := reflect.ValueOf(cfg)
@@ -110,6 +111,7 @@ func (cfg *Application) parseConfigValues() error {
 			default:
 				cfg.Log.LevelOpt = logrus.WarnLevel
 			}
+			cfg.Log.Level = cfg.Log.LevelOpt.String()
 		}
 	}
 
