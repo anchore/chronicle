@@ -88,7 +88,7 @@ bootstrap-tools: $(TEMPDIR)
 	GO111MODULE=off GOBIN=$(shell realpath $(TEMPDIR)) go get -u golang.org/x/perf/cmd/benchstat
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(TEMPDIR)/ v1.26.0
 	curl -sSfL https://raw.githubusercontent.com/wagoodman/go-bouncer/master/bouncer.sh | sh -s -- -b $(TEMPDIR)/ v0.2.0
-	.github/scripts/goreleaser-install.sh -b $(TEMPDIR)/ v0.177.0
+	.github/scripts/goreleaser-install.sh -b $(TEMPDIR)/ v0.182.1
 
 .PHONY: bootstrap-go
 bootstrap-go:
@@ -157,7 +157,24 @@ $(SNAPSHOTDIR): ## Build snapshot release binaries and packages
 
 	# build release snapshots
 	BUILD_GIT_TREE_STATE=$(GITTREESTATE) \
-	$(TEMPDIR)/goreleaser release --skip-publish --skip-sign --rm-dist --snapshot --config $(TEMPDIR)/goreleaser.yaml
+	$(TEMPDIR)/goreleaser build --snapshot --skip-validate --rm-dist --config $(TEMPDIR)/goreleaser.yaml
+
+.PHONY: release
+release: clean-dist  ## Build and publish final binaries and packages.
+	$(call title,Publishing release artifacts)
+
+	# create a config with the dist dir overridden
+	echo "dist: $(DISTDIR)" > $(TEMPDIR)/goreleaser.yaml
+	cat .goreleaser.yaml >> $(TEMPDIR)/goreleaser.yaml
+
+	# TODO: in the future add chronicle to generate changelogs
+	# release (note the version transformation from v0.7.0 --> 0.7.0)
+	bash -c "\
+		BUILD_GIT_TREE_STATE=$(GITTREESTATE) \
+		VERSION=$(VERSION:v%=%) \
+		$(TEMPDIR)/goreleaser \
+			--rm-dist \
+			--config $(TEMPDIR)/goreleaser.yaml "
 
 .PHONY: clean
 clean: clean-dist clean-snapshot ## Remove previous builds, result reports, and test cache
