@@ -14,7 +14,7 @@ func TestHeadTag(t *testing.T) {
 	}{
 		{
 			name:    "go case",
-			path:    "test-fixtures/tagged-repo",
+			path:    "test-fixtures/repos/tagged-repo",
 			expects: "v0.1.0",
 		},
 	}

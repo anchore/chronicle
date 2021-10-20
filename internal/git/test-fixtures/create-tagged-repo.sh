@@ -9,12 +9,12 @@ else
     echo "creating fixture..."
 fi
 
-git init tagged-repo
+git init repos/tagged-repo
 
-git config user.email "nope@nope.com"
-git config user.name "nope"
+pushd repos/tagged-repo
 
-pushd tagged-repo
+git config --local user.email "nope@nope.com"
+git config --local user.name "nope"
 
 trap 'popd' EXIT
 

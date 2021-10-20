@@ -9,12 +9,12 @@ else
     echo "creating fixture..."
 fi
 
-git init remote-repo
+git init repos/remote-repo
 
-git config user.email "nope@nope.com"
-git config user.name "nope"
+pushd repos/remote-repo
 
-pushd remote-repo
+git config --local user.email "nope@nope.com"
+git config --local user.name "nope"
 
 trap 'popd' EXIT
 

@@ -15,6 +15,8 @@ COVER_TOTAL = $(RESULTSDIR)/unit-coverage-summary.txt
 LINTCMD = $(TEMPDIR)/golangci-lint run --tests=false --timeout=2m --config .golangci.yaml
 # the quality gate lower threshold for unit test total % coverage (by function statements)
 COVERAGE_THRESHOLD := 25
+# CI cache busting values; change these if you want CI to not use previous stored cache
+FIXTURE_CACHE_BUSTER = "88738d2f"
 
 ## Build variables
 DISTDIR=./dist
@@ -93,7 +95,7 @@ bootstrap-go:
 	go mod download
 
 .PHONY: bootstrap
-bootstrap: $(RESULTSDIR) bootstrap-go bootstrap-tools fixtures ## Download and install all go dependencies (+ prep tooling in the ./tmp dir)
+bootstrap: $(RESULTSDIR) bootstrap-go bootstrap-tools ## Download and install all go dependencies (+ prep tooling in the ./tmp dir)
 	$(call title,Bootstrapping dependencies)
 
 .PHONY: static-analysis
@@ -140,6 +142,9 @@ unit: $(RESULTSDIR) fixtures ## Run unit tests (with coverage)
 fixtures:
 	$(call title,Generating test fixtures)
 	cd internal/git/test-fixtures && make
+
+fixtures-fingerprint:
+	find internal/git/test-fixtures/*.sh -type f -exec md5sum {} + | awk '{print $1}' | sort | md5sum | tee internal/git/test-fixtures/cache.fingerprint && echo "$(FIXTURE_CACHE_BUSTER)" >> internal/git/test-fixtures/cache.fingerprint
 
 .PHONY: build
 build: $(SNAPSHOTDIR) ## Build release snapshot binaries and packages

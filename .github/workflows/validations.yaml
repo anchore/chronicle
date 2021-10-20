@@ -80,15 +80,15 @@ jobs:
       - name: Bootstrap CI environment dependencies
         run: make ci-bootstrap
 
-      - name: Build cache key for java test-fixture blobs (for unit tests)
+      - name: Build cache key for test-fixturew
         run: make java-packages-fingerprint
 
-      - name: Restore Java test-fixture cache
+      - name: Restore test-fixture cache
         id: unit-java-cache
         uses: actions/cache@v2.1.3
         with:
-          path: syft/pkg/cataloger/java/test-fixtures/java-builds/packages
-          key: ${{ runner.os }}-unit-java-cache-${{ hashFiles( 'syft/pkg/cataloger/java/test-fixtures/java-builds/packages.fingerprint' ) }}
+          path: internal/git/test-fixtures
+          key: ${{ runner.os }}-unit-fixture-cache-${{ hashFiles( 'internal/git/test-fixtures/cache.fingerprint' ) }}
 
       - name: Run unit tests
         run: make unit
