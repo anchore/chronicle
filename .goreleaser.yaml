@@ -12,9 +12,9 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
-      # windows not supported yet (due to jotframe)
-      # - windows
+      - windows
       - linux
+      - darwin
     goarch:
       - amd64
     # Set the modified timestamp on the output binary to the git timestamp (to ensure a reproducible build)
