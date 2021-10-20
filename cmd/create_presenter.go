@@ -4,31 +4,32 @@ import (
 	"fmt"
 
 	"github.com/anchore/chronicle/chronicle/release"
-	"github.com/anchore/chronicle/chronicle/release/presenter"
-	"github.com/anchore/chronicle/chronicle/release/presenter/json"
-	"github.com/anchore/chronicle/chronicle/release/presenter/markdown"
+	"github.com/anchore/chronicle/chronicle/release/format"
+	"github.com/anchore/chronicle/chronicle/release/format/json"
+	"github.com/anchore/chronicle/chronicle/release/format/markdown"
+	"github.com/wagoodman/go-presenter"
 )
 
-type presentationTask func(description release.Description) (release.Presenter, error)
+type presentationTask func(description release.Description) (presenter.Presenter, error)
 
-func selectPresenter(format presenter.Format) (presentationTask, error) {
-	switch format {
-	case presenter.MarkdownFormat:
+func selectPresenter(f format.Format) (presentationTask, error) {
+	switch f {
+	case format.MarkdownFormat:
 		return presentMarkdown, nil
-	case presenter.JSONFormat:
+	case format.JSONFormat:
 		return presentJSON, nil
 	default:
-		return nil, fmt.Errorf("unsupported output format: %+v", format)
+		return nil, fmt.Errorf("unsupported output format: %+v", f)
 	}
 }
 
-func presentMarkdown(description release.Description) (release.Presenter, error) {
+func presentMarkdown(description release.Description) (presenter.Presenter, error) {
 	return markdown.NewMarkdownPresenter(markdown.Config{
 		Description: description,
 		Title:       appConfig.Title,
 	})
 }
 
-func presentJSON(description release.Description) (release.Presenter, error) {
+func presentJSON(description release.Description) (presenter.Presenter, error) {
 	return json.NewJSONPresenter(description)
 }

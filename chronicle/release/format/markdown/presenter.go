@@ -6,8 +6,8 @@ import (
 	"text/template"
 
 	"github.com/anchore/chronicle/chronicle/release"
-
 	"github.com/anchore/chronicle/chronicle/release/change"
+	"github.com/wagoodman/go-presenter"
 )
 
 const (
@@ -21,7 +21,7 @@ const (
 `
 )
 
-var _ release.Presenter = (*Presenter)(nil)
+var _ presenter.Presenter = (*Presenter)(nil)
 
 type Presenter struct {
 	config    Config
