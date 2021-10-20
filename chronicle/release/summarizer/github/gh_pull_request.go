@@ -101,6 +101,7 @@ func prsWithoutLabel(labels ...string) prFilter {
 	}
 }
 
+// nolint:funlen
 func fetchMergedPRs(user, repo string) ([]ghPullRequest, error) {
 	src := oauth2.StaticTokenSource(
 		// TODO: DI this

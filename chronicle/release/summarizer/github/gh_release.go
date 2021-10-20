@@ -26,6 +26,7 @@ func latestNonDraftRelease(releases []ghRelease) *ghRelease {
 	return nil
 }
 
+// nolint:funlen
 func fetchAllReleases(user, repo string) ([]ghRelease, error) {
 	src := oauth2.StaticTokenSource(
 		// TODO: DI this

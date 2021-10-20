@@ -17,7 +17,7 @@ import (
 var (
 	appConfig         *config.Application
 	eventBus          *partybus.Bus
-	eventSubscription *partybus.Subscription
+	eventSubscription *partybus.Subscription // nolint
 )
 
 func init() {

@@ -152,7 +152,7 @@ func (s *ChangeSummarizer) changesFromPRs(sinceRef, untilRef string) ([]change.C
 						URL:  pr.URL,
 					},
 					{
-						Text: fmt.Sprintf("%s", pr.Author),
+						Text: pr.Author,
 						URL:  fmt.Sprintf("https://%s/%s", s.config.Host, pr.Author),
 					},
 				},

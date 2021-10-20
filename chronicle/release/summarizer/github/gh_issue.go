@@ -79,6 +79,7 @@ func issuesWithoutLabel(labels ...string) issueFilter {
 	}
 }
 
+// nolint:funlen
 func fetchClosedIssues(user, repo string) ([]ghIssue, error) {
 	src := oauth2.StaticTokenSource(
 		// TODO: DI this
