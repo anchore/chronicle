@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eu -o pipefail
+set -eux -o pipefail
 
 if [ -d "/path/to/dir" ]
 then
@@ -10,6 +10,9 @@ else
 fi
 
 git init remote-repo
+
+git config user.email "nope@nope.com"
+git config user.name "nope"
 
 pushd remote-repo
 
