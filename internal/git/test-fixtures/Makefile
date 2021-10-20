@@ -1,9 +1,9 @@
 
 .PHONY: all
-all: remote-repo tagged-repo
+all: repos/remote-repo repos/tagged-repo
 
-remote-repo:
+repos/remote-repo:
 	./create-remote-repo.sh
 
-tagged-repo:
+repos/tagged-repo:
 	./create-tagged-repo.sh

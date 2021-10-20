@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eu -o pipefail
+set -eux -o pipefail
 
 if [ -d "/path/to/dir" ]
 then
@@ -9,9 +9,12 @@ else
     echo "creating fixture..."
 fi
 
-git init tagged-repo
+git init repos/tagged-repo
 
-pushd tagged-repo
+pushd repos/tagged-repo
+
+git config --local user.email "nope@nope.com"
+git config --local user.name "nope"
 
 trap 'popd' EXIT
 

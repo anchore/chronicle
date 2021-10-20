@@ -1,9 +1,3 @@
-BIN = chronicle
-TEMPDIR = ./.tmp
-RESULTSDIR = test/results
-COVER_REPORT = $(RESULTSDIR)/unit-coverage-details.txt
-COVER_TOTAL = $(RESULTSDIR)/unit-coverage-summary.txt
-LINTCMD = $(TEMPDIR)/golangci-lint run --tests=false --timeout=2m --config .golangci.yaml
 BOLD := $(shell tput -T linux bold)
 PURPLE := $(shell tput -T linux setaf 5)
 GREEN := $(shell tput -T linux setaf 2)
@@ -12,8 +6,17 @@ RED := $(shell tput -T linux setaf 1)
 RESET := $(shell tput -T linux sgr0)
 TITLE := $(BOLD)$(PURPLE)
 SUCCESS := $(BOLD)$(GREEN)
+
+BIN = chronicle
+TEMPDIR = ./.tmp
+RESULTSDIR = test/results
+COVER_REPORT = $(RESULTSDIR)/unit-coverage-details.txt
+COVER_TOTAL = $(RESULTSDIR)/unit-coverage-summary.txt
+LINTCMD = $(TEMPDIR)/golangci-lint run --tests=false --timeout=2m --config .golangci.yaml
 # the quality gate lower threshold for unit test total % coverage (by function statements)
 COVERAGE_THRESHOLD := 25
+# CI cache busting values; change these if you want CI to not use previous stored cache
+FIXTURE_CACHE_BUSTER = "88738d2f"
 
 ## Build variables
 DISTDIR=./dist
@@ -85,14 +88,14 @@ bootstrap-tools: $(TEMPDIR)
 	GO111MODULE=off GOBIN=$(shell realpath $(TEMPDIR)) go get -u golang.org/x/perf/cmd/benchstat
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(TEMPDIR)/ v1.26.0
 	curl -sSfL https://raw.githubusercontent.com/wagoodman/go-bouncer/master/bouncer.sh | sh -s -- -b $(TEMPDIR)/ v0.2.0
-	curl -sfL https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh | sh -s -- -b $(TEMPDIR)/ v0.177.0
+	.github/scripts/goreleaser-install.sh -b $(TEMPDIR)/ v0.177.0
 
 .PHONY: bootstrap-go
 bootstrap-go:
 	go mod download
 
 .PHONY: bootstrap
-bootstrap: $(RESULTSDIR) bootstrap-go bootstrap-tools fixtures ## Download and install all go dependencies (+ prep tooling in the ./tmp dir)
+bootstrap: $(RESULTSDIR) bootstrap-go bootstrap-tools ## Download and install all go dependencies (+ prep tooling in the ./tmp dir)
 	$(call title,Bootstrapping dependencies)
 
 .PHONY: static-analysis
@@ -139,6 +142,9 @@ unit: $(RESULTSDIR) fixtures ## Run unit tests (with coverage)
 fixtures:
 	$(call title,Generating test fixtures)
 	cd internal/git/test-fixtures && make
+
+fixtures-fingerprint:
+	find internal/git/test-fixtures/*.sh -type f -exec md5sum {} + | awk '{print $1}' | sort | md5sum | tee internal/git/test-fixtures/cache.fingerprint && echo "$(FIXTURE_CACHE_BUSTER)" >> internal/git/test-fixtures/cache.fingerprint
 
 .PHONY: build
 build: $(SNAPSHOTDIR) ## Build release snapshot binaries and packages
