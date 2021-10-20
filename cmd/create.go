@@ -7,7 +7,7 @@ import (
 
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
-	"github.com/anchore/chronicle/chronicle/release/presenter"
+	"github.com/anchore/chronicle/chronicle/release/format"
 	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
 	"github.com/scylladb/go-set/strset"
@@ -40,8 +40,8 @@ func init() {
 
 func setCreateFlags(flags *pflag.FlagSet) {
 	flags.StringP(
-		"output", "o", string(presenter.Default()),
-		fmt.Sprintf("output format to use: %+v", presenter.All()),
+		"output", "o", string(format.Default()),
+		fmt.Sprintf("output format to use: %+v", format.All()),
 	)
 
 	flags.StringP(
@@ -82,7 +82,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	format := presenter.FromString(appConfig.Output)
+	format := format.FromString(appConfig.Output)
 	if format == nil {
 		return fmt.Errorf("unable to parse output format: %q", appConfig.Output)
 	}

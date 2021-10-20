@@ -7,12 +7,11 @@ import (
 	"time"
 
 	"github.com/anchore/chronicle/chronicle/release"
-
 	"github.com/anchore/chronicle/chronicle/release/change"
-
 	"github.com/anchore/go-testutils"
 	"github.com/sergi/go-diff/diffmatchpatch"
 	"github.com/stretchr/testify/assert"
+	"github.com/wagoodman/go-presenter"
 )
 
 var updateMarkdownPresenterGoldenFiles = flag.Bool("update-markdown", false, "update the *.golden files for markdown presenters")
@@ -88,7 +87,7 @@ func TestMarkdownPresenter_Present(t *testing.T) {
 
 type redactor func(s []byte) []byte
 
-func assertPresenterAgainstGoldenSnapshot(t *testing.T, pres release.Presenter, updateSnapshot bool, redactors ...redactor) {
+func assertPresenterAgainstGoldenSnapshot(t *testing.T, pres presenter.Presenter, updateSnapshot bool, redactors ...redactor) {
 	t.Helper()
 
 	var buffer bytes.Buffer
