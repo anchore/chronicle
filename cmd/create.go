@@ -18,9 +18,20 @@ import (
 
 var createCmd = &cobra.Command{
 	Use:   "create [PATH]",
-	Short: "generate a changelog",
-	Args:  cobra.MaximumNArgs(1),
-	RunE:  runCreate,
+	Short: "Generate a changelog from GitHub issues and PRs",
+	Long: `Generate a changelog from GitHub issues and PRs.
+
+chronicle [flags] [PATH]
+
+Create a changelog representing the changes from tag v0.14.0 until the present (for ./)
+	chronicle --since-tag v0.14.0
+
+Create a changelog representing the changes from tag v0.14.0 until v0.18.0 (for ../path/to/repo)
+	chronicle --since-tag v0.14.0 --until-tag v0.18.0 ../path/to/repo
+
+`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runCreate,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		var repo = "./"
 		if len(args) == 1 {
@@ -28,6 +39,8 @@ var createCmd = &cobra.Command{
 				return fmt.Errorf("given path is not a git repository: %s", args[0])
 			}
 			repo = args[0]
+		} else {
+			log.Infof("no repository path given, assuming %q", repo)
 		}
 		appConfig.CliOptions.RepoPath = repo
 		return nil
