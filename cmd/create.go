@@ -49,6 +49,8 @@ Create a changelog representing the changes from tag v0.14.0 until v0.18.0 (for 
 
 func init() {
 	setCreateFlags(createCmd.Flags())
+
+	rootCmd.AddCommand(createCmd)
 }
 
 func setCreateFlags(flags *pflag.FlagSet) {
