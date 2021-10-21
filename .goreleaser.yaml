@@ -17,6 +17,7 @@ builds:
       - darwin
     goarch:
       - amd64
+      - arm64
     # Set the modified timestamp on the output binary to the git timestamp (to ensure a reproducible build)
     mod_timestamp: '{{ .CommitTimestamp }}'
     ldflags: |
@@ -27,3 +28,27 @@ builds:
       -X github.com/anchore/chronicle/internal/version.gitCommit={{.Commit}}
       -X github.com/anchore/chronicle/internal/version.buildDate={{.Date}}
       -X github.com/anchore/chronicle/internal/version.gitTreeState={{.Env.BUILD_GIT_TREE_STATE}}
+
+nfpms:
+  -
+    formats:
+      - deb
+      - rpm
+    vendor: "anchore"
+    homepage: "https://github.com/anchore/chronicle"
+    maintainer: "Alex Goodman <alex.goodman@anchore.com>"
+    description: "A fast changelog generator sourced from PRs and Issues"
+    license: "Apache-2.0"
+    file_name_template: "{{.ProjectName}}_{{.Version}}_{{.Os}}-{{.Arch}}"
+    replacements:
+      amd64: 64bit
+      arm64: ARM64
+      darwin: macOS
+      linux: Linux
+
+universal_binaries:
+  - replace: true
+
+checksum:
+  ids:
+    - chronicle
