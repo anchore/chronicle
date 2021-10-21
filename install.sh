@@ -345,7 +345,7 @@ hash_sha256_verify() {
 		return 1
 	fi
 	BASENAME=${TARGET##*/}
-	want=$(grep "${BASENAME}" "${checksums}" 2>/dev/null | tr '\t' ' ' | cut -d ' ' -f 1)
+	want=$(grep -i "${BASENAME}" "${checksums}" 2>/dev/null | tr '\t' ' ' | cut -d ' ' -f 1)
 	if [ -z "$want" ]; then
 		log_err "hash_sha256_verify unable to find checksum for '${TARGET}' in '${checksums}'"
 		return 1
@@ -398,7 +398,7 @@ log_info "found version: ${VERSION} for ${TAG}/${OS}/${ARCH}"
 NAME=${PROJECT_NAME}_${VERSION}_${OS}_${ARCH}
 TARBALL=${NAME}.${FORMAT}
 TARBALL_URL=${GITHUB_DOWNLOAD}/${TAG}/${TARBALL}
-CHECKSUM=checksums.txt
+CHECKSUM=${PROJECT_NAME}_${VERSION}_checksums.txt
 CHECKSUM_URL=${GITHUB_DOWNLOAD}/${TAG}/${CHECKSUM}
 
 execute
