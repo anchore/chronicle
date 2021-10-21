@@ -1,5 +1,13 @@
 # chronicle
 
+[![Validations](https://github.com/anchore/chronicle/actions/workflows/validations.yaml/badge.svg)](https://github.com/anchore/chronicle/actions/workflows/validations.yaml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/anchore/chronicle)](https://goreportcard.com/report/github.com/anchore/chronicle)
+[![GitHub release](https://img.shields.io/github/release/anchore/chronicle.svg)](https://github.com/anchore/chronicle/releases/latest)
+[![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/anchore/chronicle.svg)](https://github.com/anchore/chronicle)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/anchore/chronicle/blob/main/LICENSE)
+[![Slack Invite](https://img.shields.io/badge/Slack-Join-blue?logo=slack)](https://anchore.com/slack)
+
+
 A fast changelog generator that sources changes from GitHub PRs and issues, organized by labels.
 
 ```bash
@@ -7,16 +15,15 @@ chronicle --since-tag v0.16.0
 chronicle --since-tag v0.16.0 --until-tag v0.18.0
 ```
 
-TODO:
-- [x] include PRs
-- [x] Add exclusion by label(s) (both PR and issue)
-- [ ] Add (optional) merged PRs section (that don't have labels that allow change type selection)
-- [ ] Add (optional) closed issue section (that don't have labels that allow change type selection)
-- [ ] Chain set of changelogs from previous release changelogs (pull from releases MD for each... separate command)
-- [ ] Markdown: add assignee(s) name + url (issues)
-- [ ] Repo extraction: extract from multiple URL sources (not just git, e.g. git@github.com:someone/project.git... should at least support https)
-- [ ] Support rate limit detection and retry
-- [x] Merged PRs linked to closed PRs: don't show the change for the PR, show the issue
+## Installation
 
-Questions:
-- For linked issues/prs. If there is a merged PR linked to an issue that isn't closed, what do we do?
+```bash
+curl -sSfL https://raw.githubusercontent.com/anchore/chronicle/main/install.sh | sh -s -- -b /usr/local/bin
+```
+
+...or, you can specify a release version and destination directory for the installation:
+
+```
+curl -sSfL https://raw.githubusercontent.com/anchore/chronicle/main/install.sh | sh -s -- -b <DESTINATION_DIR> <RELEASE_VERSION>
+```
+
