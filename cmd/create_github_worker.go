@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
@@ -10,6 +11,7 @@ import (
 	"github.com/anchore/chronicle/internal/log"
 )
 
+// nolint:funlen
 func createChangelogFromGithub() (*release.Description, error) {
 	summer, err := github.NewChangeSummarizer(appConfig.CliOptions.RepoPath, appConfig.Github.ToGithubConfig())
 	if err != nil {
@@ -31,8 +33,10 @@ func createChangelogFromGithub() (*release.Description, error) {
 	log.Infof("since ref=%q date=%q", lastRelease.Version, lastRelease.Date)
 
 	releaseVersion := appConfig.UntilTag
+	releaseDisplayVersion := releaseVersion
 	if releaseVersion == "" {
-		releaseVersion = "(unreleased)"
+		releaseVersion = "(Unreleased)"
+		releaseDisplayVersion = releaseVersion
 		// check if the current commit is tagged, then use that
 		releaseTag, err := git.HeadTagOrCommit(appConfig.CliOptions.RepoPath)
 		if err != nil {
@@ -61,7 +65,10 @@ func createChangelogFromGithub() (*release.Description, error) {
 	}
 
 	return &release.Description{
-		Release:          *lastRelease,
+		Release: release.Release{
+			Version: releaseDisplayVersion,
+			Date:    time.Now(),
+		},
 		VCSTagURL:        summer.TagURL(lastRelease.Version),
 		VCSChangesURL:    summer.ChangesURL(lastRelease.Version, appConfig.UntilTag),
 		Changes:          changes,
