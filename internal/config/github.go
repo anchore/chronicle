@@ -40,7 +40,7 @@ func (cfg githubSummarizer) loadDefaultValues(v *viper.Viper) {
 	v.SetDefault("github.host", "github.com")
 	v.SetDefault("github.include-prs", false)
 	v.SetDefault("github.include-issues", true)
-	v.SetDefault("github.exclude-labels", []string{"duplicate", "question", "invalid", "wontfix"})
+	v.SetDefault("github.exclude-labels", []string{"duplicate", "question", "invalid", "wontfix", "wont-fix", "release-ignore", "changelog-ignore", "ignore"})
 	v.SetDefault("github.changes", []githubChange{
 		{
 			Type:   "security-fixes",
@@ -60,7 +60,7 @@ func (cfg githubSummarizer) loadDefaultValues(v *viper.Viper) {
 		{
 			Type:   "breaking-feature",
 			Title:  "Breaking Changes",
-			Labels: []string{"breaking", "backwards-incompatible"},
+			Labels: []string{"breaking", "backwards-incompatible", "breaking-change", "breaking-feature"},
 		},
 		{
 			Type:   "removed-feature",
