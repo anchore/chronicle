@@ -107,7 +107,7 @@ adjust_os() {
 	# adjust archive name based on OS
 	case ${OS} in
 	386) OS=i386 ;;
-	amd64) OS=x86_64 ;;
+	amd64) OS=amd64 ;;
 	darwin) OS=Darwin ;;
 	linux) OS=Linux ;;
 	windows) OS=Windows ;;
@@ -118,7 +118,7 @@ adjust_arch() {
 	# adjust archive name based on ARCH
 	case ${ARCH} in
 	386) ARCH=i386 ;;
-	amd64) ARCH=x86_64 ;;
+	amd64) ARCH=amd64 ;;
 	darwin) ARCH=Darwin ;;
 	linux) ARCH=Linux ;;
 	windows) ARCH=Windows ;;
