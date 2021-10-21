@@ -2,6 +2,7 @@ package github
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/anchore/chronicle/internal/log"
@@ -36,7 +37,7 @@ func NewChangeSummarizer(path string, config Config) (*ChangeSummarizer, error) 
 
 	user, repo := extractGithubUserAndRepo(repoURL)
 	if user == "" || repo == "" {
-		return nil, fmt.Errorf("failed to parse repo=%q URL", repoURL)
+		return nil, fmt.Errorf("failed to extract owner and repo from %q", repoURL)
 	}
 
 	log.Debugf("github owner=%q repo=%q path=%q", user, repo, path)
@@ -215,18 +216,33 @@ func (s *ChangeSummarizer) changesFromIssues(sinceRef, untilRef string) ([]chang
 	return summaries, nil
 }
 
-// TODO: extract from multiple URL sources (not just git, e.g. git@github.com:someone/project.git... should at least support https)
-// TODO: clean this up
-func extractGithubUserAndRepo(url string) (string, string) {
-	if !strings.HasPrefix(url, "git@") {
-		return "", ""
-	}
-	fields := strings.Split(strings.TrimSuffix(url, ".git"), ":")
-	pair := strings.Split(fields[len(fields)-1], "/")
+func extractGithubUserAndRepo(u string) (string, string) {
+	switch {
+	// e.g. git@github.com:anchore/chronicle.git
+	case strings.HasPrefix(u, "git@"):
+		fields := strings.Split(u, ":")
+		pair := strings.Split(fields[len(fields)-1], "/")
 
-	if len(pair) != 2 {
-		return "", ""
-	}
+		if len(pair) != 2 {
+			return "", ""
+		}
 
-	return pair[0], pair[1]
+		return pair[0], strings.TrimSuffix(pair[1], ".git")
+
+	// https://github.com/anchore/chronicle.git
+	case strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://"):
+		urlObj, err := url.Parse(u)
+		if err != nil {
+			return "", ""
+		}
+
+		fields := strings.Split(strings.TrimPrefix(urlObj.Path, "/"), "/")
+
+		if len(fields) != 2 {
+			return "", ""
+		}
+
+		return fields[0], strings.TrimSuffix(fields[1], ".git")
+	}
+	return "", ""
 }
