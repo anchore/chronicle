@@ -80,6 +80,11 @@ func NewLogrusLogger(cfg LogrusConfig) *LogrusLogger {
 	}
 }
 
+// Tracef takes a formatted template string and template arguments for the trace logging level.
+func (l *LogrusLogger) Tracef(format string, args ...interface{}) {
+	l.Logger.Tracef(format, args...)
+}
+
 // Debugf takes a formatted template string and template arguments for the debug logging level.
 func (l *LogrusLogger) Debugf(format string, args ...interface{}) {
 	l.Logger.Debugf(format, args...)
@@ -98,6 +103,11 @@ func (l *LogrusLogger) Warnf(format string, args ...interface{}) {
 // Errorf takes a formatted template string and template arguments for the error logging level.
 func (l *LogrusLogger) Errorf(format string, args ...interface{}) {
 	l.Logger.Errorf(format, args...)
+}
+
+// Trace logs the given arguments at the trace logging level.
+func (l *LogrusLogger) Trace(args ...interface{}) {
+	l.Logger.Trace(args...)
 }
 
 // Debug logs the given arguments at the debug logging level.
@@ -120,6 +130,11 @@ func (l *LogrusLogger) Error(args ...interface{}) {
 	l.Logger.Error(args...)
 }
 
+// Tracef takes a formatted template string and template arguments for the trace logging level.
+func (l *LogrusNestedLogger) Tracef(format string, args ...interface{}) {
+	l.Logger.Tracef(format, args...)
+}
+
 // Debugf takes a formatted template string and template arguments for the debug logging level.
 func (l *LogrusNestedLogger) Debugf(format string, args ...interface{}) {
 	l.Logger.Debugf(format, args...)
@@ -138,6 +153,11 @@ func (l *LogrusNestedLogger) Warnf(format string, args ...interface{}) {
 // Errorf takes a formatted template string and template arguments for the error logging level.
 func (l *LogrusNestedLogger) Errorf(format string, args ...interface{}) {
 	l.Logger.Errorf(format, args...)
+}
+
+// Trace logs the given arguments at the trace logging level.
+func (l *LogrusNestedLogger) Trace(args ...interface{}) {
+	l.Logger.Trace(args...)
 }
 
 // Debug logs the given arguments at the debug logging level.

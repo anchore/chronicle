@@ -12,7 +12,7 @@ import (
 	"github.com/anchore/chronicle/internal/git"
 )
 
-var _ release.Summarizer = (*ChangeSummarizer)(nil)
+var _ release.Summarizer = (*Summarizer)(nil)
 
 type Config struct {
 	Host               string
@@ -22,14 +22,14 @@ type Config struct {
 	ChangeTypesByLabel change.TypeSet
 }
 
-type ChangeSummarizer struct {
+type Summarizer struct {
 	repoPath string
 	userName string
 	repoName string
 	config   Config
 }
 
-func NewChangeSummarizer(path string, config Config) (*ChangeSummarizer, error) {
+func NewSummarizer(path string, config Config) (*Summarizer, error) {
 	repoURL, err := git.RemoteURL(path)
 	if err != nil {
 		return nil, err
@@ -42,7 +42,7 @@ func NewChangeSummarizer(path string, config Config) (*ChangeSummarizer, error) 
 
 	log.Debugf("github owner=%q repo=%q path=%q", user, repo, path)
 
-	return &ChangeSummarizer{
+	return &Summarizer{
 		repoPath: path,
 		userName: user,
 		repoName: repo,
@@ -50,7 +50,7 @@ func NewChangeSummarizer(path string, config Config) (*ChangeSummarizer, error) 
 	}, nil
 }
 
-func (s *ChangeSummarizer) Release(ref string) (*release.Release, error) {
+func (s *Summarizer) Release(ref string) (*release.Release, error) {
 	targetRelease, err := fetchRelease(s.userName, s.repoName, ref)
 	if err != nil {
 		return nil, err
@@ -61,15 +61,15 @@ func (s *ChangeSummarizer) Release(ref string) (*release.Release, error) {
 	}, nil
 }
 
-func (s *ChangeSummarizer) ReferenceURL(tag string) string {
-	return fmt.Sprintf("https://%s/%s/%s/tree/%s", s.config.Host, s.userName, s.repoName, tag)
+func (s *Summarizer) ReferenceURL(ref string) string {
+	return fmt.Sprintf("https://%s/%s/%s/tree/%s", s.config.Host, s.userName, s.repoName, ref)
 }
 
-func (s *ChangeSummarizer) ChangesURL(sinceRef, untilRef string) string {
+func (s *Summarizer) ChangesURL(sinceRef, untilRef string) string {
 	return fmt.Sprintf("https://%s/%s/%s/compare/%s...%s", s.config.Host, s.userName, s.repoName, sinceRef, untilRef)
 }
 
-func (s *ChangeSummarizer) LastRelease() (*release.Release, error) {
+func (s *Summarizer) LastRelease() (*release.Release, error) {
 	releases, err := fetchAllReleases(s.userName, s.repoName)
 	if err != nil {
 		return nil, fmt.Errorf("unable to fetch all releases: %v", err)
@@ -84,7 +84,7 @@ func (s *ChangeSummarizer) LastRelease() (*release.Release, error) {
 	return nil, fmt.Errorf("unable to find latest release")
 }
 
-func (s *ChangeSummarizer) Changes(sinceRef, untilRef string) ([]change.Change, error) {
+func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error) {
 	var changes []change.Change
 
 	if s.config.IncludePRs {
@@ -106,11 +106,13 @@ func (s *ChangeSummarizer) Changes(sinceRef, untilRef string) ([]change.Change, 
 	return changes, nil
 }
 
-func (s *ChangeSummarizer) changesFromPRs(sinceRef, untilRef string) ([]change.Change, error) {
-	allClosedPRs, err := fetchMergedPRs(s.userName, s.repoName)
+func (s *Summarizer) changesFromPRs(sinceRef, untilRef string) ([]change.Change, error) {
+	allMergedPRs, err := fetchMergedPRs(s.userName, s.repoName)
 	if err != nil {
 		return nil, err
 	}
+
+	log.Debugf("total merged PRs discovered: %d", len(allMergedPRs))
 
 	sinceTag, err := git.SearchForTag(s.repoPath, sinceRef)
 	if err != nil {
@@ -137,7 +139,9 @@ func (s *ChangeSummarizer) changesFromPRs(sinceRef, untilRef string) ([]change.C
 		filters = append(filters, prsBefore(untilTag.Timestamp))
 	}
 
-	filteredPRs := filterPRs(allClosedPRs, filters...)
+	filteredPRs := filterPRs(allMergedPRs, filters...)
+
+	log.Debugf("PRs contributing to changelog: %d", len(filteredPRs))
 
 	var summaries []change.Change
 	for _, pr := range filteredPRs {
@@ -165,11 +169,13 @@ func (s *ChangeSummarizer) changesFromPRs(sinceRef, untilRef string) ([]change.C
 	return summaries, nil
 }
 
-func (s *ChangeSummarizer) changesFromIssues(sinceRef, untilRef string) ([]change.Change, error) {
+func (s *Summarizer) changesFromIssues(sinceRef, untilRef string) ([]change.Change, error) {
 	allClosedIssues, err := fetchClosedIssues(s.userName, s.repoName)
 	if err != nil {
 		return nil, err
 	}
+
+	log.Debugf("total closed issues discovered: %d", len(allClosedIssues))
 
 	sinceTag, err := git.SearchForTag(s.repoPath, sinceRef)
 	if err != nil {
@@ -192,6 +198,8 @@ func (s *ChangeSummarizer) changesFromIssues(sinceRef, untilRef string) ([]chang
 	}
 
 	filteredIssues := filterIssues(allClosedIssues, filters...)
+
+	log.Debugf("issues contributing to changelog: %d", len(filteredIssues))
 
 	var summaries []change.Change
 	for _, issue := range filteredIssues {

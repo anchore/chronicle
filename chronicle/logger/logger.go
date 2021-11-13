@@ -9,4 +9,6 @@ type Logger interface {
 	Info(args ...interface{})
 	Debugf(format string, args ...interface{})
 	Debug(args ...interface{})
+	Tracef(format string, args ...interface{})
+	Trace(args ...interface{})
 }
