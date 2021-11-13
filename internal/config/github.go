@@ -38,7 +38,7 @@ func (cfg githubSummarizer) ToGithubConfig() github.Config {
 
 func (cfg githubSummarizer) loadDefaultValues(v *viper.Viper) {
 	v.SetDefault("github.host", "github.com")
-	v.SetDefault("github.include-prs", false)
+	v.SetDefault("github.include-prs", true)
 	v.SetDefault("github.include-issues", true)
 	v.SetDefault("github.exclude-labels", []string{"duplicate", "question", "invalid", "wontfix", "wont-fix", "release-ignore", "changelog-ignore", "ignore"})
 	v.SetDefault("github.changes", []githubChange{

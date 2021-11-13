@@ -10,3 +10,5 @@ func (l *nopLogger) Infof(format string, args ...interface{})  {}
 func (l *nopLogger) Info(args ...interface{})                  {}
 func (l *nopLogger) Debugf(format string, args ...interface{}) {}
 func (l *nopLogger) Debug(args ...interface{})                 {}
+func (l *nopLogger) Tracef(format string, args ...interface{}) {}
+func (l *nopLogger) Trace(args ...interface{})                 {}

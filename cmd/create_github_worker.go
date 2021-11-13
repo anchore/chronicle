@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/anchore/chronicle/internal"
+
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/chronicle/release/summarizer/github"
@@ -12,7 +14,7 @@ import (
 )
 
 func createChangelogFromGithub() (*release.Description, error) {
-	summer, err := github.NewChangeSummarizer(appConfig.CliOptions.RepoPath, appConfig.Github.ToGithubConfig())
+	summer, err := github.NewSummarizer(appConfig.CliOptions.RepoPath, appConfig.Github.ToGithubConfig())
 	if err != nil {
 		return nil, fmt.Errorf("unable to create summarizer: %w", err)
 	}
@@ -29,16 +31,23 @@ func createChangelogFromGithub() (*release.Description, error) {
 			return nil, fmt.Errorf("unable to determine last release: %w", err)
 		}
 	}
-	log.Infof("since ref=%q date=%q", lastRelease.Version, lastRelease.Date)
 
-	releaseVersion, releaseDisplayVersion, err := getCurrentReleaseInfo(appConfig.UntilTag, appConfig.CliOptions.RepoPath)
+	log.Infof("since tag=%q date=%q", lastRelease.Version, internal.FormatDateTime(lastRelease.Date))
+
+	releaseTag, releaseCommit, err := getCurrentReleaseInfo(appConfig.UntilTag, appConfig.CliOptions.RepoPath)
 	if err != nil {
 		return nil, err
 	}
+	releaseVersion := releaseTag
+	releaseDisplayVersion := releaseTag
+	if releaseTag == "" {
+		releaseDisplayVersion = "(Unreleased)"
+		releaseVersion = releaseCommit
+	}
 
-	log.Infof("until ref=%q", releaseVersion)
+	log.Infof("until tag=%q commit=%q", releaseTag, releaseCommit)
 
-	changes, err := summer.Changes(lastRelease.Version, releaseVersion)
+	changes, err := summer.Changes(lastRelease.Version, releaseTag)
 	if err != nil {
 		return nil, fmt.Errorf("unable to summarize changes: %w", err)
 	}
@@ -71,20 +80,21 @@ func getCurrentReleaseInfo(explicitReleaseVersion, repoPath string) (string, str
 		return explicitReleaseVersion, explicitReleaseVersion, nil
 	}
 
+	commitRef, err := git.HeadCommit(repoPath)
+	if err != nil {
+		return "", "", fmt.Errorf("problem while attempting to find head ref: %w", err)
+	}
+
 	// check if the current commit is tagged, then use that
 	releaseTag, err := git.HeadTag(repoPath)
 	if err != nil {
 		return "", "", fmt.Errorf("problem while attempting to find head tag: %w", err)
 	}
 	if releaseTag != "" {
-		return releaseTag, releaseTag, nil
+		// a tag was found, reference it
+		return releaseTag, commitRef, nil
 	}
 
 	// fallback to referencing the commit directly
-	commitRef, err := git.HeadCommit(repoPath)
-	if err != nil {
-		return "", "", fmt.Errorf("problem while attempting to find head ref: %w", err)
-	}
-
-	return commitRef, "(Unreleased)", nil
+	return "", commitRef, nil
 }

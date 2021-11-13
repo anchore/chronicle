@@ -5,6 +5,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/anchore/chronicle/internal/log"
+
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 )
@@ -43,13 +45,21 @@ prLoop:
 
 func prsAfter(since time.Time) prFilter {
 	return func(pr ghPullRequest) bool {
-		return pr.MergedAt.After(since)
+		keep := pr.MergedAt.After(since)
+		if !keep {
+			log.Tracef("PR #%d filtered out: merged before %s", pr.Number, since.Format("2006-01-02 15:04"))
+		}
+		return keep
 	}
 }
 
 func prsBefore(since time.Time) prFilter {
 	return func(pr ghPullRequest) bool {
-		return pr.MergedAt.Before(since)
+		keep := pr.MergedAt.Before(since)
+		if !keep {
+			log.Tracef("PR #%d filtered out: merged after %s", pr.Number, since.Format("2006-01-02 15:04"))
+		}
+		return keep
 	}
 }
 
@@ -57,6 +67,7 @@ func prsWithClosedLinkedIssue() prFilter {
 	return func(pr ghPullRequest) bool {
 		for _, i := range pr.LinkedIssues {
 			if i.Closed {
+				log.Tracef("PR #%d filtered out: has closed linked issue", pr.Number)
 				return false
 			}
 		}
@@ -68,6 +79,8 @@ func prsWithOpenLinkedIssue() prFilter {
 	return func(pr ghPullRequest) bool {
 		for _, i := range pr.LinkedIssues {
 			if !i.Closed {
+				log.Tracef("PR #%d filtered out: has linked issue that is still open: issue %d", pr.Number, i.Number)
+
 				return false
 			}
 		}
@@ -84,6 +97,8 @@ func prsWithLabel(labels ...string) prFilter {
 				}
 			}
 		}
+		log.Tracef("PR #%d filtered out: missing required label", pr.Number)
+
 		return false
 	}
 }
@@ -93,10 +108,12 @@ func prsWithoutLabel(labels ...string) prFilter {
 		for _, targetLabel := range labels {
 			for _, l := range pr.Labels {
 				if l == targetLabel {
+					log.Tracef("PR #%d filtered out: has label %q", pr.Number, l)
 					return false
 				}
 			}
 		}
+
 		return true
 	}
 }
@@ -220,11 +237,6 @@ func fetchMergedPRs(user, repo string) ([]ghPullRequest, error) {
 			}
 			variables["prCursor"] = githubv4.NewString(query.Repository.PullRequests.PageInfo.EndCursor)
 		}
-
-		//for idx, is := range allPRs {
-		//	fmt.Printf("%d: %+v\n", idx, is)
-		//}
-		//printJSON(limit)
 	}
 
 	return allPRs, nil

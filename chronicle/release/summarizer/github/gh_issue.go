@@ -5,6 +5,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/anchore/chronicle/internal"
+
+	"github.com/anchore/chronicle/internal/log"
+
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 )
@@ -43,13 +47,21 @@ issueLoop:
 
 func issuesAfter(since time.Time) issueFilter {
 	return func(issue ghIssue) bool {
-		return issue.ClosedAt.After(since)
+		keep := issue.ClosedAt.After(since)
+		if !keep {
+			log.Tracef("issue #%d filtered out: merged before %s", issue.Number, internal.FormatDateTime(since))
+		}
+		return keep
 	}
 }
 
 func issuesBefore(since time.Time) issueFilter {
 	return func(issue ghIssue) bool {
-		return issue.ClosedAt.Before(since)
+		keep := issue.ClosedAt.Before(since)
+		if !keep {
+			log.Tracef("issue #%d filtered out: merged after %s", issue.Number, internal.FormatDateTime(since))
+		}
+		return keep
 	}
 }
 
@@ -62,6 +74,9 @@ func issuesWithLabel(labels ...string) issueFilter {
 				}
 			}
 		}
+
+		log.Tracef("issue #%d filtered out: missing required label", issue.Number)
+
 		return false
 	}
 }
@@ -71,6 +86,8 @@ func issuesWithoutLabel(labels ...string) issueFilter {
 		for _, targetLabel := range labels {
 			for _, l := range issue.Labels {
 				if l == targetLabel {
+					log.Tracef("issue #%d filtered out: has label %q", issue.Number, l)
+
 					return false
 				}
 			}

@@ -106,8 +106,10 @@ func (cfg *Application) parseConfigValues() error {
 			switch v := cfg.CliOptions.Verbosity; {
 			case v == 1:
 				cfg.Log.LevelOpt = logrus.InfoLevel
-			case v >= 2:
+			case v == 2:
 				cfg.Log.LevelOpt = logrus.DebugLevel
+			case v >= 3:
+				cfg.Log.LevelOpt = logrus.TraceLevel
 			default:
 				cfg.Log.LevelOpt = logrus.WarnLevel
 			}
