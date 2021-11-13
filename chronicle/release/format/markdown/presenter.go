@@ -13,7 +13,7 @@ import (
 const (
 	markdownHeaderTemplate = `# {{.Title}}
 
-## [{{.Version}}]({{.VCSTagURL}}) ({{.Date}})
+## [{{.Version}}]({{.VCSTagURL}}) ({{ .Date.Format "2006-01-02" }})
 
 [Full Changelog]({{.VCSChangesURL}})
 
