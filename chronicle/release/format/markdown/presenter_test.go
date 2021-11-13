@@ -51,8 +51,8 @@ func TestMarkdownPresenter_Present(t *testing.T) {
 						Version: "v0.19.1",
 						Date:    time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
 					},
-					VCSTagURL:     "https://github.com/anchore/syft/tree/v0.19.1",
-					VCSChangesURL: "https://github.com/anchore/syft/compare/v0.19.0...v0.19.1",
+					VCSReferenceURL: "https://github.com/anchore/syft/tree/v0.19.1",
+					VCSChangesURL:   "https://github.com/anchore/syft/compare/v0.19.0...v0.19.1",
 					Changes: []change.Change{
 						{
 							ChangeTypes: []change.Type{"bug"},
