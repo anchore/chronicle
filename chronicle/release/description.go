@@ -4,7 +4,7 @@ import "github.com/anchore/chronicle/chronicle/release/change"
 
 type Description struct {
 	Release
-	VCSTagURL        string
+	VCSReferenceURL  string
 	VCSChangesURL    string
 	Notice           string
 	Changes          change.Changes

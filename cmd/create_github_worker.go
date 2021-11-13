@@ -58,7 +58,7 @@ func createChangelogFromGithub() (*release.Description, error) {
 			Version: releaseDisplayVersion,
 			Date:    time.Now(),
 		},
-		VCSTagURL:        summer.TagURL(lastRelease.Version),
+		VCSReferenceURL:  summer.ReferenceURL(releaseVersion),
 		VCSChangesURL:    summer.ChangesURL(lastRelease.Version, releaseVersion),
 		Changes:          changes,
 		SupportedChanges: supportedChanges,

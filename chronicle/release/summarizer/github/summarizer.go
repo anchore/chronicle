@@ -61,7 +61,7 @@ func (s *ChangeSummarizer) Release(ref string) (*release.Release, error) {
 	}, nil
 }
 
-func (s *ChangeSummarizer) TagURL(tag string) string {
+func (s *ChangeSummarizer) ReferenceURL(tag string) string {
 	return fmt.Sprintf("https://%s/%s/%s/tree/%s", s.config.Host, s.userName, s.repoName, tag)
 }
 
