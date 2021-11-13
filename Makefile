@@ -34,10 +34,6 @@ ifeq "$(strip $(VERSION))" ""
  override VERSION = $(shell git describe --always --tags --dirty)
 endif
 
-# used to generate the changelog from the second to last tag to the current tag (used in the release pipeline when the release tag is in place)
-LAST_TAG := $(shell git describe --abbrev=0 --tags $(shell git rev-list --tags --max-count=1))
-SECOND_TO_LAST_TAG := $(shell git describe --abbrev=0 --tags $(shell git rev-list --tags --skip=1 --max-count=1))
-
 ## Variable assertions
 
 ifndef TEMPDIR
@@ -88,6 +84,8 @@ bootstrap-tools: $(TEMPDIR)
 	GO111MODULE=off GOBIN=$(shell realpath $(TEMPDIR)) go get -u golang.org/x/perf/cmd/benchstat
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(TEMPDIR)/ v1.26.0
 	curl -sSfL https://raw.githubusercontent.com/wagoodman/go-bouncer/master/bouncer.sh | sh -s -- -b $(TEMPDIR)/ v0.2.0
+	# we purposefully use the latest version of chronicle released
+	curl -sSfL https://raw.githubusercontent.com/anchore/chronicle/main/install.sh | sh -s -- -b $(TEMPDIR)/
 	.github/scripts/goreleaser-install.sh -b $(TEMPDIR)/ v0.182.1
 
 .PHONY: bootstrap-go
@@ -159,8 +157,19 @@ $(SNAPSHOTDIR): ## Build snapshot release binaries and packages
 	BUILD_GIT_TREE_STATE=$(GITTREESTATE) \
 	$(TEMPDIR)/goreleaser build --snapshot --skip-validate --rm-dist --config $(TEMPDIR)/goreleaser.yaml
 
+.PHONY: changelog
+changelog: clean-changelog CHANGELOG.md
+	@docker run -it --rm \
+		-v $(shell pwd)/CHANGELOG.md:/CHANGELOG.md \
+		rawkode/mdv \
+			-t 748.5989 \
+			/CHANGELOG.md
+
+CHANGELOG.md:
+	$(TEMPDIR)/chronicle -vv > CHANGELOG.md
+
 .PHONY: release
-release: clean-dist  ## Build and publish final binaries and packages.
+release: clean-dist CHANGELOG.md ## Build and publish final binaries and packages.
 	$(call title,Publishing release artifacts)
 
 	# create a config with the dist dir overridden
@@ -174,10 +183,11 @@ release: clean-dist  ## Build and publish final binaries and packages.
 		VERSION=$(VERSION:v%=%) \
 		$(TEMPDIR)/goreleaser \
 			--rm-dist \
-			--config $(TEMPDIR)/goreleaser.yaml "
+			--config $(TEMPDIR)/goreleaser.yaml  \
+			--release-notes <(cat CHANGELOG.md)"
 
 .PHONY: clean
-clean: clean-dist clean-snapshot ## Remove previous builds, result reports, and test cache
+clean: clean-dist clean-snapshot  ## Remove previous builds, result reports, and test cache
 	rm -rf $(RESULTSDIR)/*
 
 .PHONY: clean-snapshot
@@ -185,8 +195,12 @@ clean-snapshot:
 	rm -rf $(SNAPSHOTDIR) $(TEMPDIR)/goreleaser.yaml
 
 .PHONY: clean-dist
-clean-dist:
+clean-dist: clean-changelog
 	rm -rf $(DISTDIR) $(TEMPDIR)/goreleaser.yaml
+
+.PHONY: clean-changelog
+clean-changelog:
+	rm -f CHANGELOG.md
 
 .PHONY: help
 help:
