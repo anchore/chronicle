@@ -11,8 +11,16 @@
 A fast changelog generator that sources changes from GitHub PRs and issues, organized by labels.
 
 ```bash
+# create a changelog from the last GitHib release until the current git HEAD tag/commit
+# for the git repo in the current directory
+chronicle 
+
+# create a changelog with all changes from v0.16.0 until current git HEAD tag/commit
+# for the git repo in the current directory
 chronicle --since-tag v0.16.0
-chronicle --since-tag v0.16.0 --until-tag v0.18.0
+
+# create a changelog between two specific tags for a repo at the given path
+chronicle --since-tag v0.16.0 --until-tag v0.18.0 ./path/to/git/repo
 ```
 
 ## Installation
