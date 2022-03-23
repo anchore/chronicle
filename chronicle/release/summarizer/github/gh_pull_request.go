@@ -5,6 +5,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/anchore/chronicle/internal"
+
 	"github.com/anchore/chronicle/internal/log"
 
 	"github.com/shurcooL/githubv4"
@@ -43,21 +45,21 @@ prLoop:
 	return results
 }
 
-func prsAfter(since time.Time) prFilter {
+func prsAtOrAfter(since time.Time) prFilter {
 	return func(pr ghPullRequest) bool {
-		keep := pr.MergedAt.After(since)
+		keep := pr.MergedAt.After(since) || pr.MergedAt.Equal(since)
 		if !keep {
-			log.Tracef("PR #%d filtered out: merged before %s", pr.Number, since.Format("2006-01-02 15:04"))
+			log.Tracef("PR #%d filtered out: merged before %s (merged %s)", pr.Number, internal.FormatDateTime(since), internal.FormatDateTime(pr.MergedAt))
 		}
 		return keep
 	}
 }
 
-func prsBefore(since time.Time) prFilter {
+func prsAtOrBefore(since time.Time) prFilter {
 	return func(pr ghPullRequest) bool {
-		keep := pr.MergedAt.Before(since)
+		keep := pr.MergedAt.Before(since) || pr.MergedAt.Equal(since)
 		if !keep {
-			log.Tracef("PR #%d filtered out: merged after %s", pr.Number, since.Format("2006-01-02 15:04"))
+			log.Tracef("PR #%d filtered out: merged after %s (merged %s)", pr.Number, internal.FormatDateTime(since), internal.FormatDateTime(pr.MergedAt))
 		}
 		return keep
 	}
