@@ -45,21 +45,21 @@ issueLoop:
 	return results
 }
 
-func issuesAfter(since time.Time) issueFilter {
+func issuesAtOrAfter(since time.Time) issueFilter {
 	return func(issue ghIssue) bool {
-		keep := issue.ClosedAt.After(since)
+		keep := issue.ClosedAt.After(since) || issue.ClosedAt.Equal(since)
 		if !keep {
-			log.Tracef("issue #%d filtered out: merged before %s", issue.Number, internal.FormatDateTime(since))
+			log.Tracef("issue #%d filtered out: closed before %s (closed %s)", issue.Number, internal.FormatDateTime(since), internal.FormatDateTime(issue.ClosedAt))
 		}
 		return keep
 	}
 }
 
-func issuesBefore(since time.Time) issueFilter {
+func issuesAtOrBefore(since time.Time) issueFilter {
 	return func(issue ghIssue) bool {
-		keep := issue.ClosedAt.Before(since)
+		keep := issue.ClosedAt.Before(since) || issue.ClosedAt.Equal(since)
 		if !keep {
-			log.Tracef("issue #%d filtered out: merged after %s", issue.Number, internal.FormatDateTime(since))
+			log.Tracef("issue #%d filtered out: closed after %s (closed %s)", issue.Number, internal.FormatDateTime(since), internal.FormatDateTime(issue.ClosedAt))
 		}
 		return keep
 	}

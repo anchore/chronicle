@@ -120,7 +120,7 @@ func (s *Summarizer) changesFromPRs(sinceRef, untilRef string) ([]change.Change,
 	}
 
 	filters := []prFilter{
-		prsAfter(sinceTag.Timestamp),
+		prsAtOrAfter(sinceTag.Timestamp.UTC()),
 		prsWithLabel(s.config.ChangeTypesByLabel.Names()...),
 		prsWithoutLabel(s.config.ExcludeLabels...),
 		// Merged PRs linked to closed issues should be hidden so that the closed pr summary takes precedence
@@ -136,7 +136,7 @@ func (s *Summarizer) changesFromPRs(sinceRef, untilRef string) ([]change.Change,
 			return nil, err
 		}
 
-		filters = append(filters, prsBefore(untilTag.Timestamp))
+		filters = append(filters, prsAtOrBefore(untilTag.Timestamp.UTC()))
 	}
 
 	filteredPRs := filterPRs(allMergedPRs, filters...)
@@ -183,7 +183,7 @@ func (s *Summarizer) changesFromIssues(sinceRef, untilRef string) ([]change.Chan
 	}
 
 	filters := []issueFilter{
-		issuesAfter(sinceTag.Timestamp),
+		issuesAtOrAfter(sinceTag.Timestamp),
 		issuesWithLabel(s.config.ChangeTypesByLabel.Names()...),
 		issuesWithoutLabel(s.config.ExcludeLabels...),
 	}
@@ -194,7 +194,7 @@ func (s *Summarizer) changesFromIssues(sinceRef, untilRef string) ([]change.Chan
 			return nil, err
 		}
 
-		filters = append(filters, issuesBefore(untilTag.Timestamp))
+		filters = append(filters, issuesAtOrBefore(untilTag.Timestamp))
 	}
 
 	filteredIssues := filterIssues(allClosedIssues, filters...)

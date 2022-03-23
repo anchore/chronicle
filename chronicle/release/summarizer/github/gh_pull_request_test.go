@@ -24,6 +24,14 @@ func Test_prsAfter(t *testing.T) {
 			expected: false,
 		},
 		{
+			name:  "pr is equal to compare date",
+			since: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			pr: ghPullRequest{
+				MergedAt: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			},
+			expected: true,
+		},
+		{
 			name:  "pr is after compare date",
 			since: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
 			pr: ghPullRequest{
@@ -34,7 +42,7 @@ func Test_prsAfter(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.expected, prsAfter(test.since)(test.pr))
+			assert.Equal(t, test.expected, prsAtOrAfter(test.since)(test.pr))
 		})
 	}
 }
@@ -56,6 +64,14 @@ func Test_prsBefore(t *testing.T) {
 			expected: false,
 		},
 		{
+			name:  "pr is equal to compare date",
+			until: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			pr: ghPullRequest{
+				MergedAt: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			},
+			expected: true,
+		},
+		{
 			name:  "pr is before compare date",
 			until: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
 			pr: ghPullRequest{
@@ -66,7 +82,7 @@ func Test_prsBefore(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.expected, prsBefore(test.until)(test.pr))
+			assert.Equal(t, test.expected, prsAtOrBefore(test.until)(test.pr))
 		})
 	}
 }
