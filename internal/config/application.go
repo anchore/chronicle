@@ -33,6 +33,7 @@ type Application struct {
 	CliOptions CliOnlyOptions   `yaml:"-" json:"-"`                                 // all options only available through the CLI (not via env vars or config)
 	SinceTag   string           `yaml:"since-tag" json:"since-tag" mapstructure:"since-tag"`
 	UntilTag   string           `yaml:"until-tag" json:"until-tag" mapstructure:"until-tag"`
+	EnforceV0  bool             `yaml:"enforce-v0" json:"enforce-v0" mapstructure:"enforce-v0"`
 	Title      string           `yaml:"title" json:"title" mapstructure:"title"`
 	Github     githubSummarizer `yaml:"github" json:"github" mapstructure:"github"`
 }

@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/chronicle/release/summarizer/github"
 	"github.com/spf13/viper"
@@ -15,16 +17,22 @@ type githubSummarizer struct {
 }
 
 type githubChange struct {
-	Type   change.Type `yaml:"name" json:"name" mapstructure:"name"`
-	Title  string      `yaml:"title" json:"title" mapstructure:"title"`
-	Labels []string    `yaml:"labels" json:"labels" mapstructure:"labels"`
+	Type       string   `yaml:"name" json:"name" mapstructure:"name"`
+	Title      string   `yaml:"title" json:"title" mapstructure:"title"`
+	Labels     []string `yaml:"labels" json:"labels" mapstructure:"labels"`
+	SemVerKind string   `yaml:"semver-field" json:"semver-field" mapstructure:"semver-field"`
 }
 
-func (cfg githubSummarizer) ToGithubConfig() github.Config {
+func (cfg githubSummarizer) ToGithubConfig() (github.Config, error) {
 	typeSet := make(change.TypeSet)
 	for _, c := range cfg.Changes {
+		k := change.ParseSemVerKind(c.SemVerKind)
+		if k == change.SemVerUnknown {
+			return github.Config{}, fmt.Errorf("unknown semver field: %q", k)
+		}
+		t := change.NewType(c.Type, k)
 		for _, l := range c.Labels {
-			typeSet[l] = c.Type
+			typeSet[l] = t
 		}
 	}
 	return github.Config{
@@ -33,7 +41,7 @@ func (cfg githubSummarizer) ToGithubConfig() github.Config {
 		IncludePRs:         cfg.IncludePRs,
 		ExcludeLabels:      cfg.ExcludeLabels,
 		ChangeTypesByLabel: typeSet,
-	}
+	}, nil
 }
 
 func (cfg githubSummarizer) loadDefaultValues(v *viper.Viper) {
@@ -43,34 +51,40 @@ func (cfg githubSummarizer) loadDefaultValues(v *viper.Viper) {
 	v.SetDefault("github.exclude-labels", []string{"duplicate", "question", "invalid", "wontfix", "wont-fix", "release-ignore", "changelog-ignore", "ignore"})
 	v.SetDefault("github.changes", []githubChange{
 		{
-			Type:   "security-fixes",
-			Title:  "Security Fixes",
-			Labels: []string{"security", "vulnerability"},
+			Type:       "security-fixes",
+			Title:      "Security Fixes",
+			Labels:     []string{"security", "vulnerability"},
+			SemVerKind: change.SemVerPatch.String(),
 		},
 		{
-			Type:   "added-feature",
-			Title:  "Added Features",
-			Labels: []string{"enhancement", "feature"},
+			Type:       "added-feature",
+			Title:      "Added Features",
+			Labels:     []string{"enhancement", "feature", "minor"},
+			SemVerKind: change.SemVerMinor.String(),
 		},
 		{
-			Type:   "bug-fix",
-			Title:  "Bug Fixes",
-			Labels: []string{"bug", "fix", "bug-fix"},
+			Type:       "bug-fix",
+			Title:      "Bug Fixes",
+			Labels:     []string{"bug", "fix", "bug-fix", "patch"},
+			SemVerKind: change.SemVerPatch.String(),
 		},
 		{
-			Type:   "breaking-feature",
-			Title:  "Breaking Changes",
-			Labels: []string{"breaking", "backwards-incompatible", "breaking-change", "breaking-feature"},
+			Type:       "breaking-feature",
+			Title:      "Breaking Changes",
+			Labels:     []string{"breaking", "backwards-incompatible", "breaking-change", "breaking-feature", "major"},
+			SemVerKind: change.SemVerMajor.String(),
 		},
 		{
-			Type:   "removed-feature",
-			Title:  "Removed Features",
-			Labels: []string{"removed"},
+			Type:       "removed-feature",
+			Title:      "Removed Features",
+			Labels:     []string{"removed"},
+			SemVerKind: change.SemVerMajor.String(),
 		},
 		{
-			Type:   "deprecated-feature",
-			Title:  "Deprecated Features",
-			Labels: []string{"deprecated"},
+			Type:       "deprecated-feature",
+			Title:      "Deprecated Features",
+			Labels:     []string{"deprecated"},
+			SemVerKind: change.SemVerMinor.String(),
 		},
 	})
 }

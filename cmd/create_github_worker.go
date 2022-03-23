@@ -13,22 +13,26 @@ import (
 	"github.com/anchore/chronicle/internal/log"
 )
 
-func createChangelogFromGithub() (*release.Description, error) {
-	summer, err := github.NewSummarizer(appConfig.CliOptions.RepoPath, appConfig.Github.ToGithubConfig())
+func createChangelogFromGithub() (*release.Release, *release.Description, error) {
+	config, err := appConfig.Github.ToGithubConfig()
 	if err != nil {
-		return nil, fmt.Errorf("unable to create summarizer: %w", err)
+		return nil, nil, err
+	}
+	summer, err := github.NewSummarizer(appConfig.CliOptions.RepoPath, config)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to create summarizer: %w", err)
 	}
 
 	var lastRelease *release.Release
 	if appConfig.SinceTag != "" {
 		lastRelease, err = summer.Release(appConfig.SinceTag)
 		if err != nil {
-			return nil, fmt.Errorf("unable to fetch specific release: %w", err)
+			return nil, nil, fmt.Errorf("unable to fetch specific release: %w", err)
 		}
 	} else {
 		lastRelease, err = summer.LastRelease()
 		if err != nil {
-			return nil, fmt.Errorf("unable to determine last release: %w", err)
+			return nil, nil, fmt.Errorf("unable to determine last release: %w", err)
 		}
 	}
 
@@ -36,7 +40,7 @@ func createChangelogFromGithub() (*release.Description, error) {
 
 	releaseTag, releaseCommit, err := getCurrentReleaseInfo(appConfig.UntilTag, appConfig.CliOptions.RepoPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	releaseVersion := releaseTag
 	releaseDisplayVersion := releaseTag
@@ -49,20 +53,17 @@ func createChangelogFromGithub() (*release.Description, error) {
 
 	changes, err := summer.Changes(lastRelease.Version, releaseTag)
 	if err != nil {
-		return nil, fmt.Errorf("unable to summarize changes: %w", err)
+		return nil, nil, fmt.Errorf("unable to summarize changes: %w", err)
 	}
 
 	logChanges(changes)
 
-	var supportedChanges []change.TypeTitle
-	for _, c := range appConfig.Github.Changes {
-		supportedChanges = append(supportedChanges, change.TypeTitle{
-			ChangeType: c.Type,
-			Title:      c.Title,
-		})
+	supportedChanges, err := getSupportedChanges()
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return &release.Description{
+	return lastRelease, &release.Description{
 		Release: release.Release{
 			Version: releaseDisplayVersion,
 			Date:    time.Now(),
@@ -73,6 +74,23 @@ func createChangelogFromGithub() (*release.Description, error) {
 		SupportedChanges: supportedChanges,
 		Notice:           "", // TODO...
 	}, nil
+}
+
+func getSupportedChanges() ([]change.TypeTitle, error) {
+	var supportedChanges []change.TypeTitle
+	for _, c := range appConfig.Github.Changes {
+		// TODO: this could be one source of truth upstream
+		k := change.ParseSemVerKind(c.SemVerKind)
+		if k == change.SemVerUnknown {
+			return nil, fmt.Errorf("unable to parse semver kind: %q", c.SemVerKind)
+		}
+		t := change.NewType(c.Type, k)
+		supportedChanges = append(supportedChanges, change.TypeTitle{
+			ChangeType: t,
+			Title:      c.Title,
+		})
+	}
+	return supportedChanges, nil
 }
 
 func getCurrentReleaseInfo(explicitReleaseVersion, repoPath string) (string, string, error) {

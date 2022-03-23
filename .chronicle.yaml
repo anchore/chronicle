@@ -1,2 +1,4 @@
 github:
   include-prs: true
+log:
+  level: trace
