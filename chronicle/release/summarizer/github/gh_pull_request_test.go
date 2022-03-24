@@ -7,13 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_prsAfter(t *testing.T) {
+func Test_prsAtOrAfter(t *testing.T) {
 
 	tests := []struct {
-		name     string
-		pr       ghPullRequest
-		since    time.Time
-		expected bool
+		name  string
+		pr    ghPullRequest
+		since time.Time
+		keep  bool
 	}{
 		{
 			name:  "pr is before compare date",
@@ -21,7 +21,7 @@ func Test_prsAfter(t *testing.T) {
 			pr: ghPullRequest{
 				MergedAt: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
 			},
-			expected: false,
+			keep: false,
 		},
 		{
 			name:  "pr is equal to compare date",
@@ -29,7 +29,7 @@ func Test_prsAfter(t *testing.T) {
 			pr: ghPullRequest{
 				MergedAt: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
 			},
-			expected: true,
+			keep: true,
 		},
 		{
 			name:  "pr is after compare date",
@@ -37,23 +37,63 @@ func Test_prsAfter(t *testing.T) {
 			pr: ghPullRequest{
 				MergedAt: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
 			},
-			expected: true,
+			keep: true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.expected, prsAtOrAfter(test.since)(test.pr))
+			assert.Equal(t, test.keep, prsAtOrAfter(test.since)(test.pr))
 		})
 	}
 }
 
-func Test_prsBefore(t *testing.T) {
+func Test_prsAfter(t *testing.T) {
 
 	tests := []struct {
-		name     string
-		pr       ghPullRequest
-		until    time.Time
-		expected bool
+		name  string
+		pr    ghPullRequest
+		since time.Time
+		keep  bool
+	}{
+		{
+			name:  "pr is before compare date",
+			since: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			pr: ghPullRequest{
+				MergedAt: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			},
+			keep: false,
+		},
+		{
+			name:  "pr is equal to compare date",
+			since: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			pr: ghPullRequest{
+				MergedAt: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			},
+			keep: false,
+		},
+		{
+			name:  "pr is after compare date",
+			since: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			pr: ghPullRequest{
+				MergedAt: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			},
+			keep: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.keep, prsAfter(test.since)(test.pr))
+		})
+	}
+}
+
+func Test_prsAtOrBefore(t *testing.T) {
+
+	tests := []struct {
+		name  string
+		pr    ghPullRequest
+		until time.Time
+		keep  bool
 	}{
 		{
 			name:  "pr is after compare date",
@@ -61,7 +101,7 @@ func Test_prsBefore(t *testing.T) {
 			pr: ghPullRequest{
 				MergedAt: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
 			},
-			expected: false,
+			keep: false,
 		},
 		{
 			name:  "pr is equal to compare date",
@@ -69,7 +109,7 @@ func Test_prsBefore(t *testing.T) {
 			pr: ghPullRequest{
 				MergedAt: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
 			},
-			expected: true,
+			keep: true,
 		},
 		{
 			name:  "pr is before compare date",
@@ -77,12 +117,52 @@ func Test_prsBefore(t *testing.T) {
 			pr: ghPullRequest{
 				MergedAt: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
 			},
-			expected: true,
+			keep: true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.expected, prsAtOrBefore(test.until)(test.pr))
+			assert.Equal(t, test.keep, prsAtOrBefore(test.until)(test.pr))
+		})
+	}
+}
+
+func Test_prsBefore(t *testing.T) {
+
+	tests := []struct {
+		name  string
+		pr    ghPullRequest
+		until time.Time
+		keep  bool
+	}{
+		{
+			name:  "pr is after compare date",
+			until: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			pr: ghPullRequest{
+				MergedAt: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			},
+			keep: false,
+		},
+		{
+			name:  "pr is equal to compare date",
+			until: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			pr: ghPullRequest{
+				MergedAt: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			},
+			keep: false,
+		},
+		{
+			name:  "pr is before compare date",
+			until: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			pr: ghPullRequest{
+				MergedAt: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			},
+			keep: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.keep, prsBefore(test.until)(test.pr))
 		})
 	}
 }
@@ -90,10 +170,10 @@ func Test_prsBefore(t *testing.T) {
 func Test_prsWithLabel(t *testing.T) {
 
 	tests := []struct {
-		name     string
-		pr       ghPullRequest
-		labels   []string
-		expected bool
+		name   string
+		pr     ghPullRequest
+		labels []string
+		keep   bool
 	}{
 		{
 			name: "matches on label",
@@ -103,7 +183,7 @@ func Test_prsWithLabel(t *testing.T) {
 			pr: ghPullRequest{
 				Labels: []string{"something-else", "positive"},
 			},
-			expected: true,
+			keep: true,
 		},
 		{
 			name: "does not match on label",
@@ -113,12 +193,12 @@ func Test_prsWithLabel(t *testing.T) {
 			pr: ghPullRequest{
 				Labels: []string{"something-else", "negative"},
 			},
-			expected: false,
+			keep: false,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.expected, prsWithLabel(test.labels...)(test.pr))
+			assert.Equal(t, test.keep, prsWithLabel(test.labels...)(test.pr))
 		})
 	}
 }
@@ -126,10 +206,10 @@ func Test_prsWithLabel(t *testing.T) {
 func Test_prsWithoutLabel(t *testing.T) {
 
 	tests := []struct {
-		name     string
-		pr       ghPullRequest
-		labels   []string
-		expected bool
+		name   string
+		pr     ghPullRequest
+		labels []string
+		keep   bool
 	}{
 		{
 			name: "matches on label",
@@ -139,7 +219,7 @@ func Test_prsWithoutLabel(t *testing.T) {
 			pr: ghPullRequest{
 				Labels: []string{"something-else", "positive"},
 			},
-			expected: false,
+			keep: false,
 		},
 		{
 			name: "does not match on label",
@@ -149,22 +229,22 @@ func Test_prsWithoutLabel(t *testing.T) {
 			pr: ghPullRequest{
 				Labels: []string{"something-else", "negative"},
 			},
-			expected: true,
+			keep: true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.expected, prsWithoutLabel(test.labels...)(test.pr))
+			assert.Equal(t, test.keep, prsWithoutLabel(test.labels...)(test.pr))
 		})
 	}
 }
 
-func Test_prsWithClosedLinkedIssue(t *testing.T) {
+func Test_prsWithoutClosedLinkedIssue(t *testing.T) {
 
 	tests := []struct {
-		name     string
-		pr       ghPullRequest
-		expected bool
+		name string
+		pr   ghPullRequest
+		keep bool
 	}{
 		{
 			name: "has closed linked issue",
@@ -175,7 +255,7 @@ func Test_prsWithClosedLinkedIssue(t *testing.T) {
 					},
 				},
 			},
-			expected: false,
+			keep: false,
 		},
 		{
 			name: "open linked issue",
@@ -186,24 +266,24 @@ func Test_prsWithClosedLinkedIssue(t *testing.T) {
 					},
 				},
 			},
-			expected: true,
+			keep: true,
 		},
 		{
 			name: "no linked issue",
 			pr: ghPullRequest{
 				LinkedIssues: []ghIssue{},
 			},
-			expected: true,
+			keep: true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.expected, prsWithClosedLinkedIssue()(test.pr))
+			assert.Equal(t, test.keep, prsWithoutClosedLinkedIssue()(test.pr))
 		})
 	}
 }
 
-func Test_prsWithOpenLinkedIssue(t *testing.T) {
+func Test_prsWithoutOpenLinkedIssue(t *testing.T) {
 
 	tests := []struct {
 		name     string
@@ -243,7 +323,7 @@ func Test_prsWithOpenLinkedIssue(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.expected, prsWithOpenLinkedIssue()(test.pr))
+			assert.Equal(t, test.expected, prsWithoutOpenLinkedIssue()(test.pr))
 		})
 	}
 }

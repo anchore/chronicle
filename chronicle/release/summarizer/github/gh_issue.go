@@ -45,11 +45,12 @@ issueLoop:
 	return results
 }
 
+// nolint:deadcode,unused
 func issuesAtOrAfter(since time.Time) issueFilter {
 	return func(issue ghIssue) bool {
 		keep := issue.ClosedAt.After(since) || issue.ClosedAt.Equal(since)
 		if !keep {
-			log.Tracef("issue #%d filtered out: closed before %s (closed %s)", issue.Number, internal.FormatDateTime(since), internal.FormatDateTime(issue.ClosedAt))
+			log.Tracef("issue #%d filtered out: closed at or before %s (closed %s)", issue.Number, internal.FormatDateTime(since), internal.FormatDateTime(issue.ClosedAt))
 		}
 		return keep
 	}
@@ -58,6 +59,27 @@ func issuesAtOrAfter(since time.Time) issueFilter {
 func issuesAtOrBefore(since time.Time) issueFilter {
 	return func(issue ghIssue) bool {
 		keep := issue.ClosedAt.Before(since) || issue.ClosedAt.Equal(since)
+		if !keep {
+			log.Tracef("issue #%d filtered out: closed at or after %s (closed %s)", issue.Number, internal.FormatDateTime(since), internal.FormatDateTime(issue.ClosedAt))
+		}
+		return keep
+	}
+}
+
+func issuesAfter(since time.Time) issueFilter {
+	return func(issue ghIssue) bool {
+		keep := issue.ClosedAt.After(since)
+		if !keep {
+			log.Tracef("issue #%d filtered out: closed before %s (closed %s)", issue.Number, internal.FormatDateTime(since), internal.FormatDateTime(issue.ClosedAt))
+		}
+		return keep
+	}
+}
+
+// nolint:deadcode,unused
+func issuesBefore(since time.Time) issueFilter {
+	return func(issue ghIssue) bool {
+		keep := issue.ClosedAt.Before(since)
 		if !keep {
 			log.Tracef("issue #%d filtered out: closed after %s (closed %s)", issue.Number, internal.FormatDateTime(since), internal.FormatDateTime(issue.ClosedAt))
 		}

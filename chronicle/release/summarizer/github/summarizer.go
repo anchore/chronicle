@@ -119,27 +119,15 @@ func (s *Summarizer) changesFromPRs(sinceRef, untilRef string) ([]change.Change,
 		return nil, err
 	}
 
-	filters := []prFilter{
-		prsAtOrAfter(sinceTag.Timestamp.UTC()),
-		prsWithLabel(s.config.ChangeTypesByLabel.Names()...),
-		prsWithoutLabel(s.config.ExcludeLabels...),
-		// Merged PRs linked to closed issues should be hidden so that the closed pr summary takes precedence
-		prsWithClosedLinkedIssue(),
-		// Merged PRs with open issues indicates a partial implementation. When the last PR is merged for the pr
-		// the pr should be closed, then the feature should be included (by the pr, not the set of PRs)
-		prsWithOpenLinkedIssue(),
-	}
-
+	var untilTag *git.Tag
 	if untilRef != "" {
-		untilTag, err := git.SearchForTag(s.repoPath, untilRef)
+		untilTag, err = git.SearchForTag(s.repoPath, untilRef)
 		if err != nil {
 			return nil, err
 		}
-
-		filters = append(filters, prsAtOrBefore(untilTag.Timestamp.UTC()))
 	}
 
-	filteredPRs := filterPRs(allMergedPRs, filters...)
+	filteredPRs := filterPRs(allMergedPRs, standardPrFilters(s.config, sinceTag, untilTag)...)
 
 	log.Debugf("PRs contributing to changelog: %d", len(filteredPRs))
 
@@ -182,22 +170,15 @@ func (s *Summarizer) changesFromIssues(sinceRef, untilRef string) ([]change.Chan
 		return nil, err
 	}
 
-	filters := []issueFilter{
-		issuesAtOrAfter(sinceTag.Timestamp),
-		issuesWithLabel(s.config.ChangeTypesByLabel.Names()...),
-		issuesWithoutLabel(s.config.ExcludeLabels...),
-	}
-
+	var untilTag *git.Tag
 	if untilRef != "" {
-		untilTag, err := git.SearchForTag(s.repoPath, untilRef)
+		untilTag, err = git.SearchForTag(s.repoPath, untilRef)
 		if err != nil {
 			return nil, err
 		}
-
-		filters = append(filters, issuesAtOrBefore(untilTag.Timestamp))
 	}
 
-	filteredIssues := filterIssues(allClosedIssues, filters...)
+	filteredIssues := filterIssues(allClosedIssues, standardIssueFilters(s.config, sinceTag, untilTag)...)
 
 	log.Debugf("issues contributing to changelog: %d", len(filteredIssues))
 
@@ -253,4 +234,37 @@ func extractGithubUserAndRepo(u string) (string, string) {
 		return fields[0], strings.TrimSuffix(fields[1], ".git")
 	}
 	return "", ""
+}
+
+func standardIssueFilters(config Config, sinceTag, untilTag *git.Tag) []issueFilter {
+	// this represents the traits we wish to filter down to (not out).
+	filters := []issueFilter{
+		issuesAfter(sinceTag.Timestamp),
+		issuesWithLabel(config.ChangeTypesByLabel.Names()...),
+		issuesWithoutLabel(config.ExcludeLabels...),
+	}
+
+	if untilTag != nil {
+		filters = append(filters, issuesAtOrBefore(untilTag.Timestamp))
+	}
+	return filters
+}
+
+func standardPrFilters(config Config, sinceTag, untilTag *git.Tag) []prFilter {
+	// this represents the traits we wish to filter down to (not out).
+	filters := []prFilter{
+		prsAfter(sinceTag.Timestamp.UTC()),
+		prsWithLabel(config.ChangeTypesByLabel.Names()...),
+		prsWithoutLabel(config.ExcludeLabels...),
+		// Merged PRs linked to closed issues should be hidden so that the closed issue title takes precedence over the pr title
+		prsWithoutClosedLinkedIssue(),
+		// Merged PRs with open issues indicates a partial implementation. When the last PR is merged for the issue
+		// then the feature should be included (by the pr, not the set of PRs)
+		prsWithoutOpenLinkedIssue(),
+	}
+
+	if untilTag != nil {
+		filters = append(filters, prsAtOrBefore(untilTag.Timestamp.UTC()))
+	}
+	return filters
 }

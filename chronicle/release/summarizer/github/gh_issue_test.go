@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_issuesAfter(t *testing.T) {
+func Test_issuesAtOrAfter(t *testing.T) {
 
 	tests := []struct {
 		name     string
@@ -16,7 +16,7 @@ func Test_issuesAfter(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:  "pr is before compare date",
+			name:  "issue is before compare date",
 			since: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
 			issue: ghIssue{
 				ClosedAt: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
@@ -24,7 +24,7 @@ func Test_issuesAfter(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:  "pr is equal to compare date",
+			name:  "issue is equal to compare date",
 			since: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
 			issue: ghIssue{
 				ClosedAt: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
@@ -32,7 +32,7 @@ func Test_issuesAfter(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:  "pr is after compare date",
+			name:  "issue is after compare date",
 			since: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
 			issue: ghIssue{
 				ClosedAt: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
@@ -47,7 +47,47 @@ func Test_issuesAfter(t *testing.T) {
 	}
 }
 
-func Test_issuesBefore(t *testing.T) {
+func Test_issuesAfter(t *testing.T) {
+
+	tests := []struct {
+		name     string
+		issue    ghIssue
+		since    time.Time
+		expected bool
+	}{
+		{
+			name:  "issue is before compare date",
+			since: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			issue: ghIssue{
+				ClosedAt: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			},
+			expected: false,
+		},
+		{
+			name:  "issue is equal to compare date",
+			since: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			issue: ghIssue{
+				ClosedAt: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			},
+			expected: false,
+		},
+		{
+			name:  "issue is after compare date",
+			since: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			issue: ghIssue{
+				ClosedAt: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			},
+			expected: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, issuesAfter(test.since)(test.issue))
+		})
+	}
+}
+
+func Test_issuesAtOrBefore(t *testing.T) {
 
 	tests := []struct {
 		name     string
@@ -56,7 +96,7 @@ func Test_issuesBefore(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:  "pr is after compare date",
+			name:  "issue is after compare date",
 			until: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
 			issue: ghIssue{
 				ClosedAt: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
@@ -64,7 +104,7 @@ func Test_issuesBefore(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:  "pr is equal to compare date",
+			name:  "issue is equal to compare date",
 			until: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
 			issue: ghIssue{
 				ClosedAt: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
@@ -72,7 +112,7 @@ func Test_issuesBefore(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:  "pr is before compare date",
+			name:  "issue is before compare date",
 			until: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
 			issue: ghIssue{
 				ClosedAt: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
@@ -83,6 +123,46 @@ func Test_issuesBefore(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, test.expected, issuesAtOrBefore(test.until)(test.issue))
+		})
+	}
+}
+
+func Test_issuesBefore(t *testing.T) {
+
+	tests := []struct {
+		name     string
+		issue    ghIssue
+		until    time.Time
+		expected bool
+	}{
+		{
+			name:  "issue is after compare date",
+			until: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			issue: ghIssue{
+				ClosedAt: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			},
+			expected: false,
+		},
+		{
+			name:  "issue is equal to compare date",
+			until: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			issue: ghIssue{
+				ClosedAt: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			},
+			expected: false,
+		},
+		{
+			name:  "issue is before compare date",
+			until: time.Date(2021, time.September, 18, 19, 34, 0, 0, time.UTC),
+			issue: ghIssue{
+				ClosedAt: time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			},
+			expected: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, issuesBefore(test.until)(test.issue))
 		})
 	}
 }
