@@ -69,6 +69,11 @@ func setCreateFlags(flags *pflag.FlagSet) {
 		"tag to end changelog processing at (inclusive)",
 	)
 
+	flags.BoolP(
+		"speculate-next-version", "n", false,
+		"guess the next release version based off of issues and PRs in cases where there is no semver tag after --since-tag (cannot use with --until-tag)",
+	)
+
 	flags.StringP(
 		"title", "t", "Changelog",
 		"The title of the changelog output",
@@ -81,6 +86,7 @@ func bindCreateConfigOptions(flags *pflag.FlagSet) error {
 		"since-tag",
 		"until-tag",
 		"title",
+		"speculate-next-version",
 	} {
 		if err := viper.BindPFlag(flag, flags.Lookup(flag)); err != nil {
 			return err
@@ -125,6 +131,7 @@ func logChanges(changes change.Changes) {
 
 	set := strset.New()
 	count := make(map[string]int)
+	lookup := make(map[string]change.Type)
 	for _, c := range changes {
 		for _, ty := range c.ChangeTypes {
 			_, exists := count[ty.Name]
@@ -133,6 +140,7 @@ func logChanges(changes change.Changes) {
 			}
 			count[ty.Name]++
 			set.Add(ty.Name)
+			lookup[ty.Name] = ty
 		}
 	}
 
@@ -144,6 +152,11 @@ func logChanges(changes change.Changes) {
 		if idx == len(typeNames)-1 {
 			branch = "└──"
 		}
-		log.Debugf("  %s %s: %d", branch, tyName, count[tyName])
+		t := lookup[tyName]
+		if t.Kind != change.SemVerUnknown {
+			log.Debugf("  %s %s (%s bump): %d", branch, tyName, t.Kind, count[tyName])
+		} else {
+			log.Debugf("  %s %s: %d", branch, tyName, count[tyName])
+		}
 	}
 }

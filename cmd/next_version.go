@@ -3,12 +3,10 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 
-	"github.com/anchore/chronicle/chronicle/release/change"
+	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
-	"github.com/coreos/go-semver/semver"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -60,54 +58,17 @@ func bindNextVersionConfigOptions(flags *pflag.FlagSet) error {
 func runNextVersion(cmd *cobra.Command, args []string) error {
 	worker := selectWorker(appConfig.CliOptions.RepoPath)
 
-	release, description, err := worker()
+	lastRelease, description, err := worker()
 	if err != nil {
 		return err
 	}
 
-	var breaking, feature, patch bool
-	for _, c := range description.Changes {
-		for _, chTy := range c.ChangeTypes {
-			switch chTy.Kind {
-			case change.SemVerMajor:
-				if appConfig.EnforceV0 {
-					feature = true
-				} else {
-					breaking = true
-				}
-			case change.SemVerMinor:
-				feature = true
-			case change.SemVerPatch:
-				patch = true
-			}
-		}
+	nextVersion, err := release.FindNextVersion(lastRelease.Version, description.Changes, appConfig.EnforceV0)
+	if err != nil {
+		return err
 	}
 
-	v := semver.New(strings.TrimLeft(release.Version, "v"))
-	original := *v
-
-	if patch {
-		v.BumpPatch()
-	}
-
-	if feature {
-		v.BumpMinor()
-	}
-
-	if breaking {
-		v.BumpMajor()
-	}
-
-	if v.String() == original.String() {
-		return fmt.Errorf("no changes found that affect the version (changes=%d)", len(description.Changes))
-	}
-
-	prefix := ""
-	if strings.HasPrefix("v", release.Version) {
-		prefix = "v"
-	}
-
-	_, err = os.Stdout.Write([]byte(prefix + v.String()))
+	_, err = os.Stdout.Write([]byte(nextVersion))
 
 	return err
 }
