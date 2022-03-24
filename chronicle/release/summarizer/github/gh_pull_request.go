@@ -45,11 +45,12 @@ prLoop:
 	return results
 }
 
+// nolint:deadcode,unused
 func prsAtOrAfter(since time.Time) prFilter {
 	return func(pr ghPullRequest) bool {
 		keep := pr.MergedAt.After(since) || pr.MergedAt.Equal(since)
 		if !keep {
-			log.Tracef("PR #%d filtered out: merged before %s (merged %s)", pr.Number, internal.FormatDateTime(since), internal.FormatDateTime(pr.MergedAt))
+			log.Tracef("PR #%d filtered out: merged at or before %s (merged %s)", pr.Number, internal.FormatDateTime(since), internal.FormatDateTime(pr.MergedAt))
 		}
 		return keep
 	}
@@ -59,13 +60,34 @@ func prsAtOrBefore(since time.Time) prFilter {
 	return func(pr ghPullRequest) bool {
 		keep := pr.MergedAt.Before(since) || pr.MergedAt.Equal(since)
 		if !keep {
+			log.Tracef("PR #%d filtered out: merged at or after %s (merged %s)", pr.Number, internal.FormatDateTime(since), internal.FormatDateTime(pr.MergedAt))
+		}
+		return keep
+	}
+}
+
+func prsAfter(since time.Time) prFilter {
+	return func(pr ghPullRequest) bool {
+		keep := pr.MergedAt.After(since)
+		if !keep {
+			log.Tracef("PR #%d filtered out: merged before %s (merged %s)", pr.Number, internal.FormatDateTime(since), internal.FormatDateTime(pr.MergedAt))
+		}
+		return keep
+	}
+}
+
+// nolint:deadcode,unused
+func prsBefore(since time.Time) prFilter {
+	return func(pr ghPullRequest) bool {
+		keep := pr.MergedAt.Before(since)
+		if !keep {
 			log.Tracef("PR #%d filtered out: merged after %s (merged %s)", pr.Number, internal.FormatDateTime(since), internal.FormatDateTime(pr.MergedAt))
 		}
 		return keep
 	}
 }
 
-func prsWithClosedLinkedIssue() prFilter {
+func prsWithoutClosedLinkedIssue() prFilter {
 	return func(pr ghPullRequest) bool {
 		for _, i := range pr.LinkedIssues {
 			if i.Closed {
@@ -77,7 +99,7 @@ func prsWithClosedLinkedIssue() prFilter {
 	}
 }
 
-func prsWithOpenLinkedIssue() prFilter {
+func prsWithoutOpenLinkedIssue() prFilter {
 	return func(pr ghPullRequest) bool {
 		for _, i := range pr.LinkedIssues {
 			if !i.Closed {
