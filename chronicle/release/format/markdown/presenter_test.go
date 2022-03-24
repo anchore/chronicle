@@ -31,19 +31,19 @@ func TestMarkdownPresenter_Present(t *testing.T) {
 				Description: release.Description{
 					SupportedChanges: []change.TypeTitle{
 						{
-							ChangeType: "bug",
+							ChangeType: change.NewType("bug", change.SemVerPatch),
 							Title:      "Bug Fixes",
 						},
 						{
-							ChangeType: "added",
+							ChangeType: change.NewType("added", change.SemVerMinor),
 							Title:      "Added Features",
 						},
 						{
-							ChangeType: "breaking",
+							ChangeType: change.NewType("breaking", change.SemVerMajor),
 							Title:      "Breaking Changes",
 						},
 						{
-							ChangeType: "removed",
+							ChangeType: change.NewType("removed", change.SemVerMajor),
 							Title:      "Removed Features",
 						},
 					},
@@ -55,7 +55,7 @@ func TestMarkdownPresenter_Present(t *testing.T) {
 					VCSChangesURL:   "https://github.com/anchore/syft/compare/v0.19.0...v0.19.1",
 					Changes: []change.Change{
 						{
-							ChangeTypes: []change.Type{"bug"},
+							ChangeTypes: []change.Type{change.NewType("bug", change.SemVerPatch)},
 							Text:        "Redirect cursor hide/show to stderr",
 							References: []change.Reference{
 								{
@@ -65,15 +65,15 @@ func TestMarkdownPresenter_Present(t *testing.T) {
 							},
 						},
 						{
-							ChangeTypes: []change.Type{"added"},
+							ChangeTypes: []change.Type{change.NewType("added", change.SemVerMinor)},
 							Text:        "added feature",
 						},
 						{
-							ChangeTypes: []change.Type{"added"},
+							ChangeTypes: []change.Type{change.NewType("added", change.SemVerMinor)},
 							Text:        "another added feature",
 						},
 						{
-							ChangeTypes: []change.Type{"breaking"},
+							ChangeTypes: []change.Type{change.NewType("breaking", change.SemVerMajor)},
 							Text:        "breaking change",
 						},
 					},

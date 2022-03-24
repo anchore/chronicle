@@ -1,6 +1,8 @@
 package release
 
-import "time"
+import (
+	"time"
+)
 
 type Release struct {
 	Version string

@@ -69,6 +69,11 @@ func setCreateFlags(flags *pflag.FlagSet) {
 		"tag to end changelog processing at (inclusive)",
 	)
 
+	flags.BoolP(
+		"speculate-next-version", "n", false,
+		"guess the next release version based off of issues and PRs in cases where there is no semver tag after --since-tag (cannot use with --until-tag)",
+	)
+
 	flags.StringP(
 		"title", "t", "Changelog",
 		"The title of the changelog output",
@@ -81,6 +86,7 @@ func bindCreateConfigOptions(flags *pflag.FlagSet) error {
 		"since-tag",
 		"until-tag",
 		"title",
+		"speculate-next-version",
 	} {
 		if err := viper.BindPFlag(flag, flags.Lookup(flag)); err != nil {
 			return err
@@ -92,17 +98,17 @@ func bindCreateConfigOptions(flags *pflag.FlagSet) error {
 func runCreate(cmd *cobra.Command, args []string) error {
 	worker := selectWorker(appConfig.CliOptions.RepoPath)
 
-	description, err := worker()
+	_, description, err := worker()
 	if err != nil {
 		return err
 	}
 
-	format := format.FromString(appConfig.Output)
-	if format == nil {
+	f := format.FromString(appConfig.Output)
+	if f == nil {
 		return fmt.Errorf("unable to parse output format: %q", appConfig.Output)
 	}
 
-	presenterTask, err := selectPresenter(*format)
+	presenterTask, err := selectPresenter(*f)
 	if err != nil {
 		return err
 	}
@@ -115,7 +121,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	return p.Present(os.Stdout)
 }
 
-func selectWorker(repo string) func() (*release.Description, error) {
+func selectWorker(repo string) func() (*release.Release, *release.Description, error) {
 	// TODO: we only support github, but this is the spot to add support for other providers such as GitLab or Bitbucket or other VCSs altogether, such as subversion.
 	return createChangelogFromGithub
 }
@@ -124,26 +130,33 @@ func logChanges(changes change.Changes) {
 	log.Infof("discovered changes: %d", len(changes))
 
 	set := strset.New()
-	count := make(map[change.Type]int)
+	count := make(map[string]int)
+	lookup := make(map[string]change.Type)
 	for _, c := range changes {
 		for _, ty := range c.ChangeTypes {
-			_, exists := count[ty]
+			_, exists := count[ty.Name]
 			if !exists {
-				count[ty] = 0
+				count[ty.Name] = 0
 			}
-			count[ty]++
-			set.Add(string(ty))
+			count[ty.Name]++
+			set.Add(ty.Name)
+			lookup[ty.Name] = ty
 		}
 	}
 
-	types := set.List()
-	sort.Strings(types)
+	typeNames := set.List()
+	sort.Strings(typeNames)
 
-	for idx, ty := range types {
+	for idx, tyName := range typeNames {
 		var branch = "├──"
-		if idx == len(types)-1 {
+		if idx == len(typeNames)-1 {
 			branch = "└──"
 		}
-		log.Debugf("  %s %s: %d", branch, ty, count[change.Type(ty)])
+		t := lookup[tyName]
+		if t.Kind != change.SemVerUnknown {
+			log.Debugf("  %s %s (%s bump): %d", branch, tyName, t.Kind, count[tyName])
+		} else {
+			log.Debugf("  %s %s: %d", branch, tyName, count[tyName])
+		}
 	}
 }

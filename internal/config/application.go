@@ -26,15 +26,17 @@ type parser interface {
 }
 
 type Application struct {
-	ConfigPath string           `yaml:",omitempty" json:"configPath"`               // the location where the application config was read from (either from -c or discovered while loading)
-	Output     string           `yaml:"output" json:"output" mapstructure:"output"` // -o, the Presenter hint string to use for report formatting
-	Quiet      bool             `yaml:"quiet" json:"quiet" mapstructure:"quiet"`    // -q, indicates to not show any status output to stderr (ETUI or logging UI)
-	Log        logging          `yaml:"log" json:"log" mapstructure:"log"`          // all logging-related options
-	CliOptions CliOnlyOptions   `yaml:"-" json:"-"`                                 // all options only available through the CLI (not via env vars or config)
-	SinceTag   string           `yaml:"since-tag" json:"since-tag" mapstructure:"since-tag"`
-	UntilTag   string           `yaml:"until-tag" json:"until-tag" mapstructure:"until-tag"`
-	Title      string           `yaml:"title" json:"title" mapstructure:"title"`
-	Github     githubSummarizer `yaml:"github" json:"github" mapstructure:"github"`
+	ConfigPath           string           `yaml:",omitempty" json:"configPath"`                                                               // the location where the application config was read from (either from -c or discovered while loading)
+	Output               string           `yaml:"output" json:"output" mapstructure:"output"`                                                 // -o, the Presenter hint string to use for report formatting
+	Quiet                bool             `yaml:"quiet" json:"quiet" mapstructure:"quiet"`                                                    // -q, indicates to not show any status output to stderr (ETUI or logging UI)
+	Log                  logging          `yaml:"log" json:"log" mapstructure:"log"`                                                          // all logging-related options
+	CliOptions           CliOnlyOptions   `yaml:"-" json:"-"`                                                                                 // all options only available through the CLI (not via env vars or config)
+	SpeculateNextVersion bool             `yaml:"speculate-next-version" json:"speculate-next-version" mapstructure:"speculate-next-version"` // -n, guess the next version based on issues and PRs
+	SinceTag             string           `yaml:"since-tag" json:"since-tag" mapstructure:"since-tag"`
+	UntilTag             string           `yaml:"until-tag" json:"until-tag" mapstructure:"until-tag"`
+	EnforceV0            bool             `yaml:"enforce-v0" json:"enforce-v0" mapstructure:"enforce-v0"`
+	Title                string           `yaml:"title" json:"title" mapstructure:"title"`
+	Github               githubSummarizer `yaml:"github" json:"github" mapstructure:"github"`
 }
 
 func newApplicationConfig(v *viper.Viper, cliOpts CliOnlyOptions) *Application {
@@ -84,6 +86,10 @@ func (cfg Application) loadDefaultValues(v *viper.Viper) {
 
 // build inflates simple config values into native objects (or other complex objects) after the config is fully read in.
 func (cfg *Application) parseConfigValues() error {
+	if cfg.SpeculateNextVersion && cfg.UntilTag != "" {
+		return errors.New("cannot specify both --speculate-next-version and --until-tag")
+	}
+
 	if cfg.Quiet {
 		// TODO: this is bad: quiet option trumps all other logging options
 		// we should be able to quiet the console logging and leave file logging alone...
