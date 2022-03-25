@@ -21,12 +21,13 @@ func TestFindNextVersion(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		release   string
-		changes   change.Changes
-		enforceV0 bool
-		want      string
-		wantErr   require.ErrorAssertionFunc
+		name                string
+		release             string
+		changes             change.Changes
+		enforceV0           bool
+		bumpPatchOnNoChange bool
+		want                string
+		wantErr             require.ErrorAssertionFunc
 	}{
 		{
 			name:    "bump major version",
@@ -101,14 +102,26 @@ func TestFindNextVersion(t *testing.T) {
 			want: "0.1.6",
 		},
 		{
-			name:    "honor no prefix",
-			release: "0.1.5",
+			name:                "no changes -- bump patch",
+			release:             "0.1.5",
+			bumpPatchOnNoChange: true,
 			changes: []change.Change{
 				{
-					ChangeTypes: []change.Type{patchChange},
+					ChangeTypes: []change.Type{},
 				},
 			},
 			want: "0.1.6",
+		},
+		{
+			name:                "no changes -- error",
+			release:             "0.1.5",
+			bumpPatchOnNoChange: false,
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{},
+				},
+			},
+			wantErr: require.Error,
 		},
 		{
 			name:    "error on bad version",
@@ -121,7 +134,7 @@ func TestFindNextVersion(t *testing.T) {
 			if tt.wantErr == nil {
 				tt.wantErr = require.NoError
 			}
-			got, err := FindNextVersion(tt.release, tt.changes, tt.enforceV0)
+			got, err := FindNextVersion(tt.release, tt.changes, tt.enforceV0, tt.bumpPatchOnNoChange)
 			tt.wantErr(t, err)
 			assert.Equal(t, tt.want, got)
 		})

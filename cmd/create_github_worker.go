@@ -56,7 +56,7 @@ func createChangelogFromGithub() (*release.Release, *release.Description, error)
 }
 
 func getChanges(lastReleaseVersion string, summer release.Summarizer) (string, string, []change.Change, error) {
-	releaseTag, releaseCommit, err := getCurrentReleaseInfo(appConfig.UntilTag, appConfig.CliOptions.RepoPath)
+	releaseTag, releaseCommit, err := getCurrentReleaseTagInfo(summer, appConfig.UntilTag, appConfig.CliOptions.RepoPath)
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -75,18 +75,21 @@ func getChanges(lastReleaseVersion string, summer release.Summarizer) (string, s
 	}
 
 	if appConfig.SpeculateNextVersion {
-		if releaseTag == "" {
-			nextReleaseVersion, err := release.FindNextVersion(lastReleaseVersion, changes, appConfig.EnforceV0)
+		if appConfig.UntilTag == "" {
+			nextUniqueVersion, nextIdealVersion, err := release.FindNextUniqueVersion(lastReleaseVersion, changes, appConfig.EnforceV0, true, appConfig.CliOptions.RepoPath)
 			if err != nil {
 				log.Warnf("unable to speculate next release version: %+v", err)
 			} else {
-				releaseTag = nextReleaseVersion
-				releaseVersion = nextReleaseVersion
-				releaseDisplayVersion = nextReleaseVersion
+				releaseTag = nextUniqueVersion
+				releaseVersion = nextUniqueVersion
+				releaseDisplayVersion = nextUniqueVersion
+				if nextUniqueVersion != nextIdealVersion {
+					log.Debugf("speculated a release version that matches an existing tag=%q, selecting the next best version...", nextIdealVersion)
+				}
 				log.Infof("speculative release version=%q", releaseTag)
 			}
 		} else {
-			log.Infof("not speculating next version since tag=%q was discovered")
+			log.Infof("not speculating next version until-version=%q was provided")
 		}
 	}
 
@@ -127,7 +130,7 @@ func getSupportedChanges() ([]change.TypeTitle, error) {
 	return supportedChanges, nil
 }
 
-func getCurrentReleaseInfo(explicitReleaseVersion, repoPath string) (string, string, error) {
+func getCurrentReleaseTagInfo(summer release.Summarizer, explicitReleaseVersion, repoPath string) (string, string, error) {
 	if explicitReleaseVersion != "" {
 		return explicitReleaseVersion, explicitReleaseVersion, nil
 	}
@@ -143,8 +146,13 @@ func getCurrentReleaseInfo(explicitReleaseVersion, repoPath string) (string, str
 		return "", "", fmt.Errorf("problem while attempting to find head tag: %w", err)
 	}
 	if releaseTag != "" {
-		// a tag was found, reference it
-		return releaseTag, commitRef, nil
+		// a tag was found, only reference it if there is no existing release for the tag
+		if _, err := summer.Release(releaseTag); err != nil {
+			// TODO: assert the error specifically confirms that the release does not exist, not just any error
+			// no release found, assume that this is the correct release info
+			return releaseTag, commitRef, nil
+		}
+		log.Debugf("found existing tag=%q however, it already has an associated release. ignoring...", releaseTag)
 	}
 
 	// fallback to referencing the commit directly
