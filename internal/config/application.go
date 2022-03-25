@@ -96,18 +96,7 @@ func (cfg *Application) parseConfigValues() error {
 		// ... this will be an enhancement for later
 		cfg.Log.LevelOpt = logrus.PanicLevel
 	} else {
-		if cfg.Log.Level != "" {
-			if cfg.CliOptions.Verbosity > 0 {
-				return fmt.Errorf("cannot explicitly set log level (cfg file or env var) and use -v flag together")
-			}
-
-			lvl, err := logrus.ParseLevel(strings.ToLower(cfg.Log.Level))
-			if err != nil {
-				return fmt.Errorf("bad log level configured (%q): %w", cfg.Log.Level, err)
-			}
-			// set the log level explicitly
-			cfg.Log.LevelOpt = lvl
-		} else {
+		if cfg.CliOptions.Verbosity > 0 {
 			// set the log level implicitly
 			switch v := cfg.CliOptions.Verbosity; {
 			case v == 1:
@@ -120,6 +109,13 @@ func (cfg *Application) parseConfigValues() error {
 				cfg.Log.LevelOpt = logrus.WarnLevel
 			}
 			cfg.Log.Level = cfg.Log.LevelOpt.String()
+		} else {
+			lvl, err := logrus.ParseLevel(strings.ToLower(cfg.Log.Level))
+			if err != nil {
+				return fmt.Errorf("bad log level configured (%q): %w", cfg.Log.Level, err)
+			}
+			// set the log level explicitly
+			cfg.Log.LevelOpt = lvl
 		}
 	}
 
