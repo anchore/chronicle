@@ -166,7 +166,7 @@ changelog: clean-changelog CHANGELOG.md
 			/CHANGELOG.md
 
 CHANGELOG.md:
-	$(TEMPDIR)/chronicle -vv > CHANGELOG.md
+	$(TEMPDIR)/chronicle > CHANGELOG.md
 
 .PHONY: release
 release: clean-dist CHANGELOG.md ## Build and publish final binaries and packages.
