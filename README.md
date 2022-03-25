@@ -85,7 +85,7 @@ log:
 
 # guess what the next release version is based on the current version and set of changes (cannot be used with --until-tag)
 # same as --speculate-next-version / -n ; CHRONICLE_SPECULATE_NEXT_VERSION env var
-speculate-next-version: true
+speculate-next-version: false
 
 # override the starting git tag for the changelog (default is to detect the last release automatically)
 # same as --since-tag / -s ; CHRONICLE_SINCE_TAG env var
