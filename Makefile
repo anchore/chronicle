@@ -14,7 +14,7 @@ COVER_REPORT = $(RESULTSDIR)/unit-coverage-details.txt
 COVER_TOTAL = $(RESULTSDIR)/unit-coverage-summary.txt
 LINTCMD = $(TEMPDIR)/golangci-lint run --tests=false --timeout=2m --config .golangci.yaml
 # the quality gate lower threshold for unit test total % coverage (by function statements)
-COVERAGE_THRESHOLD := 25
+COVERAGE_THRESHOLD := 50
 # CI cache busting values; change these if you want CI to not use previous stored cache
 FIXTURE_CACHE_BUSTER = "88738d2f"
 
