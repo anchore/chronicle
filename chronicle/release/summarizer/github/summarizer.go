@@ -15,11 +15,12 @@ import (
 var _ release.Summarizer = (*Summarizer)(nil)
 
 type Config struct {
-	Host               string
-	IncludeIssues      bool
-	IncludePRs         bool
-	ExcludeLabels      []string
-	ChangeTypesByLabel change.TypeSet
+	Host                  string
+	IncludeIssues         bool
+	IncludePRs            bool
+	ExcludeLabels         []string
+	ChangeTypesByLabel    change.TypeSet
+	IssuesRequireLinkedPR bool
 }
 
 type Summarizer struct {
@@ -87,33 +88,6 @@ func (s *Summarizer) LastRelease() (*release.Release, error) {
 func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error) {
 	var changes []change.Change
 
-	if s.config.IncludePRs {
-		prChanges, err := s.changesFromPRs(sinceRef, untilRef)
-		if err != nil {
-			return nil, err
-		}
-		changes = append(changes, prChanges...)
-	}
-
-	if s.config.IncludeIssues {
-		issueChanges, err := s.changesFromIssues(sinceRef, untilRef)
-		if err != nil {
-			return nil, err
-		}
-		changes = append(changes, issueChanges...)
-	}
-
-	return changes, nil
-}
-
-func (s *Summarizer) changesFromPRs(sinceRef, untilRef string) ([]change.Change, error) {
-	allMergedPRs, err := fetchMergedPRs(s.userName, s.repoName)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Debugf("total merged PRs discovered: %d", len(allMergedPRs))
-
 	sinceTag, err := git.SearchForTag(s.repoPath, sinceRef)
 	if err != nil {
 		return nil, err
@@ -127,13 +101,93 @@ func (s *Summarizer) changesFromPRs(sinceRef, untilRef string) ([]change.Change,
 		}
 	}
 
-	filteredPRs := filterPRs(allMergedPRs, standardPrFilters(s.config, sinceTag, untilTag)...)
+	if s.config.IncludePRs || (s.config.IssuesRequireLinkedPR && s.config.IncludeIssues) {
+		allMergedPRs, err := fetchMergedPRs(s.userName, s.repoName)
+		if err != nil {
+			return nil, err
+		}
+
+		log.Debugf("total merged PRs discovered: %d", len(allMergedPRs))
+
+		if s.config.IncludePRs {
+			changes = append(changes, changesFromPRs(s.config, allMergedPRs, sinceTag, untilTag)...)
+		}
+		if s.config.IssuesRequireLinkedPR && s.config.IncludeIssues {
+			// extract closed linked issues with closed PRs from the PR list. Why do this here?
+			// githubs ontology has PRs as the source of truth for issue linking. Linked PR information
+			// is not available on the issue itself.
+			extractedIssues := issuesExtractedFromPRs(s.config, allMergedPRs, sinceTag, untilTag)
+			changes = append(changes, createChangesFromIssues(s.config, extractedIssues)...)
+		}
+	}
+
+	if s.config.IncludeIssues && !s.config.IssuesRequireLinkedPR {
+		allClosedIssues, err := fetchClosedIssues(s.userName, s.repoName)
+		if err != nil {
+			return nil, err
+		}
+
+		log.Debugf("total closed issues discovered: %d", len(allClosedIssues))
+
+		changes = append(changes, changesFromIssues(s.config, allClosedIssues, sinceTag, untilTag)...)
+	}
+
+	return changes, nil
+}
+
+func issuesExtractedFromPRs(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag) []ghIssue {
+	// this represents the traits we wish to filter down to (not out).
+	prFilters := []prFilter{
+		prsAfter(sinceTag.Timestamp.UTC()),
+		// PRs with these labels should explicitly be used in the changelog directly (not the corresponding linked issue)
+		prsWithoutLabel(config.ChangeTypesByLabel.Names()...),
+		prsWithClosedLinkedIssue(),
+	}
+
+	if untilTag != nil {
+		prFilters = append(prFilters, prsAtOrBefore(untilTag.Timestamp.UTC()))
+	}
+
+	filteredPRs := filterPRs(allMergedPRs, prFilters...)
+	extractedIssues := uniqueIssuesFromPRs(filteredPRs)
+
+	// this represents the traits we wish to filter down to (not out).
+	issueFilters := []issueFilter{
+		issuesAfter(sinceTag.Timestamp),
+		issuesWithLabel(config.ChangeTypesByLabel.Names()...),
+		issuesWithoutLabel(config.ExcludeLabels...),
+	}
+
+	if untilTag != nil {
+		issueFilters = append(issueFilters, issuesAtOrBefore(untilTag.Timestamp))
+	}
+
+	return filterIssues(extractedIssues, issueFilters...)
+}
+
+func uniqueIssuesFromPRs(prs []ghPullRequest) []ghIssue {
+	issueNumbers := make(map[int]struct{})
+	var issues []ghIssue
+	for _, pr := range prs {
+		for _, issue := range pr.LinkedIssues {
+			if _, ok := issueNumbers[issue.Number]; ok {
+				continue
+			}
+			issues = append(issues, issue)
+			issueNumbers[issue.Number] = struct{}{}
+		}
+	}
+	return issues
+}
+
+func changesFromPRs(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag) []change.Change {
+	filteredPRs := filterPRs(allMergedPRs, standardPrFilters(config, sinceTag, untilTag)...)
 
 	log.Debugf("PRs contributing to changelog: %d", len(filteredPRs))
 
 	var summaries []change.Change
 	for _, pr := range filteredPRs {
-		changeTypes := s.config.ChangeTypesByLabel.ChangeTypes(pr.Labels...)
+		changeTypes := config.ChangeTypesByLabel.ChangeTypes(pr.Labels...)
 		if len(changeTypes) > 0 {
 			summaries = append(summaries, change.Change{
 				Text:        pr.Title,
@@ -146,7 +200,7 @@ func (s *Summarizer) changesFromPRs(sinceRef, untilRef string) ([]change.Change,
 					},
 					{
 						Text: pr.Author,
-						URL:  fmt.Sprintf("https://%s/%s", s.config.Host, pr.Author),
+						URL:  fmt.Sprintf("https://%s/%s", config.Host, pr.Author),
 					},
 				},
 				EntryType: "githubPR",
@@ -154,39 +208,22 @@ func (s *Summarizer) changesFromPRs(sinceRef, untilRef string) ([]change.Change,
 			})
 		}
 	}
-	return summaries, nil
+	return summaries
 }
 
-func (s *Summarizer) changesFromIssues(sinceRef, untilRef string) ([]change.Change, error) {
-	allClosedIssues, err := fetchClosedIssues(s.userName, s.repoName)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Debugf("total closed issues discovered: %d", len(allClosedIssues))
-
-	sinceTag, err := git.SearchForTag(s.repoPath, sinceRef)
-	if err != nil {
-		return nil, err
-	}
-
-	var untilTag *git.Tag
-	if untilRef != "" {
-		untilTag, err = git.SearchForTag(s.repoPath, untilRef)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	filteredIssues := filterIssues(allClosedIssues, standardIssueFilters(s.config, sinceTag, untilTag)...)
+func changesFromIssues(config Config, allClosedIssues []ghIssue, sinceTag, untilTag *git.Tag) []change.Change {
+	filteredIssues := filterIssues(allClosedIssues, standardIssueFilters(config, sinceTag, untilTag)...)
 
 	log.Debugf("issues contributing to changelog: %d", len(filteredIssues))
 
-	var summaries []change.Change
-	for _, issue := range filteredIssues {
-		changeTypes := s.config.ChangeTypesByLabel.ChangeTypes(issue.Labels...)
+	return createChangesFromIssues(config, filteredIssues)
+}
+
+func createChangesFromIssues(config Config, issues []ghIssue) (changes []change.Change) {
+	for _, issue := range issues {
+		changeTypes := config.ChangeTypesByLabel.ChangeTypes(issue.Labels...)
 		if len(changeTypes) > 0 {
-			summaries = append(summaries, change.Change{
+			changes = append(changes, change.Change{
 				Text:        issue.Title,
 				ChangeTypes: changeTypes,
 				Timestamp:   issue.ClosedAt,
@@ -202,7 +239,7 @@ func (s *Summarizer) changesFromIssues(sinceRef, untilRef string) ([]change.Chan
 			})
 		}
 	}
-	return summaries, nil
+	return changes
 }
 
 func extractGithubUserAndRepo(u string) (string, string) {

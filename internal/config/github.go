@@ -9,18 +9,19 @@ import (
 )
 
 type githubSummarizer struct {
-	Host          string         `yaml:"host" json:"host" mapstructure:"host"`
-	Changes       []githubChange `yaml:"changes" json:"changes" mapstructure:"changes"`
-	ExcludeLabels []string       `yaml:"exclude-labels" json:"exclude-labels" mapstructure:"exclude-labels"`
-	IncludePRs    bool           `yaml:"include-prs" json:"include-prs" mapstructure:"include-prs"`
-	IncludeIssues bool           `yaml:"include-issues" json:"include-issues" mapstructure:"include-issues"`
+	Host                  string         `yaml:"host" json:"host" mapstructure:"host"`
+	ExcludeLabels         []string       `yaml:"exclude-labels" json:"exclude-labels" mapstructure:"exclude-labels"`
+	IncludePRs            bool           `yaml:"include-prs" json:"include-prs" mapstructure:"include-prs"`
+	IncludeIssues         bool           `yaml:"include-issues" json:"include-issues" mapstructure:"include-issues"`
+	IssuesRequireLinkedPR bool           `yaml:"issues-require-linked-prs" json:"issues-require-linked-prs" mapstructure:"issues-require-linked-prs"`
+	Changes               []githubChange `yaml:"changes" json:"changes" mapstructure:"changes"`
 }
 
 type githubChange struct {
 	Type       string   `yaml:"name" json:"name" mapstructure:"name"`
 	Title      string   `yaml:"title" json:"title" mapstructure:"title"`
-	Labels     []string `yaml:"labels" json:"labels" mapstructure:"labels"`
 	SemVerKind string   `yaml:"semver-field" json:"semver-field" mapstructure:"semver-field"`
+	Labels     []string `yaml:"labels" json:"labels" mapstructure:"labels"`
 }
 
 func (cfg githubSummarizer) ToGithubConfig() (github.Config, error) {
@@ -36,16 +37,18 @@ func (cfg githubSummarizer) ToGithubConfig() (github.Config, error) {
 		}
 	}
 	return github.Config{
-		Host:               cfg.Host,
-		IncludeIssues:      cfg.IncludeIssues,
-		IncludePRs:         cfg.IncludePRs,
-		ExcludeLabels:      cfg.ExcludeLabels,
-		ChangeTypesByLabel: typeSet,
+		Host:                  cfg.Host,
+		IncludeIssues:         cfg.IncludeIssues,
+		IncludePRs:            cfg.IncludePRs,
+		ExcludeLabels:         cfg.ExcludeLabels,
+		IssuesRequireLinkedPR: cfg.IssuesRequireLinkedPR,
+		ChangeTypesByLabel:    typeSet,
 	}, nil
 }
 
 func (cfg githubSummarizer) loadDefaultValues(v *viper.Viper) {
 	v.SetDefault("github.host", "github.com")
+	v.SetDefault("github.issues-require-linked-prs", false)
 	v.SetDefault("github.include-prs", true)
 	v.SetDefault("github.include-issues", true)
 	v.SetDefault("github.exclude-labels", []string{"duplicate", "question", "invalid", "wontfix", "wont-fix", "release-ignore", "changelog-ignore", "ignore"})
