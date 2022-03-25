@@ -99,6 +99,18 @@ func prsWithoutClosedLinkedIssue() prFilter {
 	}
 }
 
+func prsWithClosedLinkedIssue() prFilter {
+	return func(pr ghPullRequest) bool {
+		for _, i := range pr.LinkedIssues {
+			if i.Closed {
+				return true
+			}
+		}
+		log.Tracef("PR #%d filtered out: does not have a closed linked issue", pr.Number)
+		return false
+	}
+}
+
 func prsWithoutOpenLinkedIssue() prFilter {
 	return func(pr ghPullRequest) bool {
 		for _, i := range pr.LinkedIssues {

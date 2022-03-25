@@ -316,7 +316,7 @@ func Test_prFilters(t *testing.T) {
 	input := []ghPullRequest{
 		// keep
 		prBugAfterLastRelease,
-		prBugAtEndTag,
+		prBugAtEndTag, // edge case
 
 		// filter out
 		prAfterLastRelease,
@@ -382,6 +382,225 @@ func Test_prFilters(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedPrs, filterPRs(tt.inputPrs, standardPrFilters(tt.config, tt.since, tt.until)...))
+		})
+	}
+}
+
+func Test_changesFromIssuesExtractedFromPRs(t *testing.T) {
+	//log.Log = logger.NewLogrusLogger(logger.LogrusConfig{
+	//	EnableConsole: true,
+	//	EnableFile:    false,
+	//	Structured:    false,
+	//	Level:         logrus.TraceLevel,
+	//})
+	patch := change.NewType("patch", change.SemVerPatch)
+	feature := change.NewType("added-feature", change.SemVerMinor)
+	breaking := change.NewType("breaking-change", change.SemVerMajor)
+
+	changeTypeSet := change.TypeSet{
+		"bug":             patch,
+		"fix":             patch,
+		"feature":         feature,
+		"breaking":        breaking,
+		"removed":         breaking,
+		"breaking-change": breaking,
+	}
+
+	timeStart := time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC)
+	timeAfter := timeStart.Add(2 * time.Hour)
+	timeBefore := timeStart.Add(-2 * time.Hour)
+	timeEnd := timeStart.Add(5 * time.Hour)
+	timeAfterEnd := timeEnd.Add(3 * time.Hour)
+
+	sinceTag := &git.Tag{
+		Name:      "v0.1.0",
+		Timestamp: timeStart,
+	}
+
+	untilTag := &git.Tag{
+		Name:      "v0.2.0",
+		Timestamp: timeEnd,
+	}
+
+	prBugAfterLastRelease := ghPullRequest{
+		Title:    "pr bug after starting tag",
+		Number:   1,
+		MergedAt: timeAfter,
+		Labels:   []string{"bug"},
+	}
+
+	prBugAtLastRelease := ghPullRequest{
+		Title:    "pr bug at (within) last release",
+		Number:   10,
+		MergedAt: timeStart,
+		Labels:   []string{"bug"},
+	}
+
+	prBugAtEndTag := ghPullRequest{
+		Title:    "pr bug at (within) end tag",
+		Number:   11,
+		MergedAt: timeEnd,
+		Labels:   []string{"bug"},
+	}
+
+	prAfterLastRelease := ghPullRequest{
+		Title:    "pr after starting tag",
+		Number:   9,
+		MergedAt: timeAfter,
+	}
+
+	prBugBeforeLastRelease := ghPullRequest{
+		Title:    "pr bug before starting tag",
+		Number:   2,
+		MergedAt: timeBefore,
+		Labels:   []string{"bug"},
+	}
+
+	issueClosedAfterLastRelease := ghIssue{
+		Title:    "issue bug (closed after last release)",
+		Number:   4,
+		ClosedAt: timeAfter,
+		Closed:   true,
+		Labels:   []string{"bug"},
+	}
+
+	issueClosedAfterLastRelease2 := ghIssue{
+		Title:    "issue bug (closed after last release) -- 2",
+		Number:   13,
+		ClosedAt: timeAfter,
+		Closed:   true,
+		Labels:   []string{"bug"},
+	}
+
+	issueClosedAfterLastRelease3 := ghIssue{
+		Title:    "issue feature (closed after last release) -- 3",
+		Number:   15,
+		ClosedAt: timeAfterEnd,
+		Closed:   true,
+		Labels:   []string{"feature"},
+	}
+
+	issueOpen := ghIssue{
+		Title:  "issue bug (open)",
+		Number: 5,
+		Closed: false,
+		Labels: []string{"bug"},
+	}
+
+	prBugAfterLastReleaseWithOpenLinkedIssue := ghPullRequest{
+		Title:        "pr bug after starting tag (w/ open linked issue)",
+		Number:       3,
+		MergedAt:     timeAfter,
+		Labels:       []string{"bug"},
+		LinkedIssues: []ghIssue{issueOpen},
+	}
+
+	prAfterLastReleaseWithOpenLinkedIssue := ghPullRequest{
+		Title:        "pr after starting tag (w/ open linked issue)",
+		Number:       6,
+		MergedAt:     timeAfter,
+		LinkedIssues: []ghIssue{issueOpen},
+	}
+
+	prBugAfterLastReleaseWithClosedLinkedIssue := ghPullRequest{
+		Title:        "pr bug after starting tag (w/ closed linked issue)",
+		Number:       7,
+		MergedAt:     timeAfter,
+		Labels:       []string{"bug"},
+		LinkedIssues: []ghIssue{issueClosedAfterLastRelease},
+	}
+
+	prAfterLastReleaseWithClosedLinkedIssue := ghPullRequest{
+		Title:        "pr after starting tag (w/ closed linked issue)",
+		Number:       8,
+		MergedAt:     timeAfter,
+		LinkedIssues: []ghIssue{issueClosedAfterLastRelease2},
+	}
+
+	prFeatureAfterEndTag := ghPullRequest{
+		Title:    "pr feature after end tag",
+		Number:   12,
+		MergedAt: timeAfterEnd,
+		Labels:   []string{"feature"},
+	}
+
+	prAfterEndTagWithClosedLinkedIssue := ghPullRequest{
+		Title:        "pr after end tag (w/ closed linked issue)",
+		Number:       14,
+		MergedAt:     timeAfterEnd,
+		Labels:       nil,
+		LinkedIssues: []ghIssue{issueClosedAfterLastRelease3},
+	}
+
+	input := []ghPullRequest{
+		// keep
+		prAfterLastReleaseWithClosedLinkedIssue, // = issue "issueClosedAfterLastRelease2"
+		prAfterEndTagWithClosedLinkedIssue,      // = issue "issueClosedAfterLastRelease3"
+		// filter out
+		prAfterLastRelease,
+		prBugAtLastRelease, // edge case
+		prBugBeforeLastRelease,
+		prBugAfterLastReleaseWithOpenLinkedIssue,
+		prAfterLastReleaseWithOpenLinkedIssue,
+		prBugAfterLastRelease,
+		prBugAtEndTag, // edge case
+		prAfterLastReleaseWithClosedLinkedIssue,
+		prFeatureAfterEndTag,
+		// why not this one? PRs with these labels should explicitly be used in the changelog directly (not the corresponding linked issue)
+		prBugAfterLastReleaseWithClosedLinkedIssue, // = issue "issueClosedAfterLastRelease",
+	}
+
+	tests := []struct {
+		name           string
+		since          *git.Tag
+		until          *git.Tag
+		config         Config
+		inputPrs       []ghPullRequest
+		expectedIssues []ghIssue
+	}{
+		{
+			name:  "keep changes between the tags for only closed PRs with linked closed issues",
+			since: sinceTag,
+			until: untilTag,
+			config: Config{
+				ExcludeLabels:      nil,
+				ChangeTypesByLabel: changeTypeSet,
+			},
+			inputPrs: input,
+			expectedIssues: []ghIssue{
+				issueClosedAfterLastRelease2,
+			},
+		},
+		{
+			name:  "keep changes after start tag",
+			since: sinceTag,
+			config: Config{
+				ExcludeLabels:      nil,
+				ChangeTypesByLabel: changeTypeSet,
+			},
+			inputPrs: input,
+			expectedIssues: []ghIssue{
+				issueClosedAfterLastRelease2,
+				issueClosedAfterLastRelease3,
+			},
+		},
+		{
+			name:  "keep only added features after start tag",
+			since: sinceTag,
+			config: Config{
+				ExcludeLabels:      []string{"bug"},
+				ChangeTypesByLabel: changeTypeSet,
+			},
+			inputPrs: input,
+			expectedIssues: []ghIssue{
+				issueClosedAfterLastRelease3,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.ElementsMatch(t, tt.expectedIssues, issuesExtractedFromPRs(tt.config, tt.inputPrs, tt.since, tt.until))
 		})
 	}
 }
