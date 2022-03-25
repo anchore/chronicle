@@ -63,12 +63,12 @@ func runNextVersion(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	nextVersion, err := release.FindNextVersion(lastRelease.Version, description.Changes, appConfig.EnforceV0)
+	nextUniqueVersion, _, err := release.FindNextUniqueVersion(lastRelease.Version, description.Changes, appConfig.EnforceV0, true, appConfig.CliOptions.RepoPath)
 	if err != nil {
 		return err
 	}
 
-	_, err = os.Stdout.Write([]byte(nextVersion))
+	_, err = os.Stdout.Write([]byte(nextUniqueVersion))
 
 	return err
 }
