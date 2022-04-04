@@ -2,9 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/anchore/chronicle/chronicle/release"
+	"github.com/anchore/chronicle/chronicle/release/releasers/github"
 	"os"
 
-	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
 	"github.com/spf13/cobra"
@@ -63,12 +64,17 @@ func runNextVersion(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	nextUniqueVersion, _, err := release.FindNextUniqueVersion(lastRelease.Version, description.Changes, appConfig.EnforceV0, true, appConfig.CliOptions.RepoPath)
+	speculator := github.NewVersionSpeculator(appConfig.CliOptions.RepoPath, release.SpeculationBehavior{
+		EnforceV0:           appConfig.EnforceV0,
+		NoChangesBumpsPatch: true,
+	})
+
+	ver, err := speculator.NextUniqueVersion(lastRelease.Version, description.Changes)
 	if err != nil {
 		return err
 	}
 
-	_, err = os.Stdout.Write([]byte(nextUniqueVersion))
+	_, err = os.Stdout.Write([]byte(ver))
 
 	return err
 }

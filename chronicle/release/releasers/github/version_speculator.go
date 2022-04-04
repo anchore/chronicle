@@ -1,22 +1,36 @@
-package release
+package github
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/anchore/chronicle/internal/git"
-
+	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
+	"github.com/anchore/chronicle/internal/git"
 	"github.com/coreos/go-semver/semver"
 )
 
-func FindNextVersion(currentVersion string, changes change.Changes, enforceV0 bool, noChangesBumpsPatch bool) (string, error) {
+var _ release.VersionSpeculator = (*VersionSpeculator)(nil)
+
+type VersionSpeculator struct {
+	repoPath string
+	release.SpeculationBehavior
+}
+
+func NewVersionSpeculator(repoPath string, behavior release.SpeculationBehavior) VersionSpeculator {
+	return VersionSpeculator{
+		repoPath:            repoPath,
+		SpeculationBehavior: behavior,
+	}
+}
+
+func (s VersionSpeculator) NextIdealVersion(currentVersion string, changes change.Changes) (string, error) {
 	var breaking, feature, patch bool
 	for _, c := range changes {
 		for _, chTy := range c.ChangeTypes {
 			switch chTy.Kind {
 			case change.SemVerMajor:
-				if enforceV0 {
+				if s.EnforceV0 {
 					feature = true
 				} else {
 					breaking = true
@@ -48,7 +62,7 @@ func FindNextVersion(currentVersion string, changes change.Changes, enforceV0 bo
 	}
 
 	if v.String() == original.String() {
-		if !noChangesBumpsPatch {
+		if !s.NoChangesBumpsPatch {
 			return "", fmt.Errorf("no changes found that affect the version (changes=%d)", len(changes))
 		}
 		v.BumpPatch()
@@ -61,17 +75,15 @@ func FindNextVersion(currentVersion string, changes change.Changes, enforceV0 bo
 	return prefix + v.String(), nil
 }
 
-func FindNextUniqueVersion(currentVersion string, changes change.Changes, enforceV0 bool, noChangesBumpsPatch bool, repoPath string) (string, string, error) {
-	nextReleaseVersion, err := FindNextVersion(currentVersion, changes, enforceV0, noChangesBumpsPatch)
+func (s VersionSpeculator) NextUniqueVersion(currentVersion string, changes change.Changes) (string, error) {
+	nextReleaseVersion, err := s.NextIdealVersion(currentVersion, changes)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
-	var nextSemanticVersion = nextReleaseVersion
-
-	tags, err := git.TagsFromLocal(repoPath)
+	tags, err := git.TagsFromLocal(s.repoPath)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 retry:
 	for {
@@ -80,7 +92,7 @@ retry:
 				// looks like there is already a tag for this speculative release, let's choose a patch variant of this
 				verObj, err := semver.NewVersion(strings.TrimLeft(nextReleaseVersion, "v"))
 				if err != nil {
-					return "", "", err
+					return "", err
 				}
 				verObj.BumpPatch()
 
@@ -99,5 +111,5 @@ retry:
 		break
 	}
 
-	return nextReleaseVersion, nextSemanticVersion, nil
+	return nextReleaseVersion, nil
 }

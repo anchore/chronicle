@@ -66,7 +66,7 @@ func TagsFromLocal(repoPath string) ([]Tag, error) {
 
 		c, err := r.CommitObject(t.Hash())
 		if err != nil {
-			panic(err)
+			return nil, fmt.Errorf("unable to get tag info from commit=%q: %w", t.Hash().String(), err)
 		}
 
 		tags = append(tags, Tag{

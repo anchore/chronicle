@@ -2,9 +2,9 @@ package config
 
 import (
 	"fmt"
+	"github.com/anchore/chronicle/chronicle/release/releasers/github"
 
 	"github.com/anchore/chronicle/chronicle/release/change"
-	"github.com/anchore/chronicle/chronicle/release/summarizer/github"
 	"github.com/spf13/viper"
 )
 

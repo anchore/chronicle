@@ -1,6 +1,8 @@
 package release
 
-import "github.com/anchore/chronicle/chronicle/release/change"
+import (
+	"github.com/anchore/chronicle/chronicle/release/change"
+)
 
 // Summarizer is an abstraction for summarizing release information from a specific source (e.g. GitBub, GitLab, local repo tags, etc).
 type Summarizer interface {

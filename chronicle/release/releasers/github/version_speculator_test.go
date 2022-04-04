@@ -1,4 +1,4 @@
-package release
+package github
 
 import (
 	"github.com/anchore/chronicle/chronicle/release/change"

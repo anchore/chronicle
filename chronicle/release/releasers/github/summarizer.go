@@ -56,6 +56,9 @@ func (s *Summarizer) Release(ref string) (*release.Release, error) {
 	if err != nil {
 		return nil, err
 	}
+	if targetRelease.Tag == "" {
+		return nil, nil
+	}
 	return &release.Release{
 		Version: targetRelease.Tag,
 		Date:    targetRelease.Date,
