@@ -28,7 +28,7 @@ chronicle --since-tag v0.16.0 --until-tag v0.18.0 ./path/to/git/repo
 
 Create a changelog and guess the release version from the set of changes in the changelog
 ```bash
-chronicle --speculate-next-version
+chronicle -n
 ```
 
 Just guess the next release version based on the set of changes (don't create a changelog)
