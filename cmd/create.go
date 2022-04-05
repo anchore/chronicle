@@ -3,17 +3,15 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"sort"
 
-	"github.com/anchore/chronicle/chronicle/release"
-	"github.com/anchore/chronicle/chronicle/release/change"
-	"github.com/anchore/chronicle/chronicle/release/format"
-	"github.com/anchore/chronicle/internal/git"
-	"github.com/anchore/chronicle/internal/log"
-	"github.com/scylladb/go-set/strset"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+
+	"github.com/anchore/chronicle/chronicle/release"
+	"github.com/anchore/chronicle/chronicle/release/format"
+	"github.com/anchore/chronicle/internal/git"
+	"github.com/anchore/chronicle/internal/log"
 )
 
 var createCmd = &cobra.Command{
@@ -124,39 +122,4 @@ func runCreate(cmd *cobra.Command, args []string) error {
 func selectWorker(repo string) func() (*release.Release, *release.Description, error) {
 	// TODO: we only support github, but this is the spot to add support for other providers such as GitLab or Bitbucket or other VCSs altogether, such as subversion.
 	return createChangelogFromGithub
-}
-
-func logChanges(changes change.Changes) {
-	log.Infof("discovered changes: %d", len(changes))
-
-	set := strset.New()
-	count := make(map[string]int)
-	lookup := make(map[string]change.Type)
-	for _, c := range changes {
-		for _, ty := range c.ChangeTypes {
-			_, exists := count[ty.Name]
-			if !exists {
-				count[ty.Name] = 0
-			}
-			count[ty.Name]++
-			set.Add(ty.Name)
-			lookup[ty.Name] = ty
-		}
-	}
-
-	typeNames := set.List()
-	sort.Strings(typeNames)
-
-	for idx, tyName := range typeNames {
-		var branch = "├──"
-		if idx == len(typeNames)-1 {
-			branch = "└──"
-		}
-		t := lookup[tyName]
-		if t.Kind != change.SemVerUnknown {
-			log.Debugf("  %s %s (%s bump): %d", branch, tyName, t.Kind, count[tyName])
-		} else {
-			log.Debugf("  %s %s: %d", branch, tyName, count[tyName])
-		}
-	}
 }

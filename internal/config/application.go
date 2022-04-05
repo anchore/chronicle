@@ -8,11 +8,12 @@ import (
 	"strings"
 
 	"github.com/adrg/xdg"
-	"github.com/anchore/chronicle/internal"
 	"github.com/mitchellh/go-homedir"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
+
+	"github.com/anchore/chronicle/internal"
 )
 
 var ErrApplicationConfigNotFound = fmt.Errorf("application config not found")

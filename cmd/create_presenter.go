@@ -3,11 +3,12 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/wagoodman/go-presenter"
+
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/format"
 	"github.com/anchore/chronicle/chronicle/release/format/json"
 	"github.com/anchore/chronicle/chronicle/release/format/markdown"
-	"github.com/wagoodman/go-presenter"
 )
 
 type presentationTask func(description release.Description) (presenter.Presenter, error)

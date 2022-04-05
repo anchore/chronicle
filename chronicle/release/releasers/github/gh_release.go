@@ -74,13 +74,13 @@ func fetchAllReleases(user, repo string) ([]ghRelease, error) {
 			"releasesCursor":  (*githubv4.String)(nil), // Null after argument to get first page.
 		}
 
-		//var limit rateLimit
+		// var limit rateLimit
 		for {
 			err := client.Query(context.Background(), &query, variables)
 			if err != nil {
 				return nil, err
 			}
-			//limit = query.RateLimit
+			// limit = query.RateLimit
 
 			for _, iEdge := range query.Repository.Releases.Edges {
 				allReleases = append(allReleases, ghRelease{
@@ -97,10 +97,10 @@ func fetchAllReleases(user, repo string) ([]ghRelease, error) {
 			variables["releasesCursor"] = githubv4.NewString(query.Repository.Releases.PageInfo.EndCursor)
 		}
 
-		//for idx, is := range allReleases {
+		// for idx, is := range allReleases {
 		//	fmt.Printf("%d: %+v\n", idx, is)
 		//}
-		//printJSON(limit)
+		// printJSON(limit)
 	}
 
 	sort.Slice(allReleases, func(i, j int) bool {

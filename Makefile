@@ -13,6 +13,7 @@ RESULTSDIR = test/results
 COVER_REPORT = $(RESULTSDIR)/unit-coverage-details.txt
 COVER_TOTAL = $(RESULTSDIR)/unit-coverage-summary.txt
 LINTCMD = $(TEMPDIR)/golangci-lint run --tests=false --timeout=2m --config .golangci.yaml
+GOIMPORTS_CMD = $(TEMPDIR)/gosimports -local github.com/anchore
 # the quality gate lower threshold for unit test total % coverage (by function statements)
 COVERAGE_THRESHOLD := 50
 # CI cache busting values; change these if you want CI to not use previous stored cache
@@ -82,11 +83,13 @@ $(TEMPDIR):
 .PHONY: bootstrap-tools
 bootstrap-tools: $(TEMPDIR)
 	GO111MODULE=off GOBIN=$(shell realpath $(TEMPDIR)) go get -u golang.org/x/perf/cmd/benchstat
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(TEMPDIR)/ v1.26.0
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(TEMPDIR)/ v1.45.0
 	curl -sSfL https://raw.githubusercontent.com/wagoodman/go-bouncer/master/bouncer.sh | sh -s -- -b $(TEMPDIR)/ v0.2.0
 	# we purposefully use the latest version of chronicle released
 	curl -sSfL https://raw.githubusercontent.com/anchore/chronicle/main/install.sh | sh -s -- -b $(TEMPDIR)/
 	.github/scripts/goreleaser-install.sh -b $(TEMPDIR)/ v0.182.1
+	# the only difference between goimports and gosimports is that gosimports removes extra whitespace between import blocks (see https://github.com/golang/go/issues/20818)
+	GOBIN="$(shell realpath $(TEMPDIR))" go install github.com/rinchsan/gosimports/cmd/gosimports@v0.1.5
 
 .PHONY: bootstrap-go
 bootstrap-go:
@@ -108,6 +111,7 @@ lint: ## Run gofmt + golangci lint checks
 
 	# run all golangci-lint rules
 	$(LINTCMD)
+	@[ -z "$(shell $(GOIMPORTS_CMD) -d .)" ] || (echo "goimports needs to be fixed" && false)
 
 	# go tooling does not play well with certain filename characters, ensure the common cases don't result in future "go get" failures
 	$(eval MALFORMED_FILENAMES := $(shell find . | grep -e ':'))
@@ -117,6 +121,7 @@ lint: ## Run gofmt + golangci lint checks
 lint-fix: ## Auto-format all source code + run golangci lint fixers
 	$(call title,Running lint fixers)
 	gofmt -w -s .
+	$(GOIMPORTS_CMD) -w .
 	$(LINTCMD) --fix
 	go mod tidy
 

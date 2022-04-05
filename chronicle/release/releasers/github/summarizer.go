@@ -5,11 +5,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/anchore/chronicle/internal/log"
-
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/internal/git"
+	"github.com/anchore/chronicle/internal/log"
 )
 
 var _ release.Summarizer = (*Summarizer)(nil)
@@ -24,14 +23,14 @@ type Config struct {
 }
 
 type Summarizer struct {
-	repoPath string
+	git      git.Interface
 	userName string
 	repoName string
 	config   Config
 }
 
-func NewSummarizer(path string, config Config) (*Summarizer, error) {
-	repoURL, err := git.RemoteURL(path)
+func NewSummarizer(gitter git.Interface, config Config) (*Summarizer, error) {
+	repoURL, err := gitter.RemoteURL()
 	if err != nil {
 		return nil, err
 	}
@@ -41,10 +40,10 @@ func NewSummarizer(path string, config Config) (*Summarizer, error) {
 		return nil, fmt.Errorf("failed to extract owner and repo from %q", repoURL)
 	}
 
-	log.Debugf("github owner=%q repo=%q path=%q", user, repo, path)
+	log.Debugf("github owner=%q repo=%q", user, repo)
 
 	return &Summarizer{
-		repoPath: path,
+		git:      gitter,
 		userName: user,
 		repoName: repo,
 		config:   config,
@@ -55,6 +54,9 @@ func (s *Summarizer) Release(ref string) (*release.Release, error) {
 	targetRelease, err := fetchRelease(s.userName, s.repoName, ref)
 	if err != nil {
 		return nil, err
+	}
+	if targetRelease.Tag == "" {
+		return nil, nil
 	}
 	return &release.Release{
 		Version: targetRelease.Tag,
@@ -88,14 +90,14 @@ func (s *Summarizer) LastRelease() (*release.Release, error) {
 func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error) {
 	var changes []change.Change
 
-	sinceTag, err := git.SearchForTag(s.repoPath, sinceRef)
+	sinceTag, err := s.git.SearchForTag(sinceRef)
 	if err != nil {
 		return nil, err
 	}
 
 	var untilTag *git.Tag
 	if untilRef != "" {
-		untilTag, err = git.SearchForTag(s.repoPath, untilRef)
+		untilTag, err = s.git.SearchForTag(untilRef)
 		if err != nil {
 			return nil, err
 		}

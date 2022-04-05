@@ -4,6 +4,12 @@
 #  include:
 #    - EXC0002 # disable excluding of issues about comments from golint
 
+# TODO: enable this when we have coverage on docstring comments
+#issues:
+#  # The list of ids of default excludes to include or disable.
+#  include:
+#    - EXC0002 # disable excluding of issues about comments from golint
+
 linters:
   # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
   disable-all: true
@@ -15,6 +21,7 @@ linters:
     - dogsled
     - dupl
     - errcheck
+    - exportloopref
     - funlen
     - gocognit
     - goconst
@@ -22,7 +29,6 @@ linters:
     - gocyclo
     - gofmt
     - goimports
-    - golint
     - goprintffuncname
     - gosec
     - gosimple
@@ -31,8 +37,8 @@ linters:
     - misspell
     - nakedret
     - nolintlint
+    - revive
     - rowserrcheck
-    - scopelint
     - staticcheck
     - structcheck
     - stylecheck
@@ -49,11 +55,13 @@ linters:
 #    - godot
 #    - godox
 #    - goerr113
+#    - golint      # deprecated
 #    - gomnd       # this is too aggressive
 #    - interfacer  # this is a good idea, but is no longer supported and is prone to false positives
 #    - lll         # without a way to specify per-line exception cases, this is not usable
 #    - maligned    # this is an excellent linter, but tricky to optimize and we are not sensitive to memory layout optimizations
 #    - nestif
 #    - prealloc    # following this rule isn't consistently a good idea, as it sometimes forces unnecessary allocations that result in less idiomatic code
+#    - scopelint   # deprecated
 #    - testpackage
-#    - wsl
+#    - wsl         # this doens't have an auto-fixer yet and is pretty noisy (https://github.com/bombsimon/wsl/issues/90)

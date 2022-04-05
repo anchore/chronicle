@@ -1,12 +1,13 @@
 package github
 
 import (
-	"github.com/anchore/chronicle/chronicle/release/change"
-	"github.com/anchore/chronicle/internal/git"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/anchore/chronicle/chronicle/release/change"
+	"github.com/anchore/chronicle/internal/git"
 )
 
 func Test_extractGithubUserAndRepo(t *testing.T) {

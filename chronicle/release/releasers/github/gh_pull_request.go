@@ -5,12 +5,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/anchore/chronicle/internal"
-
-	"github.com/anchore/chronicle/internal/log"
-
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
+
+	"github.com/anchore/chronicle/internal"
+	"github.com/anchore/chronicle/internal/log"
 )
 
 type ghPullRequest struct {
@@ -230,13 +229,13 @@ func fetchMergedPRs(user, repo string) ([]ghPullRequest, error) {
 			"prCursor":        (*githubv4.String)(nil), // Null after argument to get first page.
 		}
 
-		//var limit rateLimit
+		// var limit rateLimit
 		for {
 			err := client.Query(context.Background(), &query, variables)
 			if err != nil {
 				return nil, err
 			}
-			//limit = query.RateLimit
+			// limit = query.RateLimit
 
 			for _, prEdge := range query.Repository.PullRequests.Edges {
 				var labels []string

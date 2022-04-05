@@ -5,9 +5,10 @@ import (
 	"io"
 	"text/template"
 
+	"github.com/wagoodman/go-presenter"
+
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
-	"github.com/wagoodman/go-presenter"
 )
 
 const (

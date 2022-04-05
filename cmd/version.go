@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
+
 	"github.com/anchore/chronicle/internal"
 	"github.com/anchore/chronicle/internal/version"
-	"github.com/spf13/cobra"
 )
 
 var outputFormat string

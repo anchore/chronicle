@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/anchore/chronicle/chronicle/release"
-	"github.com/anchore/chronicle/internal/git"
-	"github.com/anchore/chronicle/internal/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+
+	"github.com/anchore/chronicle/internal/git"
+	"github.com/anchore/chronicle/internal/log"
 )
 
 var nextVersionCmd = &cobra.Command{
@@ -56,19 +56,15 @@ func bindNextVersionConfigOptions(flags *pflag.FlagSet) error {
 }
 
 func runNextVersion(cmd *cobra.Command, args []string) error {
+	appConfig.SpeculateNextVersion = true
 	worker := selectWorker(appConfig.CliOptions.RepoPath)
 
-	lastRelease, description, err := worker()
+	_, description, err := worker()
 	if err != nil {
 		return err
 	}
 
-	nextUniqueVersion, _, err := release.FindNextUniqueVersion(lastRelease.Version, description.Changes, appConfig.EnforceV0, true, appConfig.CliOptions.RepoPath)
-	if err != nil {
-		return err
-	}
-
-	_, err = os.Stdout.Write([]byte(nextUniqueVersion))
+	_, err = os.Stdout.Write([]byte(description.Release.Version))
 
 	return err
 }

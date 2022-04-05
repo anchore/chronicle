@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/anchore/chronicle/chronicle/release"
-	"github.com/anchore/chronicle/chronicle/release/change"
-	"github.com/anchore/go-testutils"
 	"github.com/sergi/go-diff/diffmatchpatch"
 	"github.com/stretchr/testify/assert"
 	"github.com/wagoodman/go-presenter"
+
+	"github.com/anchore/chronicle/chronicle/release"
+	"github.com/anchore/chronicle/chronicle/release/change"
+	"github.com/anchore/go-testutils"
 )
 
 var updateMarkdownPresenterGoldenFiles = flag.Bool("update-markdown", false, "update the *.golden files for markdown presenters")

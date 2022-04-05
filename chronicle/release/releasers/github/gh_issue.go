@@ -5,12 +5,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/anchore/chronicle/internal"
-
-	"github.com/anchore/chronicle/internal/log"
-
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
+
+	"github.com/anchore/chronicle/internal"
+	"github.com/anchore/chronicle/internal/log"
 )
 
 type ghIssue struct {
@@ -176,13 +175,13 @@ func fetchClosedIssues(user, repo string) ([]ghIssue, error) {
 			"issuesCursor":    (*githubv4.String)(nil), // Null after argument to get first page.
 		}
 
-		//var limit rateLimit
+		// var limit rateLimit
 		for {
 			err := client.Query(context.Background(), &query, variables)
 			if err != nil {
 				return nil, err
 			}
-			//limit = query.RateLimit
+			// limit = query.RateLimit
 
 			for _, iEdge := range query.Repository.Issues.Edges {
 				var labels []string
@@ -206,10 +205,10 @@ func fetchClosedIssues(user, repo string) ([]ghIssue, error) {
 			variables["issuesCursor"] = githubv4.NewString(query.Repository.Issues.PageInfo.EndCursor)
 		}
 
-		//for idx, is := range allIssues {
+		// for idx, is := range allIssues {
 		//	fmt.Printf("%d: %+v\n", idx, is)
 		//}
-		//printJSON(limit)
+		// printJSON(limit)
 	}
 
 	return allIssues, nil

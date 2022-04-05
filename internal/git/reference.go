@@ -5,7 +5,7 @@ type Reference struct {
 	Tags   []string
 }
 
-//func commitFromGitReference(repoPath, name string) (string, error) {
+// func commitFromGitReference(repoPath, name string) (string, error) {
 //	r, err := git.PlainOpen(repoPath)
 //	if err != nil {
 //		return "", err
