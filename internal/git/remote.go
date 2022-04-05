@@ -28,7 +28,7 @@ func RemoteURL(p string) (string, error) {
 }
 
 // TODO: can't use r.Config for same validation reasons
-//func RemoteURL(path string) (string, error) {
+// func RemoteURL(path string) (string, error) {
 //	r, err := git.PlainOpen(path)
 //	if err != nil {
 //		return "", fmt.Errorf("unable to open repo: %w", err)
@@ -57,7 +57,7 @@ func RemoteURL(p string) (string, error) {
 //}
 
 // TODO: it seems that this lib has a config validation problem :(
-//func RemoteURL(path string) (string, error)  {
+// func RemoteURL(path string) (string, error)  {
 //	r, err := git.PlainOpen(path)
 //	if err != nil {
 //		return "", fmt.Errorf("unable to open repo: %w", err)

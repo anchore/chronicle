@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/format"
 	"github.com/anchore/chronicle/internal/git"
@@ -9,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"os"
 )
 
 var createCmd = &cobra.Command{

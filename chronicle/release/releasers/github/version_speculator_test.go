@@ -1,7 +1,9 @@
 package github
 
 import (
+	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
+	"github.com/anchore/chronicle/internal/git"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -134,7 +136,68 @@ func TestFindNextVersion(t *testing.T) {
 			if tt.wantErr == nil {
 				tt.wantErr = require.NoError
 			}
-			got, err := FindNextVersion(tt.release, tt.changes, tt.enforceV0, tt.bumpPatchOnNoChange)
+			s := NewVersionSpeculator(nil, release.SpeculationBehavior{
+				EnforceV0:           tt.enforceV0,
+				NoChangesBumpsPatch: tt.bumpPatchOnNoChange,
+			})
+
+			got, err := s.NextIdealVersion(tt.release, tt.changes)
+			tt.wantErr(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestFindNextUniqueVersion(t *testing.T) {
+	majorChange := change.Type{
+		Kind: change.SemVerMajor,
+	}
+
+	minorChange := change.Type{
+		Kind: change.SemVerMinor,
+	}
+
+	patchChange := change.Type{
+		Kind: change.SemVerPatch,
+	}
+
+	tests := []struct {
+		name                string
+		release             string
+		git                 git.Interface
+		changes             change.Changes
+		enforceV0           bool
+		bumpPatchOnNoChange bool
+		want                string
+		wantErr             require.ErrorAssertionFunc
+	}{
+		{
+			name:    "bump major version -- major conflict",
+			release: "v0.1.5",
+			git: git.MockInterface{
+				MockTags: []string{
+					"v1.0.0",
+				},
+			},
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{majorChange, minorChange, patchChange},
+				},
+			},
+			want: "v1.0.1",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.wantErr == nil {
+				tt.wantErr = require.NoError
+			}
+			s := NewVersionSpeculator(tt.git, release.SpeculationBehavior{
+				EnforceV0:           tt.enforceV0,
+				NoChangesBumpsPatch: tt.bumpPatchOnNoChange,
+			})
+
+			got, err := s.NextUniqueVersion(tt.release, tt.changes)
 			tt.wantErr(t, err)
 			assert.Equal(t, tt.want, got)
 		})

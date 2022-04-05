@@ -1,16 +1,18 @@
 package release
 
 import (
+	"errors"
 	"fmt"
+	"sort"
+	"time"
+
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/internal"
 	"github.com/anchore/chronicle/internal/log"
 	"github.com/scylladb/go-set/strset"
-	"sort"
-	"time"
 )
 
-type ChangelogConfig struct {
+type ChangelogInfoConfig struct {
 	VersionSpeculator
 	RepoPath         string
 	SinceTag         string
@@ -18,19 +20,23 @@ type ChangelogConfig struct {
 	ChangeTypeTitles []change.TypeTitle
 }
 
-func Changelog(summer Summarizer, config ChangelogConfig) (*Release, *Description, error) {
+// ChangelogInfo identifies the last release (the start of the changelog) and returns a description of the current (potentially speculative) release.
+func ChangelogInfo(summer Summarizer, config ChangelogInfoConfig) (*Release, *Description, error) {
 	startRelease, err := getChangelogStartingRelease(summer, config.SinceTag)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// TODO: support when there hasn't been the first release
-
 	log.Infof("since tag=%q date=%q", startRelease.Version, internal.FormatDateTime(startRelease.Date))
 
-	releaseVersion, releaseDisplayVersion, changes, err := changelogChanges(startRelease.Version, summer, config)
+	releaseVersion, changes, err := changelogChanges(startRelease.Version, summer, config)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	var releaseDisplayVersion = releaseVersion
+	if releaseVersion == "" {
+		releaseDisplayVersion = "(Unreleased)"
 	}
 
 	logChanges(changes)
@@ -48,16 +54,12 @@ func Changelog(summer Summarizer, config ChangelogConfig) (*Release, *Descriptio
 	}, nil
 }
 
-func changelogChanges(startReleaseVersion string, summer Summarizer, config ChangelogConfig) (string, string, []change.Change, error) {
+func changelogChanges(startReleaseVersion string, summer Summarizer, config ChangelogInfoConfig) (string, []change.Change, error) {
 	endReleaseVersion := config.UntilTag
-	endReleaseDisplay := config.UntilTag
-	if config.UntilTag == "" {
-		endReleaseDisplay = "(Unreleased)"
-	}
 
 	changes, err := summer.Changes(startReleaseVersion, config.UntilTag)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("unable to summarize changes: %w", err)
+		return "", nil, fmt.Errorf("unable to summarize changes: %w", err)
 	}
 
 	if config.VersionSpeculator != nil {
@@ -66,14 +68,14 @@ func changelogChanges(startReleaseVersion string, summer Summarizer, config Chan
 			if err != nil {
 				log.Warnf("unable to speculate next release version: %+v", err)
 			} else {
-				endReleaseVersion, endReleaseDisplay = specEndReleaseVersion, specEndReleaseVersion
+				endReleaseVersion = specEndReleaseVersion
 			}
 		} else {
 			log.Infof("not speculating next version current head tag=%q", endReleaseVersion)
 		}
 	}
 
-	return endReleaseVersion, endReleaseDisplay, changes, nil
+	return endReleaseVersion, changes, nil
 }
 
 func speculateNextVersion(speculator VersionSpeculator, startReleaseVersion string, changes []change.Change) (string, error) {
@@ -100,11 +102,16 @@ func getChangelogStartingRelease(summer Summarizer, sinceTag string) (*Release, 
 		lastRelease, err = summer.Release(sinceTag)
 		if err != nil {
 			return nil, fmt.Errorf("unable to fetch specific release: %w", err)
+		} else if lastRelease == nil {
+			return nil, errors.New("unable to fetch release")
 		}
 	} else {
 		lastRelease, err = summer.LastRelease()
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine last release: %w", err)
+		} else if lastRelease == nil {
+			// TODO: support when there hasn't been the first release (use date of first repo commit)
+			return nil, errors.New("unable to determine last release")
 		}
 	}
 	return lastRelease, nil

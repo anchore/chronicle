@@ -230,13 +230,13 @@ func fetchMergedPRs(user, repo string) ([]ghPullRequest, error) {
 			"prCursor":        (*githubv4.String)(nil), // Null after argument to get first page.
 		}
 
-		//var limit rateLimit
+		// var limit rateLimit
 		for {
 			err := client.Query(context.Background(), &query, variables)
 			if err != nil {
 				return nil, err
 			}
-			//limit = query.RateLimit
+			// limit = query.RateLimit
 
 			for _, prEdge := range query.Repository.PullRequests.Edges {
 				var labels []string

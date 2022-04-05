@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/anchore/chronicle/chronicle/release"
-	"github.com/anchore/chronicle/chronicle/release/releasers/github"
 	"os"
 
 	"github.com/anchore/chronicle/internal/git"
@@ -57,24 +55,15 @@ func bindNextVersionConfigOptions(flags *pflag.FlagSet) error {
 }
 
 func runNextVersion(cmd *cobra.Command, args []string) error {
+	appConfig.SpeculateNextVersion = true
 	worker := selectWorker(appConfig.CliOptions.RepoPath)
 
-	lastRelease, description, err := worker()
+	_, description, err := worker()
 	if err != nil {
 		return err
 	}
 
-	speculator := github.NewVersionSpeculator(appConfig.CliOptions.RepoPath, release.SpeculationBehavior{
-		EnforceV0:           appConfig.EnforceV0,
-		NoChangesBumpsPatch: true,
-	})
-
-	ver, err := speculator.NextUniqueVersion(lastRelease.Version, description.Changes)
-	if err != nil {
-		return err
-	}
-
-	_, err = os.Stdout.Write([]byte(ver))
+	_, err = os.Stdout.Write([]byte(description.Release.Version))
 
 	return err
 }

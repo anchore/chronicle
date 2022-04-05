@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/chronicle/release/releasers/github"
@@ -14,7 +15,13 @@ func createChangelogFromGithub() (*release.Release, *release.Description, error)
 	if err != nil {
 		return nil, nil, err
 	}
-	summer, err := github.NewSummarizer(appConfig.CliOptions.RepoPath, ghConfig)
+
+	gitter, err := git.New(appConfig.CliOptions.RepoPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	summer, err := github.NewSummarizer(gitter, ghConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to create summarizer: %w", err)
 	}
@@ -24,22 +31,25 @@ func createChangelogFromGithub() (*release.Release, *release.Description, error)
 		return nil, nil, fmt.Errorf("unable to get change type titles from github config: %w", err)
 	}
 
-	untilTag, err := findGithubChangelogEndTag(summer)
-	if err != nil {
-		return nil, nil, err
+	var untilTag = appConfig.UntilTag
+	if untilTag == "" {
+		untilTag, err = github.FindChangelogEndTag(summer, gitter)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	log.Infof("until tag=%q", untilTag)
 
 	var speculator release.VersionSpeculator
 	if appConfig.SpeculateNextVersion {
-		speculator = github.NewVersionSpeculator(appConfig.CliOptions.RepoPath, release.SpeculationBehavior{
+		speculator = github.NewVersionSpeculator(gitter, release.SpeculationBehavior{
 			EnforceV0:           appConfig.EnforceV0,
 			NoChangesBumpsPatch: true,
 		})
 	}
 
-	changelogConfig := release.ChangelogConfig{
+	changelogConfig := release.ChangelogInfoConfig{
 		RepoPath:          appConfig.CliOptions.RepoPath,
 		SinceTag:          appConfig.SinceTag,
 		UntilTag:          untilTag,
@@ -47,45 +57,7 @@ func createChangelogFromGithub() (*release.Release, *release.Description, error)
 		ChangeTypeTitles:  changeTypeTitles,
 	}
 
-	return release.Changelog(summer, changelogConfig)
-}
-
-func findGithubChangelogEndTag(summer release.Summarizer) (string, error) {
-	if appConfig.UntilTag != "" {
-		return appConfig.UntilTag, nil
-	}
-
-	//commitRef, err := git.HeadCommit(appConfig.CliOptions.RepoPath)
-	//if err != nil {
-	//	return "", fmt.Errorf("problem while attempting to find head ref: %w", err)
-	//}
-
-	// check if the current commit is tagged, then use that
-	currentTag, err := git.HeadTag(appConfig.CliOptions.RepoPath)
-	if err != nil {
-		return "", fmt.Errorf("problem while attempting to find head tag: %w", err)
-	}
-	if currentTag != "" {
-		if taggedRelease, err := summer.Release(currentTag); err != nil {
-			// TODO: assert the error specifically confirms that the release does not exist, not just any error
-			// no release found, assume that this is the correct release info
-			return "", fmt.Errorf("unable to fetch release=%q : %w", currentTag, err)
-		} else if taggedRelease != nil {
-			log.Debugf("found existing tag=%q however, it already has an associated release. ignoring...", currentTag)
-			//return commitRef, nil
-			return "", nil
-		}
-
-		log.Debugf("found existing tag=%q at HEAD which does not have an associated release", currentTag)
-
-		// a tag was found and there is no existing release for this tag
-		return currentTag, nil
-	}
-
-	// fallback to referencing the commit directly
-	//return commitRef, nil
-	return "", nil
-
+	return release.ChangelogInfo(summer, changelogConfig)
 }
 
 func getGithubSupportedChanges() ([]change.TypeTitle, error) {

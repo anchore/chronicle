@@ -13,13 +13,13 @@ import (
 var _ release.VersionSpeculator = (*VersionSpeculator)(nil)
 
 type VersionSpeculator struct {
-	repoPath string
+	git git.Interface
 	release.SpeculationBehavior
 }
 
-func NewVersionSpeculator(repoPath string, behavior release.SpeculationBehavior) VersionSpeculator {
+func NewVersionSpeculator(gitter git.Interface, behavior release.SpeculationBehavior) VersionSpeculator {
 	return VersionSpeculator{
-		repoPath:            repoPath,
+		git:                 gitter,
 		SpeculationBehavior: behavior,
 	}
 }
@@ -81,7 +81,7 @@ func (s VersionSpeculator) NextUniqueVersion(currentVersion string, changes chan
 		return "", err
 	}
 
-	tags, err := git.TagsFromLocal(s.repoPath)
+	tags, err := s.git.TagsFromLocal()
 	if err != nil {
 		return "", err
 	}

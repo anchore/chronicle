@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+
 	"github.com/anchore/chronicle/chronicle/release/releasers/github"
 
 	"github.com/anchore/chronicle/chronicle/release/change"
