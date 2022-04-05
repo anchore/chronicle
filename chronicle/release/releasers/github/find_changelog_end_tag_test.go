@@ -1,11 +1,13 @@
 package github
 
 import (
-	"github.com/anchore/chronicle/chronicle/release"
-	"github.com/anchore/chronicle/internal/git"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
+
+	"github.com/anchore/chronicle/chronicle/release"
+	"github.com/anchore/chronicle/internal/git"
 )
 
 func TestFindChangelogEndTag(t *testing.T) {

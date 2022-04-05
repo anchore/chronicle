@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
+
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/internal/git"
-	"github.com/coreos/go-semver/semver"
 )
 
 var _ release.VersionSpeculator = (*VersionSpeculator)(nil)

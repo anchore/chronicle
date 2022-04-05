@@ -3,10 +3,10 @@ package config
 import (
 	"fmt"
 
-	"github.com/anchore/chronicle/chronicle/release/releasers/github"
+	"github.com/spf13/viper"
 
 	"github.com/anchore/chronicle/chronicle/release/change"
-	"github.com/spf13/viper"
+	"github.com/anchore/chronicle/chronicle/release/releasers/github"
 )
 
 type githubSummarizer struct {

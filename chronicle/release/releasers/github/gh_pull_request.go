@@ -5,12 +5,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/anchore/chronicle/internal"
-
-	"github.com/anchore/chronicle/internal/log"
-
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
+
+	"github.com/anchore/chronicle/internal"
+	"github.com/anchore/chronicle/internal/log"
 )
 
 type ghPullRequest struct {

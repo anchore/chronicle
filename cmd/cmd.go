@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/anchore/chronicle/chronicle"
-	"github.com/anchore/chronicle/internal/config"
-	"github.com/anchore/chronicle/internal/log"
-	"github.com/anchore/chronicle/internal/logger"
 	"github.com/gookit/color"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/wagoodman/go-partybus"
+
+	"github.com/anchore/chronicle/chronicle"
+	"github.com/anchore/chronicle/internal/config"
+	"github.com/anchore/chronicle/internal/log"
+	"github.com/anchore/chronicle/internal/logger"
 )
 
 var (

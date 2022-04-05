@@ -5,11 +5,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/anchore/chronicle/internal/log"
-
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/internal/git"
+	"github.com/anchore/chronicle/internal/log"
 )
 
 var _ release.Summarizer = (*Summarizer)(nil)
