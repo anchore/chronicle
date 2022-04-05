@@ -2,6 +2,7 @@ package change
 
 type TypeTitles []TypeTitle
 
+// TypeTitle is a changetype paired with the section title that should be used in the changelog.
 type TypeTitle struct {
 	ChangeType Type
 	Title      string

@@ -1,5 +1,6 @@
 package change
 
+// TypeSet is a unique set of types indexed by their name
 type TypeSet map[string]Type
 
 func (l TypeSet) Names() (results []string) {
