@@ -1,9 +1,12 @@
 package log
 
-import "github.com/anchore/chronicle/chronicle/logger"
+import (
+	"github.com/anchore/chronicle/chronicle/logger"
+	"github.com/anchore/go-logger/adapter/discard"
+)
 
 // Log is the singleton used to facilitate logging internally within chronicle
-var Log logger.Logger = &nopLogger{}
+var Log logger.Logger = discard.New()
 
 // Errorf takes a formatted template string and template arguments for the error logging level.
 func Errorf(format string, args ...interface{}) {
