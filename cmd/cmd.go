@@ -12,7 +12,7 @@ import (
 	"github.com/anchore/chronicle/chronicle"
 	"github.com/anchore/chronicle/internal/config"
 	"github.com/anchore/chronicle/internal/log"
-	"github.com/anchore/chronicle/internal/logger"
+	"github.com/anchore/go-logger/adapter/logrus"
 )
 
 var (
@@ -77,16 +77,17 @@ func initAppConfig() {
 }
 
 func initLogging() {
-	cfg := logger.LogrusConfig{
+	lgr, err := logrus.New(logrus.Config{
 		EnableConsole: (appConfig.Log.FileLocation == "" || appConfig.CliOptions.Verbosity > 0) && !appConfig.Quiet,
-		EnableFile:    appConfig.Log.FileLocation != "",
-		Level:         appConfig.Log.LevelOpt,
-		Structured:    appConfig.Log.Structured,
 		FileLocation:  appConfig.Log.FileLocation,
+		Level:         appConfig.Log.LevelOpt,
+	})
+
+	if err != nil {
+		panic(err)
 	}
 
-	logWrapper := logger.NewLogrusLogger(cfg)
-	chronicle.SetLogger(logWrapper)
+	chronicle.SetLogger(lgr)
 }
 
 func logAppConfig() {

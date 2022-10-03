@@ -9,11 +9,11 @@ import (
 
 	"github.com/adrg/xdg"
 	"github.com/mitchellh/go-homedir"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 
 	"github.com/anchore/chronicle/internal"
+	"github.com/anchore/go-logger"
 )
 
 var ErrApplicationConfigNotFound = fmt.Errorf("application config not found")
@@ -92,26 +92,23 @@ func (cfg *Application) parseConfigValues() error {
 	}
 
 	if cfg.Quiet {
-		// TODO: this is bad: quiet option trumps all other logging options
-		// we should be able to quiet the console logging and leave file logging alone...
-		// ... this will be an enhancement for later
-		cfg.Log.LevelOpt = logrus.PanicLevel
+		cfg.Log.LevelOpt = logger.DisabledLevel
 	} else {
 		if cfg.CliOptions.Verbosity > 0 {
 			// set the log level implicitly
 			switch v := cfg.CliOptions.Verbosity; {
 			case v == 1:
-				cfg.Log.LevelOpt = logrus.InfoLevel
+				cfg.Log.LevelOpt = logger.InfoLevel
 			case v == 2:
-				cfg.Log.LevelOpt = logrus.DebugLevel
+				cfg.Log.LevelOpt = logger.DebugLevel
 			case v >= 3:
-				cfg.Log.LevelOpt = logrus.TraceLevel
+				cfg.Log.LevelOpt = logger.TraceLevel
 			default:
-				cfg.Log.LevelOpt = logrus.WarnLevel
+				cfg.Log.LevelOpt = logger.WarnLevel
 			}
-			cfg.Log.Level = cfg.Log.LevelOpt.String()
+			cfg.Log.Level = string(cfg.Log.LevelOpt)
 		} else {
-			lvl, err := logrus.ParseLevel(strings.ToLower(cfg.Log.Level))
+			lvl, err := logger.LevelFromString(strings.ToLower(cfg.Log.Level))
 			if err != nil {
 				return fmt.Errorf("bad log level configured (%q): %w", cfg.Log.Level, err)
 			}
