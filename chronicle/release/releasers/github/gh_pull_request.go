@@ -161,6 +161,29 @@ func prsWithLabel(labels ...string) prFilter {
 	}
 }
 
+func prsUnlabeled() prFilter {
+	return func(pr ghPullRequest) bool {
+		keep := len(pr.Labels) == 0
+		if !keep {
+			log.Tracef("PR #%d filtered out: unlabeled (merged %s)", pr.Number, internal.FormatDateTime(pr.MergedAt))
+		}
+		return keep
+	}
+}
+
+func prsUnlinked() prFilter {
+	return func(pr ghPullRequest) bool {
+		return len(pr.LinkedIssues) == 0
+	}
+}
+
+func prsWithChangeTypes(config Config) prFilter {
+	return func(pr ghPullRequest) bool {
+		changeTypes := config.ChangeTypesByLabel.ChangeTypes(pr.Labels...)
+		return len(changeTypes) > 0
+	}
+}
+
 func prsWithoutLabel(labels ...string) prFilter {
 	return func(pr ghPullRequest) bool {
 		for _, targetLabel := range labels {

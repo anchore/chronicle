@@ -47,6 +47,10 @@ func TestMarkdownPresenter_Present(t *testing.T) {
 							ChangeType: change.NewType("removed", change.SemVerMajor),
 							Title:      "Removed Features",
 						},
+						{
+							ChangeType: change.NewType("unlabeled", change.SemVerMajor),
+							Title:      "Unlabeled PRs",
+						},
 					},
 					Release: release.Release{
 						Version: "v0.19.1",
