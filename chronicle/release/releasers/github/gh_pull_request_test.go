@@ -327,3 +327,43 @@ func Test_prsWithoutOpenLinkedIssue(t *testing.T) {
 		})
 	}
 }
+
+func Test_prsWithoutMergeCommit(t *testing.T) {
+
+	tests := []struct {
+		name     string
+		pr       ghPullRequest
+		commits  []string
+		expected bool
+	}{
+		{
+			name: "has merge commit within range",
+			pr: ghPullRequest{
+				MergeCommit: "commit-1",
+			},
+			commits: []string{
+				"commit-1",
+				"commit-2",
+				"commit-3",
+			},
+			expected: true,
+		},
+		{
+			name: "has merge commit within range",
+			pr: ghPullRequest{
+				MergeCommit: "commit-bogosity",
+			},
+			commits: []string{
+				"commit-1",
+				"commit-2",
+				"commit-3",
+			},
+			expected: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, prsWithoutMergeCommit(tt.commits...)(tt.pr))
+		})
+	}
+}

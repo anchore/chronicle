@@ -10,6 +10,7 @@ type Interface interface {
 	RemoteURL() (string, error)
 	SearchForTag(tagRef string) (*Tag, error)
 	TagsFromLocal() ([]Tag, error)
+	CommitsBetween(Range) ([]string, error)
 }
 
 type gitter struct {
@@ -23,6 +24,10 @@ func New(repoPath string) (Interface, error) {
 	return gitter{
 		repoPath: repoPath,
 	}, nil
+}
+
+func (g gitter) CommitsBetween(cfg Range) ([]string, error) {
+	return CommitsBetween(g.repoPath, cfg)
 }
 
 func (g gitter) HeadTagOrCommit() (string, error) {

@@ -28,7 +28,11 @@ func ChangelogInfo(summer Summarizer, config ChangelogInfoConfig) (*Release, *De
 		return nil, nil, err
 	}
 
-	log.Infof("since tag=%q date=%q", startRelease.Version, internal.FormatDateTime(startRelease.Date))
+	if startRelease != nil {
+		log.WithFields("tag", startRelease.Version, "release-timestamp", internal.FormatDateTime(startRelease.Date)).Info("since")
+	} else {
+		log.Info("since the beginning of history")
+	}
 
 	releaseVersion, changes, err := changelogChanges(startRelease.Version, summer, config)
 	if err != nil {

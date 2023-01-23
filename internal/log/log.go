@@ -1,12 +1,12 @@
 package log
 
 import (
-	"github.com/anchore/chronicle/chronicle/logger"
+	"github.com/anchore/go-logger"
 	"github.com/anchore/go-logger/adapter/discard"
 )
 
 // Log is the singleton used to facilitate logging internally within chronicle
-var Log logger.Logger = discard.New()
+var Log = discard.New()
 
 // Errorf takes a formatted template string and template arguments for the error logging level.
 func Errorf(format string, args ...interface{}) {
@@ -56,4 +56,14 @@ func Tracef(format string, args ...interface{}) {
 // Trace logs the given arguments at the trace logging level.
 func Trace(args ...interface{}) {
 	Log.Trace(args...)
+}
+
+// WithFields returns a message logger with multiple key-value fields.
+func WithFields(fields ...interface{}) logger.MessageLogger {
+	return Log.WithFields(fields...)
+}
+
+// Nested returns a new logger with hard coded key-value pairs
+func Nested(fields ...interface{}) logger.Logger {
+	return Log.Nested(fields...)
 }

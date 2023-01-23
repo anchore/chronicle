@@ -39,7 +39,11 @@ func createChangelogFromGithub() (*release.Release, *release.Description, error)
 		}
 	}
 
-	log.Infof("until tag=%q", untilTag)
+	if untilTag != "" {
+		log.WithFields("tag", untilTag).Infof("until")
+	} else {
+		log.Infof("until the current revision")
+	}
 
 	var speculator release.VersionSpeculator
 	if appConfig.SpeculateNextVersion {

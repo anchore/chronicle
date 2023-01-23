@@ -6,6 +6,11 @@ type MockInterface struct {
 	MockTags            []string
 	MockRemoteURL       string
 	MockSearchTag       string
+	MockCommitsBetween  []string
+}
+
+func (m MockInterface) CommitsBetween(r Range) ([]string, error) {
+	return m.MockCommitsBetween, nil
 }
 
 func (m MockInterface) HeadTagOrCommit() (string, error) {

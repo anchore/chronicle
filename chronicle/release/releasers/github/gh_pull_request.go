@@ -5,10 +5,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/scylladb/go-set/strset"
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 
 	"github.com/anchore/chronicle/internal"
+	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
 )
 
@@ -20,28 +22,49 @@ type ghPullRequest struct {
 	Labels       []string
 	URL          string
 	LinkedIssues []ghIssue
+	MergeCommit  string
 }
 
 type prFilter func(issue ghPullRequest) bool
 
-func filterPRs(prs []ghPullRequest, filters ...prFilter) []ghPullRequest {
+func applyPRFilters(allMergedPRs []ghPullRequest, config Config, sinceTag, untilTag *git.Tag, includeCommits []string, filters ...prFilter) []ghPullRequest {
+	// first pass: exclude PRs which are not within the date range derived from the tags
+	log.Trace("filtering PRs by chronology")
+	includedPRs, excludedPRs := filterPRs(allMergedPRs, standardChronologicalPrFilters(config, sinceTag, untilTag, includeCommits)...)
+
+	if config.ConsiderPRMergeCommits {
+		// second pass: include PRs that are outside of the date range but have commits within what is considered for release explicitly
+		log.Trace("considering re-inclusion of PRs based on merge commits")
+		includedPRs = append(includedPRs, keepPRsWithCommits(excludedPRs, includeCommits)...)
+	}
+
+	// third pass: now that we have a list of PRs considered for release, we can filter down to those which have the correct traits (e.g. labels)
+	log.Trace("filtering remaining PRs by qualitative traits")
+	includedPRs, _ = filterPRs(includedPRs, filters...)
+
+	return includedPRs
+}
+
+func filterPRs(prs []ghPullRequest, filters ...prFilter) ([]ghPullRequest, []ghPullRequest) {
 	if len(filters) == 0 {
-		return prs
+		return prs, nil
 	}
 
 	results := make([]ghPullRequest, 0, len(prs))
+	removed := make([]ghPullRequest, 0, len(prs))
 
 prLoop:
 	for _, r := range prs {
 		for _, f := range filters {
 			if !f(r) {
+				removed = append(removed, r)
 				continue prLoop
 			}
 		}
 		results = append(results, r)
 	}
 
-	return results
+	return results, removed
 }
 
 // nolint:deadcode,unused
@@ -153,6 +176,33 @@ func prsWithoutLabel(labels ...string) prFilter {
 	}
 }
 
+func prsWithoutMergeCommit(commits ...string) prFilter {
+	commitSet := strset.New(commits...)
+	return func(pr ghPullRequest) bool {
+		if !commitSet.Has(pr.MergeCommit) {
+			log.Tracef("PR #%d filtered out: has merge commit outside of valid set %s", pr.Number, pr.MergeCommit)
+			return false
+		}
+
+		return true
+	}
+}
+
+func keepPRsWithCommits(prs []ghPullRequest, commits []string, filters ...prFilter) []ghPullRequest {
+	results := make([]ghPullRequest, 0, len(prs))
+
+	commitSet := strset.New(commits...)
+	for _, pr := range prs {
+		if commitSet.Has(pr.MergeCommit) {
+			log.Tracef("PR #%d included: has selected commit %s", pr.Number, pr.MergeCommit)
+			keep, _ := filterPRs([]ghPullRequest{pr}, filters...)
+			results = append(results, keep...)
+		}
+	}
+
+	return results
+}
+
 // nolint:funlen
 func fetchMergedPRs(user, repo string) ([]ghPullRequest, error) {
 	src := oauth2.StaticTokenSource(
@@ -188,6 +238,9 @@ func fetchMergedPRs(user, repo string) ([]ghPullRequest, error) {
 							URL    githubv4.String
 							Author struct {
 								Login githubv4.String
+							}
+							MergeCommit struct {
+								OID githubv4.String
 							}
 							MergedAt githubv4.DateTime
 							Labels   struct {
@@ -264,6 +317,7 @@ func fetchMergedPRs(user, repo string) ([]ghPullRequest, error) {
 					URL:          string(prEdge.Node.URL),
 					Number:       int(prEdge.Node.Number),
 					LinkedIssues: linkedIssues,
+					MergeCommit:  string(prEdge.Node.MergeCommit.OID),
 				})
 			}
 

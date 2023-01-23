@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRemoteUrl(t *testing.T) {
@@ -21,7 +22,7 @@ func TestRemoteUrl(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			actual, err := RemoteURL(test.path)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, test.expects, actual)
 		})
 	}
