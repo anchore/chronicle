@@ -7,19 +7,26 @@ import (
 
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
+	"github.com/anchore/chronicle/internal"
 	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
+)
+
+const (
+	treeBranch = "├──"
+	treeLeaf   = "└──"
 )
 
 var _ release.Summarizer = (*Summarizer)(nil)
 
 type Config struct {
-	Host                  string
-	IncludeIssues         bool
-	IncludePRs            bool
-	ExcludeLabels         []string
-	ChangeTypesByLabel    change.TypeSet
-	IssuesRequireLinkedPR bool
+	Host                   string
+	IncludeIssues          bool
+	IncludePRs             bool
+	ExcludeLabels          []string
+	ChangeTypesByLabel     change.TypeSet
+	IssuesRequireLinkedPR  bool
+	ConsiderPRMergeCommits bool
 }
 
 type Summarizer struct {
@@ -40,7 +47,7 @@ func NewSummarizer(gitter git.Interface, config Config) (*Summarizer, error) {
 		return nil, fmt.Errorf("failed to extract owner and repo from %q", repoURL)
 	}
 
-	log.Debugf("github owner=%q repo=%q", user, repo)
+	log.WithFields("owner", user, "repo", repo).Debug("github summarizer")
 
 	return &Summarizer{
 		git:      gitter,
@@ -87,20 +94,55 @@ func (s *Summarizer) LastRelease() (*release.Release, error) {
 	return nil, fmt.Errorf("unable to find latest release")
 }
 
+// nolint:funlen
 func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error) {
 	var changes []change.Change
+	var err error
 
-	sinceTag, err := s.git.SearchForTag(sinceRef)
-	if err != nil {
-		return nil, err
+	var includeStart, includeEnd bool
+
+	var sinceTag *git.Tag
+	sinceHash := sinceRef
+	if sinceRef != "" {
+		sinceTag, err = s.git.SearchForTag(sinceRef)
+		if err != nil {
+			return nil, err
+		}
+		includeStart = false
+	} else {
+		includeStart = true
 	}
 
 	var untilTag *git.Tag
+	untilHash := untilRef
 	if untilRef != "" {
 		untilTag, err = s.git.SearchForTag(untilRef)
 		if err != nil {
 			return nil, err
 		}
+		includeEnd = false
+	} else {
+		untilHash, err = s.git.HeadTagOrCommit()
+		if err != nil {
+			return nil, err
+		}
+		includeEnd = true
+	}
+
+	var includeCommits []string
+	if s.config.ConsiderPRMergeCommits {
+		includeCommits, err = s.git.CommitsBetween(git.Range{
+			SinceRef:     sinceHash,
+			UntilRef:     untilHash,
+			IncludeStart: includeStart,
+			IncludeEnd:   includeEnd,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("unable to fetch commit range: %v", err)
+		}
+
+		log.Debugf("release comprised of %d commits", len(includeCommits))
+		logCommits(includeCommits)
 	}
 
 	if s.config.IncludePRs || (s.config.IssuesRequireLinkedPR && s.config.IncludeIssues) {
@@ -112,13 +154,13 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 		log.Debugf("total merged PRs discovered: %d", len(allMergedPRs))
 
 		if s.config.IncludePRs {
-			changes = append(changes, changesFromPRs(s.config, allMergedPRs, sinceTag, untilTag)...)
+			changes = append(changes, changesFromPRs(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)...)
 		}
 		if s.config.IssuesRequireLinkedPR && s.config.IncludeIssues {
 			// extract closed linked issues with closed PRs from the PR list. Why do this here?
 			// githubs ontology has PRs as the source of truth for issue linking. Linked PR information
 			// is not available on the issue itself.
-			extractedIssues := issuesExtractedFromPRs(s.config, allMergedPRs, sinceTag, untilTag)
+			extractedIssues := issuesExtractedFromPRs(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)
 			changes = append(changes, createChangesFromIssues(s.config, extractedIssues)...)
 		}
 	}
@@ -137,7 +179,17 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 	return changes, nil
 }
 
-func issuesExtractedFromPRs(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag) []ghIssue {
+func logCommits(commits []string) {
+	for idx, commit := range commits {
+		var branch = treeBranch
+		if idx == len(commits)-1 {
+			branch = treeLeaf
+		}
+		log.Tracef("  %s %s", branch, commit)
+	}
+}
+
+func issuesExtractedFromPRs(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag, includeCommits []string) []ghIssue {
 	// this represents the traits we wish to filter down to (not out).
 	prFilters := []prFilter{
 		prsAfter(sinceTag.Timestamp.UTC()),
@@ -150,8 +202,8 @@ func issuesExtractedFromPRs(config Config, allMergedPRs []ghPullRequest, sinceTa
 		prFilters = append(prFilters, prsAtOrBefore(untilTag.Timestamp.UTC()))
 	}
 
-	filteredPRs := filterPRs(allMergedPRs, prFilters...)
-	extractedIssues := uniqueIssuesFromPRs(filteredPRs)
+	includedPRs := applyPRFilters(allMergedPRs, config, sinceTag, untilTag, includeCommits, prFilters...)
+	extractedIssues := uniqueIssuesFromPRs(includedPRs)
 
 	// this represents the traits we wish to filter down to (not out).
 	issueFilters := []issueFilter{
@@ -182,13 +234,14 @@ func uniqueIssuesFromPRs(prs []ghPullRequest) []ghIssue {
 	return issues
 }
 
-func changesFromPRs(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag) []change.Change {
-	filteredPRs := filterPRs(allMergedPRs, standardPrFilters(config, sinceTag, untilTag)...)
+func changesFromPRs(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag, includeCommits []string) []change.Change {
+	includedPRs := applyStandardPRFilters(allMergedPRs, config, sinceTag, untilTag, includeCommits)
 
-	log.Debugf("PRs contributing to changelog: %d", len(filteredPRs))
+	log.Debugf("PRs contributing to changelog: %d", len(includedPRs))
+	logPRs(includedPRs)
 
 	var summaries []change.Change
-	for _, pr := range filteredPRs {
+	for _, pr := range includedPRs {
 		changeTypes := config.ChangeTypesByLabel.ChangeTypes(pr.Labels...)
 		if len(changeTypes) > 0 {
 			summaries = append(summaries, change.Change{
@@ -213,12 +266,33 @@ func changesFromPRs(config Config, allMergedPRs []ghPullRequest, sinceTag, until
 	return summaries
 }
 
+func logPRs(prs []ghPullRequest) {
+	for idx, pr := range prs {
+		var branch = treeBranch
+		if idx == len(prs)-1 {
+			branch = treeLeaf
+		}
+		log.Tracef("  %s #%d: merged %s", branch, pr.Number, internal.FormatDateTime(pr.MergedAt))
+	}
+}
+
 func changesFromIssues(config Config, allClosedIssues []ghIssue, sinceTag, untilTag *git.Tag) []change.Change {
 	filteredIssues := filterIssues(allClosedIssues, standardIssueFilters(config, sinceTag, untilTag)...)
 
 	log.Debugf("issues contributing to changelog: %d", len(filteredIssues))
+	logIssues(filteredIssues)
 
 	return createChangesFromIssues(config, filteredIssues)
+}
+
+func logIssues(issues []ghIssue) {
+	for idx, issue := range issues {
+		var branch = treeBranch
+		if idx == len(issues)-1 {
+			branch = treeLeaf
+		}
+		log.Tracef("  %s #%d: closed %s", branch, issue.Number, internal.FormatDateTime(issue.ClosedAt))
+	}
 }
 
 func createChangesFromIssues(config Config, issues []ghIssue) (changes []change.Change) {
@@ -278,21 +352,23 @@ func extractGithubUserAndRepo(u string) (string, string) {
 func standardIssueFilters(config Config, sinceTag, untilTag *git.Tag) []issueFilter {
 	// this represents the traits we wish to filter down to (not out).
 	filters := []issueFilter{
-		issuesAfter(sinceTag.Timestamp),
 		issuesWithLabel(config.ChangeTypesByLabel.Names()...),
 		issuesWithoutLabel(config.ExcludeLabels...),
 	}
 
+	if sinceTag != nil {
+		filters = append([]issueFilter{issuesAfter(sinceTag.Timestamp)}, filters...)
+	}
+
 	if untilTag != nil {
-		filters = append(filters, issuesAtOrBefore(untilTag.Timestamp))
+		filters = append([]issueFilter{issuesAtOrBefore(untilTag.Timestamp)}, filters...)
 	}
 	return filters
 }
 
-func standardPrFilters(config Config, sinceTag, untilTag *git.Tag) []prFilter {
+func standardQualitativePrFilters(config Config) []prFilter {
 	// this represents the traits we wish to filter down to (not out).
-	filters := []prFilter{
-		prsAfter(sinceTag.Timestamp.UTC()),
+	return []prFilter{
 		prsWithLabel(config.ChangeTypesByLabel.Names()...),
 		prsWithoutLabel(config.ExcludeLabels...),
 		// Merged PRs linked to closed issues should be hidden so that the closed issue title takes precedence over the pr title
@@ -301,9 +377,27 @@ func standardPrFilters(config Config, sinceTag, untilTag *git.Tag) []prFilter {
 		// then the feature should be included (by the pr, not the set of PRs)
 		prsWithoutOpenLinkedIssue(),
 	}
+}
+
+func standardChronologicalPrFilters(config Config, sinceTag, untilTag *git.Tag, commits []string) []prFilter {
+	var filters []prFilter
+
+	if config.ConsiderPRMergeCommits {
+		filters = append(filters, prsWithoutMergeCommit(commits...))
+	}
+
+	if sinceTag != nil {
+		filters = append([]prFilter{prsAfter(sinceTag.Timestamp.UTC())}, filters...)
+	}
 
 	if untilTag != nil {
-		filters = append(filters, prsAtOrBefore(untilTag.Timestamp.UTC()))
+		filters = append([]prFilter{prsAtOrBefore(untilTag.Timestamp.UTC())}, filters...)
 	}
 	return filters
+}
+
+func applyStandardPRFilters(allMergedPRs []ghPullRequest, config Config, sinceTag, untilTag *git.Tag, includeCommits []string, filters ...prFilter) []ghPullRequest {
+	allFilters := standardQualitativePrFilters(config)
+	filters = append(allFilters, filters...)
+	return applyPRFilters(allMergedPRs, config, sinceTag, untilTag, includeCommits, filters...)
 }

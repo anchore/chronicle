@@ -228,38 +228,79 @@ func Test_prFilters(t *testing.T) {
 		Timestamp: timeEnd,
 	}
 
+	mergeCommit1 := "commit-pr-1-hash"
+	mergeCommit2 := "commit-pr-2-hash"
+	mergeCommit3 := "commit-pr-3-hash"
+	// note: 4-5 reserved for issues... (not PRs)
+	mergeCommit6 := "commit-pr-6-hash"
+	mergeCommit7 := "commit-pr-7-hash"
+	mergeCommit8 := "commit-pr-8-hash"
+	mergeCommit9 := "commit-pr-9-hash"
+	mergeCommit10 := "commit-pr-10-hash"
+	mergeCommit11 := "commit-pr-11-hash"
+	mergeCommit12 := "commit-pr-12-hash"
+	// 13 is made up
+	mergeCommit14 := "commit-pr-14-hash"
+
+	tagRangeMergeCommits := []string{
+		mergeCommit1,
+		mergeCommit2,
+		mergeCommit3,
+		mergeCommit9,
+		mergeCommit10,
+		mergeCommit11,
+		// note: merge commit 13 represents a PR that was merged after the end tag, thus us excluded via commit filter
+	}
+
+	outsideRangeMergeCommits := []string{
+		mergeCommit6,
+		mergeCommit7,
+		mergeCommit8,
+		mergeCommit12,
+		mergeCommit14,
+	}
+
+	var allMergeCommits []string
+	allMergeCommits = append(allMergeCommits, tagRangeMergeCommits...)
+	allMergeCommits = append(allMergeCommits, outsideRangeMergeCommits...)
+
 	prBugAfterLastRelease := ghPullRequest{
-		Title:    "pr bug after starting tag",
-		Number:   1,
-		MergedAt: timeAfter,
-		Labels:   []string{"bug"},
+		Title:       "pr bug after starting tag",
+		Number:      1,
+		MergedAt:    timeAfter,
+		Labels:      []string{"bug"},
+		MergeCommit: mergeCommit1,
 	}
 
 	prBugAtLastRelease := ghPullRequest{
-		Title:    "pr bug at (within) last release",
-		Number:   10,
-		MergedAt: timeStart,
-		Labels:   []string{"bug"},
+		Title:       "pr bug at (within) last release",
+		Number:      10,
+		MergedAt:    timeStart,
+		Labels:      []string{"bug"},
+		MergeCommit: mergeCommit10,
 	}
 
 	prBugAtEndTag := ghPullRequest{
-		Title:    "pr bug at (within) end tag",
-		Number:   11,
-		MergedAt: timeEnd,
-		Labels:   []string{"bug"},
+		Title:       "pr bug at (within) end tag",
+		Number:      11,
+		MergedAt:    timeEnd,
+		Labels:      []string{"bug"},
+		MergeCommit: mergeCommit3,
 	}
 
 	prAfterLastRelease := ghPullRequest{
-		Title:    "pr after starting tag",
-		Number:   9,
-		MergedAt: timeAfter,
+		Title:       "pr after starting tag",
+		Number:      9,
+		MergedAt:    timeAfter,
+		MergeCommit: mergeCommit9,
 	}
 
 	prBugBeforeLastRelease := ghPullRequest{
-		Title:    "pr bug before starting tag",
-		Number:   2,
-		MergedAt: timeBefore,
-		Labels:   []string{"bug"},
+		Title:       "pr bug before starting tag",
+		Number:      2,
+		MergedAt:    timeBefore,
+		Labels:      []string{"bug"},
+		MergeCommit: mergeCommit2,
 	}
 
 	issueClosedAfterLastRelease := ghIssue{
@@ -279,10 +320,11 @@ func Test_prFilters(t *testing.T) {
 
 	prBugAfterLastReleaseWithOpenLinkedIssue := ghPullRequest{
 		Title:        "pr bug after starting tag (w/ open linked issue)",
-		Number:       3,
+		Number:       14,
 		MergedAt:     timeAfter,
 		Labels:       []string{"bug"},
 		LinkedIssues: []ghIssue{issueOpen},
+		MergeCommit:  mergeCommit14,
 	}
 
 	prAfterLastReleaseWithOpenLinkedIssue := ghPullRequest{
@@ -290,6 +332,7 @@ func Test_prFilters(t *testing.T) {
 		Number:       6,
 		MergedAt:     timeAfter,
 		LinkedIssues: []ghIssue{issueOpen},
+		MergeCommit:  mergeCommit6,
 	}
 
 	prBugAfterLastReleaseWithClosedLinkedIssue := ghPullRequest{
@@ -298,6 +341,7 @@ func Test_prFilters(t *testing.T) {
 		MergedAt:     timeAfter,
 		Labels:       []string{"bug"},
 		LinkedIssues: []ghIssue{issueClosedAfterLastRelease},
+		MergeCommit:  mergeCommit7,
 	}
 
 	prAfterLastReleaseWithClosedLinkedIssue := ghPullRequest{
@@ -305,13 +349,23 @@ func Test_prFilters(t *testing.T) {
 		Number:       8,
 		MergedAt:     timeAfter,
 		LinkedIssues: []ghIssue{issueClosedAfterLastRelease},
+		MergeCommit:  mergeCommit8,
 	}
 
 	prFeatureAfterEndTag := ghPullRequest{
-		Title:    "pr feature after end tag",
-		Number:   1,
-		MergedAt: timeAfterEnd,
-		Labels:   []string{"feature"},
+		Title:       "pr feature after end tag",
+		Number:      12,
+		MergedAt:    timeAfterEnd,
+		Labels:      []string{"feature"},
+		MergeCommit: mergeCommit12,
+	}
+
+	prFeatureAfterEndTagAndMergeRange := ghPullRequest{
+		Title:       "pr feature after end tag (and merge range)",
+		Number:      13,
+		MergedAt:    timeAfterEnd,
+		Labels:      []string{"feature"},
+		MergeCommit: "made-up-commit-hash",
 	}
 
 	input := []ghPullRequest{
@@ -328,52 +382,156 @@ func Test_prFilters(t *testing.T) {
 		prBugAfterLastReleaseWithClosedLinkedIssue,
 		prAfterLastReleaseWithClosedLinkedIssue,
 		prFeatureAfterEndTag,
+		prFeatureAfterEndTagAndMergeRange,
 	}
 
 	tests := []struct {
 		name        string
 		since       *git.Tag
 		until       *git.Tag
+		commits     []string
 		config      Config
 		inputPrs    []ghPullRequest
 		expectedPrs []ghPullRequest
 	}{
 		{
-			name:  "keep changes between the tags",
+			name:  "keep changes between the tags (dont consider PR commits)",
 			since: sinceTag,
 			until: untilTag,
 			config: Config{
-				ExcludeLabels:      nil,
-				ChangeTypesByLabel: changeTypeSet,
+				ExcludeLabels:          nil,
+				ChangeTypesByLabel:     changeTypeSet,
+				ConsiderPRMergeCommits: false,
 			},
 			inputPrs: input,
+			commits:  tagRangeMergeCommits,
 			expectedPrs: []ghPullRequest{
 				prBugAfterLastRelease,
 				prBugAtEndTag,
 			},
 		},
 		{
-			name:  "keep changes after start tag",
+			name:  "keep changes after start tag (dont consider PR commits)",
 			since: sinceTag,
 			config: Config{
-				ExcludeLabels:      nil,
-				ChangeTypesByLabel: changeTypeSet,
+				ExcludeLabels:          nil,
+				ChangeTypesByLabel:     changeTypeSet,
+				ConsiderPRMergeCommits: false,
 			},
 			inputPrs: input,
+			commits:  allMergeCommits,
 			expectedPrs: []ghPullRequest{
 				prBugAfterLastRelease,
 				prBugAtEndTag,
 				prFeatureAfterEndTag,
+				prFeatureAfterEndTagAndMergeRange,
 			},
 		},
 		{
-			name:  "keep only added features after start tag",
+			name:  "keep only added features after start tag (dont consider PR commits)",
 			since: sinceTag,
 			config: Config{
-				ExcludeLabels:      []string{"bug"},
-				ChangeTypesByLabel: changeTypeSet,
+				ExcludeLabels:          []string{"bug"},
+				ChangeTypesByLabel:     changeTypeSet,
+				ConsiderPRMergeCommits: false,
 			},
 			inputPrs: input,
+			commits:  allMergeCommits,
+			expectedPrs: []ghPullRequest{
+				prFeatureAfterEndTag,
+				prFeatureAfterEndTagAndMergeRange,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			keep := applyStandardPRFilters(tt.inputPrs, tt.config, tt.since, tt.until, tt.commits)
+			assert.ElementsMatch(t, tt.expectedPrs, keep)
+		})
+	}
+}
+
+func Test_prFilters_byCommits(t *testing.T) {
+	patch := change.NewType("patch", change.SemVerPatch)
+	feature := change.NewType("added-feature", change.SemVerMinor)
+	breaking := change.NewType("breaking-change", change.SemVerMajor)
+
+	changeTypeSet := change.TypeSet{
+		"bug":             patch,
+		"fix":             patch,
+		"feature":         feature,
+		"breaking":        breaking,
+		"removed":         breaking,
+		"breaking-change": breaking,
+	}
+
+	timeStart := time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC)
+	timeAfter := timeStart.Add(2 * time.Hour)
+
+	timeEnd := timeStart.Add(5 * time.Hour)
+	timeAfterEnd := timeEnd.Add(3 * time.Hour)
+
+	sinceTag := &git.Tag{
+		Name:      "v0.1.0",
+		Timestamp: timeStart,
+	}
+
+	untilTag := &git.Tag{
+		Name:      "v0.2.0",
+		Timestamp: timeEnd,
+	}
+
+	mergeCommit12 := "commit-pr-12-hash"
+
+	validMergeCommits := []string{
+		mergeCommit12,
+	}
+
+	prFeatureAfterEndTag := ghPullRequest{
+		Title:       "pr feature after end tag",
+		Number:      12,
+		MergedAt:    timeAfterEnd, // note: this is after the end tag...
+		Labels:      []string{"feature"},
+		MergeCommit: mergeCommit12, // continue note: ... but this commit is within the merge range
+	}
+
+	prFeatureBeforeEndTagButNotWithinMergeRange := ghPullRequest{
+		Title:       "pr feature not within merge range",
+		Number:      13,
+		MergedAt:    timeAfter, // note: this is during the tag range...
+		Labels:      []string{"feature"},
+		MergeCommit: "made-up-commit-hash", // continue note: ... but this commit is not within the merge range
+	}
+
+	input := []ghPullRequest{
+		// keep
+		prFeatureAfterEndTag, // re-included via commit range
+
+		// filter out
+		prFeatureBeforeEndTagButNotWithinMergeRange,
+	}
+
+	tests := []struct {
+		name        string
+		since       *git.Tag
+		until       *git.Tag
+		commits     []string
+		config      Config
+		inputPrs    []ghPullRequest
+		expectedPrs []ghPullRequest
+	}{
+		{
+			name:  "add PRs merged after end tag if they are in the commit range",
+			since: sinceTag,
+			until: untilTag,
+			config: Config{
+				ExcludeLabels:          nil,
+				ChangeTypesByLabel:     changeTypeSet,
+				ConsiderPRMergeCommits: true,
+			},
+			inputPrs: input,
+			commits:  validMergeCommits,
 			expectedPrs: []ghPullRequest{
 				prFeatureAfterEndTag,
 			},
@@ -382,7 +540,8 @@ func Test_prFilters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.ElementsMatch(t, tt.expectedPrs, filterPRs(tt.inputPrs, standardPrFilters(tt.config, tt.since, tt.until)...))
+			keep := applyStandardPRFilters(tt.inputPrs, tt.config, tt.since, tt.until, tt.commits)
+			assert.ElementsMatch(t, tt.expectedPrs, keep)
 		})
 	}
 }
@@ -557,6 +716,7 @@ func Test_changesFromIssuesExtractedFromPRs(t *testing.T) {
 		until          *git.Tag
 		config         Config
 		inputPrs       []ghPullRequest
+		commits        []string
 		expectedIssues []ghIssue
 	}{
 		{
@@ -564,8 +724,9 @@ func Test_changesFromIssuesExtractedFromPRs(t *testing.T) {
 			since: sinceTag,
 			until: untilTag,
 			config: Config{
-				ExcludeLabels:      nil,
-				ChangeTypesByLabel: changeTypeSet,
+				ExcludeLabels:          nil,
+				ChangeTypesByLabel:     changeTypeSet,
+				ConsiderPRMergeCommits: false,
 			},
 			inputPrs: input,
 			expectedIssues: []ghIssue{
@@ -576,8 +737,9 @@ func Test_changesFromIssuesExtractedFromPRs(t *testing.T) {
 			name:  "keep changes after start tag",
 			since: sinceTag,
 			config: Config{
-				ExcludeLabels:      nil,
-				ChangeTypesByLabel: changeTypeSet,
+				ExcludeLabels:          nil,
+				ChangeTypesByLabel:     changeTypeSet,
+				ConsiderPRMergeCommits: false,
 			},
 			inputPrs: input,
 			expectedIssues: []ghIssue{
@@ -589,8 +751,9 @@ func Test_changesFromIssuesExtractedFromPRs(t *testing.T) {
 			name:  "keep only added features after start tag",
 			since: sinceTag,
 			config: Config{
-				ExcludeLabels:      []string{"bug"},
-				ChangeTypesByLabel: changeTypeSet,
+				ExcludeLabels:          []string{"bug"},
+				ChangeTypesByLabel:     changeTypeSet,
+				ConsiderPRMergeCommits: false,
 			},
 			inputPrs: input,
 			expectedIssues: []ghIssue{
@@ -601,7 +764,7 @@ func Test_changesFromIssuesExtractedFromPRs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.ElementsMatch(t, tt.expectedIssues, issuesExtractedFromPRs(tt.config, tt.inputPrs, tt.since, tt.until))
+			assert.ElementsMatch(t, tt.expectedIssues, issuesExtractedFromPRs(tt.config, tt.inputPrs, tt.since, tt.until, tt.commits))
 		})
 	}
 }

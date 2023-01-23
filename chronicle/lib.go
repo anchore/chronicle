@@ -3,9 +3,9 @@ package chronicle
 import (
 	"github.com/wagoodman/go-partybus"
 
-	"github.com/anchore/chronicle/chronicle/logger"
 	"github.com/anchore/chronicle/internal/bus"
 	"github.com/anchore/chronicle/internal/log"
+	"github.com/anchore/go-logger"
 )
 
 // SetLogger sets the logger object used for all logging calls.
