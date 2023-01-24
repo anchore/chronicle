@@ -241,6 +241,34 @@ func Test_issuesWithoutLabel(t *testing.T) {
 	}
 }
 
+func Test_issuesWithoutLabels(t *testing.T) {
+	tests := []struct {
+		name     string
+		issue    ghIssue
+		expected bool
+	}{
+		{
+			name: "omitted when labels",
+			issue: ghIssue{
+				Labels: []string{"something-else", "positive"},
+			},
+			expected: false,
+		},
+		{
+			name: "included with no labels",
+			issue: ghIssue{
+				Labels: []string{},
+			},
+			expected: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, issuesWithoutLabels()(test.issue))
+		})
+	}
+}
+
 func Test_excludeIssuesNotPlanned(t *testing.T) {
 	issue1 := ghIssue{
 		Title:      "Issue 1",

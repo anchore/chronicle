@@ -1053,6 +1053,136 @@ func Test_changesFromUnlabeledPRs(t *testing.T) {
 	}
 }
 
+func Test_changesFromUnlabeledIssues(t *testing.T) {
+	timeStart := time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC)
+
+	sinceTag := &git.Tag{
+		Name:      "v0.1.0",
+		Timestamp: timeStart.Add(-5 * time.Hour),
+	}
+
+	issueWithLabels := ghIssue{
+		Title:    "issue with labels",
+		ClosedAt: timeStart,
+		Number:   3,
+		Labels:   []string{"bug"},
+		Author:   "nobody",
+		URL:      "no-url",
+	}
+
+	issueWithLabels2 := ghIssue{
+		Title:    "issue with labels 2",
+		ClosedAt: timeStart,
+		Number:   4,
+		Labels:   []string{"another-label"},
+		Author:   "nobody",
+		URL:      "no-url",
+	}
+
+	issueWithoutLabels := ghIssue{
+		ClosedAt: timeStart,
+		Title:    "issue without labels",
+		Number:   6,
+		Author:   "some-author",
+		URL:      "some-url",
+	}
+
+	issueWithoutLabels2 := ghIssue{
+		ClosedAt: timeStart,
+		Title:    "issue without labels 2",
+		Number:   7,
+		Author:   "some-author-2",
+		URL:      "some-url-2",
+	}
+
+	pr1 := ghPullRequest{
+		MergedAt: timeStart,
+		Title:    "pr 1",
+		Number:   1,
+		LinkedIssues: []ghIssue{
+			issueWithoutLabels,
+		},
+		URL:    "pr-1-url",
+		Author: "pr-1-author",
+	}
+
+	tests := []struct {
+		name            string
+		config          Config
+		prs             []ghPullRequest
+		issues          []ghIssue
+		expectedChanges []change.Change
+	}{
+		{
+			name: "includes only unlabeled issues",
+			config: Config{
+				ChangeTypesByLabel: change.TypeSet{
+					"bug": change.NewType("bug", change.SemVerPatch),
+				},
+				IncludeIssuePRs:        true,
+				IncludeIssuePRAuthors:  true,
+				IncludeUnlabeledIssues: true,
+				Host:                   "some-host",
+			},
+			prs: []ghPullRequest{
+				pr1,
+			},
+			issues: []ghIssue{
+				issueWithLabels,
+				issueWithLabels2,
+				issueWithoutLabels,
+				issueWithoutLabels2,
+			},
+			expectedChanges: []change.Change{
+				{
+					Text:        "issue without labels",
+					ChangeTypes: change.UnknownTypes,
+					Timestamp:   timeStart,
+					References: []change.Reference{
+						{
+							Text: "Issue #6",
+							URL:  "some-url",
+						},
+						{
+							Text: "PR #1",
+							URL:  "pr-1-url",
+						},
+						{
+							Text: "pr-1-author",
+							URL:  "https://some-host/pr-1-author",
+						},
+					},
+					EntryType: "githubIssue",
+					Entry:     issueWithoutLabels,
+				},
+				{
+					Text:        "issue without labels 2",
+					ChangeTypes: change.UnknownTypes,
+					Timestamp:   timeStart,
+					References: []change.Reference{
+						{
+							Text: "Issue #7",
+							URL:  "some-url-2",
+						},
+					},
+					EntryType: "githubIssue",
+					Entry:     issueWithoutLabels2,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			changes := changesFromUnlabeledIssues(tt.config, tt.prs, tt.issues, sinceTag, nil)
+			if !reflect.DeepEqual(tt.expectedChanges, changes) {
+				// print out a JSON diff
+				assert.JSONEq(t, toJson(t, tt.expectedChanges), toJson(t, changes))
+			}
+		})
+	}
+}
+
 func toJson(t *testing.T, changes []change.Change) string {
 	out, err := json.Marshal(changes)
 	require.NoError(t, err)

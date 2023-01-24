@@ -15,6 +15,7 @@ type githubSummarizer struct {
 	IncludeIssuesClosedAsNotPlanned bool           `yaml:"include-issues-not-planned" json:"include-issues-not-planned" mapstructure:"include-issues-not-planned"`
 	IncludePRs                      bool           `yaml:"include-prs" json:"include-prs" mapstructure:"include-prs"`
 	IncludeIssues                   bool           `yaml:"include-issues" json:"include-issues" mapstructure:"include-issues"`
+	IncludeUnlabeledIssues          bool           `yaml:"include-unlabeled-issues" json:"include-unlabeled-issues" mapstructure:"include-unlabeled-issues"`
 	IncludeUnlabeledPRs             bool           `yaml:"include-unlabeled-prs" json:"include-unlabeled-prs" mapstructure:"include-unlabeled-prs"`
 	IssuesRequireLinkedPR           bool           `yaml:"issues-require-linked-prs" json:"issues-require-linked-prs" mapstructure:"issues-require-linked-prs"`
 	ConsiderPRMergeCommits          bool           `yaml:"consider-pr-merge-commits" json:"consider-pr-merge-commits" mapstructure:"consider-pr-merge-commits"`
@@ -44,6 +45,7 @@ func (cfg githubSummarizer) ToGithubConfig() github.Config {
 		IncludeIssues:                   cfg.IncludeIssues,
 		IncludeIssuesClosedAsNotPlanned: cfg.IncludeIssuesClosedAsNotPlanned,
 		IncludePRs:                      cfg.IncludePRs,
+		IncludeUnlabeledIssues:          cfg.IncludeUnlabeledIssues,
 		IncludeUnlabeledPRs:             cfg.IncludeUnlabeledPRs,
 		ExcludeLabels:                   cfg.ExcludeLabels,
 		IssuesRequireLinkedPR:           cfg.IssuesRequireLinkedPR,
@@ -61,6 +63,7 @@ func (cfg githubSummarizer) loadDefaultValues(v *viper.Viper) {
 	v.SetDefault("github.include-issue-prs", true)
 	v.SetDefault("github.include-issues", true)
 	v.SetDefault("github.include-issues-not-planned", false)
+	v.SetDefault("github.include-unlabeled-issues", true)
 	v.SetDefault("github.include-unlabeled-prs", true)
 	v.SetDefault("github.exclude-labels", []string{"duplicate", "question", "invalid", "wontfix", "wont-fix", "release-ignore", "changelog-ignore", "ignore"})
 	v.SetDefault("github.changes", []githubChange{
