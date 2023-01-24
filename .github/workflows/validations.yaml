@@ -92,7 +92,7 @@ jobs:
       - name: Run unit tests
         run: make unit
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: unit-test-results
           path: test/results/**/*
@@ -130,7 +130,7 @@ jobs:
       - name: Build snapshot artifacts
         run: make snapshot
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: artifacts
           path: snapshot/**/*
