@@ -12,7 +12,7 @@ require (
 	github.com/gookit/color v1.4.2
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/scylladb/go-set v1.0.2
-	github.com/sergi/go-diff v1.2.0
+	github.com/sergi/go-diff v1.3.1
 	github.com/shurcooL/githubv4 v0.0.0-20201206200315-234843c633fa
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
