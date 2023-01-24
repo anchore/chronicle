@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/shurcooL/githubv4"
@@ -13,13 +14,14 @@ import (
 )
 
 type ghIssue struct {
-	Title    string
-	Number   int
-	Author   string
-	ClosedAt time.Time
-	Closed   bool
-	Labels   []string
-	URL      string
+	Title      string
+	Number     int
+	Author     string
+	ClosedAt   time.Time
+	Closed     bool
+	NotPlanned bool
+	Labels     []string
+	URL        string
 }
 
 type issueFilter func(issue ghIssue) bool
@@ -117,6 +119,20 @@ func issuesWithoutLabel(labels ...string) issueFilter {
 	}
 }
 
+func excludeIssuesNotPlanned(allMergedPRs []ghPullRequest) issueFilter {
+	return func(issue ghIssue) bool {
+		if issue.NotPlanned {
+			if len(getLinkedPRs(allMergedPRs, issue)) > 0 {
+				log.Tracef("issue #%d included: is closed as not planned but has linked PRs", issue.Number)
+				return true
+			}
+			log.Tracef("issue #%d filtered out: as not planned", issue.Number)
+			return false
+		}
+		return true
+	}
+}
+
 // nolint:funlen
 func fetchClosedIssues(user, repo string) ([]ghIssue, error) {
 	src := oauth2.StaticTokenSource(
@@ -153,9 +169,10 @@ func fetchClosedIssues(user, repo string) ([]ghIssue, error) {
 							Author struct {
 								Login githubv4.String
 							}
-							Closed   githubv4.Boolean
-							ClosedAt githubv4.DateTime
-							Labels   struct {
+							Closed      githubv4.Boolean
+							ClosedAt    githubv4.DateTime
+							StateReason githubv4.String
+							Labels      struct {
 								Edges []struct {
 									Node struct {
 										Name githubv4.String
@@ -189,13 +206,14 @@ func fetchClosedIssues(user, repo string) ([]ghIssue, error) {
 					labels = append(labels, string(lEdge.Node.Name))
 				}
 				allIssues = append(allIssues, ghIssue{
-					Title:    string(iEdge.Node.Title),
-					Author:   string(iEdge.Node.Author.Login),
-					ClosedAt: iEdge.Node.ClosedAt.Time,
-					Closed:   bool(iEdge.Node.Closed),
-					Labels:   labels,
-					URL:      string(iEdge.Node.URL),
-					Number:   int(iEdge.Node.Number),
+					Title:      string(iEdge.Node.Title),
+					Author:     string(iEdge.Node.Author.Login),
+					ClosedAt:   iEdge.Node.ClosedAt.Time,
+					Closed:     bool(iEdge.Node.Closed),
+					Labels:     labels,
+					URL:        string(iEdge.Node.URL),
+					Number:     int(iEdge.Node.Number),
+					NotPlanned: strings.EqualFold("NOT_PLANNED", string(iEdge.Node.StateReason)),
 				})
 			}
 
