@@ -9,7 +9,7 @@ require (
 	github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4
 	github.com/coreos/go-semver v0.3.0
 	github.com/go-git/go-git/v5 v5.4.2
-	github.com/gookit/color v1.4.2
+	github.com/gookit/color v1.5.2
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/scylladb/go-set v1.0.2
 	github.com/sergi/go-diff v1.2.0
@@ -17,7 +17,7 @@ require (
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.8.1
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.8.0
 	github.com/wagoodman/go-partybus v0.0.0-20210627031916-db1f5573bbc5
 	github.com/wagoodman/go-presenter v0.0.0-20211015174752-f9c01afc824b
 	golang.org/x/oauth2 v0.0.0-20210628180205-a41e5a781914
@@ -64,5 +64,5 @@ require (
 	google.golang.org/protobuf v1.26.0 // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
