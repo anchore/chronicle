@@ -15,7 +15,6 @@ type githubSummarizer struct {
 	IncludeIssuePRAuthors  bool           `yaml:"include-issue-pr-authors" json:"include-issue-pr-authors" mapstructure:"include-issue-pr-authors"`
 	IncludeIssues          bool           `yaml:"include-issues" json:"include-issues" mapstructure:"include-issues"`
 	IncludePRs             bool           `yaml:"include-prs" json:"include-prs" mapstructure:"include-prs"`
-	IncludeUnlabeledPRs    bool           `yaml:"include-unlabeled-prs" json:"include-unlabeled-prs" mapstructure:"include-unlabeled-prs"`
 	IssuesRequireLinkedPR  bool           `yaml:"issues-require-linked-prs" json:"issues-require-linked-prs" mapstructure:"issues-require-linked-prs"`
 	ConsiderPRMergeCommits bool           `yaml:"consider-pr-merge-commits" json:"consider-pr-merge-commits" mapstructure:"consider-pr-merge-commits"`
 	Changes                []githubChange `yaml:"changes" json:"changes" mapstructure:"changes"`
@@ -44,7 +43,6 @@ func (cfg githubSummarizer) ToGithubConfig() (github.Config, error) {
 		Host:                   cfg.Host,
 		IncludeIssues:          cfg.IncludeIssues,
 		IncludePRs:             cfg.IncludePRs,
-		IncludeUnlabeledPRs:    cfg.IncludeUnlabeledPRs,
 		ExcludeLabels:          cfg.ExcludeLabels,
 		IssuesRequireLinkedPR:  cfg.IssuesRequireLinkedPR,
 		IncludeIssuePRAuthors:  cfg.IncludeIssuePRAuthors,
@@ -55,13 +53,11 @@ func (cfg githubSummarizer) ToGithubConfig() (github.Config, error) {
 
 func (cfg githubSummarizer) loadDefaultValues(v *viper.Viper) {
 	v.SetDefault("github.host", "github.com")
-	v.SetDefault("github.issues-require-linked-prs", false)
-	v.SetDefault("github.include-issue-pr-authors", true)
 	v.SetDefault("github.consider-pr-merge-commits", true)
-	v.SetDefault("github.include-prs", true)
+	v.SetDefault("github.include-issue-pr-authors", true)
 	v.SetDefault("github.include-issues", true)
 	v.SetDefault("github.include-prs", true)
-	v.SetDefault("github.include-unlabeled-prs", true)
+	v.SetDefault("github.issues-require-linked-prs", false)
 	v.SetDefault("github.exclude-labels", []string{"duplicate", "question", "invalid", "wontfix", "wont-fix", "release-ignore", "changelog-ignore", "ignore"})
 	v.SetDefault("github.changes", []githubChange{
 		{
@@ -98,12 +94,6 @@ func (cfg githubSummarizer) loadDefaultValues(v *viper.Viper) {
 			Type:       "deprecated-feature",
 			Title:      "Deprecated Features",
 			Labels:     []string{"deprecated"},
-			SemVerKind: change.SemVerMinor.String(),
-		},
-		{
-			Type:       change.UnlabeledPRs,
-			Title:      "Unlabeled PRs",
-			Labels:     []string{""},
 			SemVerKind: change.SemVerMinor.String(),
 		},
 	})

@@ -4,8 +4,6 @@ import (
 	"time"
 )
 
-const UnlabeledPRs = "unlabeled-prs"
-
 type Changes []Change
 
 // Change represents the smallest unit within a release that can be summarized.
@@ -27,7 +25,7 @@ type Reference struct {
 // ByChangeType returns the set of changes that match one of the given change types.
 func (s Changes) ByChangeType(types ...Type) (result Changes) {
 	for _, summary := range s {
-		if ContainsAny(types, summary.ChangeTypes) || (len(summary.ChangeTypes) == 0 && types[0].Name == UnlabeledPRs) {
+		if ContainsAny(types, summary.ChangeTypes) {
 			result = append(result, summary)
 		}
 	}

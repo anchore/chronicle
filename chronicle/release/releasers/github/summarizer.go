@@ -21,10 +21,9 @@ var _ release.Summarizer = (*Summarizer)(nil)
 
 type Config struct {
 	Host                   string
-	IncludeIssues          bool
 	IncludeIssuePRAuthors  bool
+	IncludeIssues          bool
 	IncludePRs             bool
-	IncludeUnlabeledPRs    bool
 	IssuesRequireLinkedPR  bool
 	ExcludeLabels          []string
 	ChangeTypesByLabel     change.TypeSet
@@ -178,10 +177,6 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 		changes = append(changes, changesFromIssues(s.config, allMergedPRs, allClosedIssues, sinceTag, untilTag)...)
 	}
 
-	if s.config.IncludeUnlabeledPRs {
-		changes = append(changes, changesFromUnlabeledPRs(s.config, allMergedPRs, sinceTag, untilTag)...)
-	}
-
 	return changes, nil
 }
 
@@ -308,25 +303,6 @@ func logIssues(issues []ghIssue) {
 		}
 		log.Tracef("  %s #%d: closed %s", branch, issue.Number, internal.FormatDateTime(issue.ClosedAt))
 	}
-}
-
-func changesFromUnlabeledPRs(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag) []change.Change {
-	// this represents the traits we wish to filter down to (not out).
-	filters := []prFilter{
-		prsAfter(sinceTag.Timestamp),
-		prsUnlabeled(),
-		prsUnlinked(),
-	}
-
-	if untilTag != nil {
-		filters = append(filters, prsAtOrBefore(untilTag.Timestamp))
-	}
-
-	filteredIssues, _ := filterPRs(allMergedPRs, filters...)
-
-	log.Debugf("prs contributing to changelog: %d", len(filteredIssues))
-
-	return changesFromPRs(config, filteredIssues)
 }
 
 func createChangesFromIssues(config Config, allMergedPRs []ghPullRequest, issues []ghIssue, filter func(Config, ghIssue) bool) (changes []change.Change) {
