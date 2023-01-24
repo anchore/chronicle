@@ -26,6 +26,7 @@ type Config struct {
 	IncludeIssuePRs                 bool
 	IncludeIssuesClosedAsNotPlanned bool
 	IncludePRs                      bool
+	IncludeUnlabeledIssues          bool
 	IncludeUnlabeledPRs             bool
 	ExcludeLabels                   []string
 	ChangeTypesByLabel              change.TypeSet
@@ -160,23 +161,27 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 		changes = append(changes, changesFromStandardPRFilters(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)...)
 	}
 
+	allClosedIssues, err := fetchClosedIssues(s.userName, s.repoName)
+	if err != nil {
+		return nil, err
+	}
+
+	if !s.config.IncludeIssuesClosedAsNotPlanned {
+		allClosedIssues = filterIssues(allClosedIssues, excludeIssuesNotPlanned(allMergedPRs))
+	}
+
+	log.Debugf("total closed issues discovered: %d", len(allClosedIssues))
+
 	if s.config.IncludeIssues {
 		if s.config.IssuesRequireLinkedPR {
 			changes = append(changes, changesFromIssuesLinkedToPrs(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)...)
 		} else {
-			allClosedIssues, err := fetchClosedIssues(s.userName, s.repoName)
-			if err != nil {
-				return nil, err
-			}
-
-			if !s.config.IncludeIssuesClosedAsNotPlanned {
-				allClosedIssues = filterIssues(allClosedIssues, excludeIssuesNotPlanned(allMergedPRs))
-			}
-
-			log.Debugf("total closed issues discovered: %d", len(allClosedIssues))
-
 			changes = append(changes, changesFromIssues(s.config, allMergedPRs, allClosedIssues, sinceTag, untilTag)...)
 		}
+	}
+
+	if s.config.IncludeUnlabeledIssues {
+		changes = append(changes, changesFromUnlabeledIssues(s.config, allMergedPRs, allClosedIssues, sinceTag, untilTag)...)
 	}
 
 	if s.config.IncludeUnlabeledPRs {
@@ -342,6 +347,19 @@ func changesFromUnlabeledPRs(config Config, allMergedPRs []ghPullRequest, sinceT
 	return createChangesFromPRs(config, filteredIssues)
 }
 
+func changesFromUnlabeledIssues(config Config, allMergedPRs []ghPullRequest, allIssues []ghIssue, sinceTag, untilTag *git.Tag) []change.Change {
+	// this represents the traits we wish to filter down to (not out).
+	filters := standardChronologicalIssueFilters(sinceTag, untilTag)
+
+	filters = append(filters, issuesWithoutLabels())
+
+	filteredIssues := filterIssues(allIssues, filters...)
+
+	log.Debugf("unlabeled issues contributing to changelog: %d", len(filteredIssues))
+
+	return createChangesFromIssues(config, allMergedPRs, filteredIssues)
+}
+
 func createChangesFromIssues(config Config, allMergedPRs []ghPullRequest, issues []ghIssue) (changes []change.Change) {
 	for _, issue := range issues {
 		changeTypes := config.ChangeTypesByLabel.ChangeTypes(issue.Labels...)
@@ -435,6 +453,12 @@ func standardIssueFilters(config Config, sinceTag, untilTag *git.Tag) []issueFil
 		issuesWithoutLabel(config.ExcludeLabels...),
 	}
 
+	filters = append(filters, standardChronologicalIssueFilters(sinceTag, untilTag)...)
+
+	return filters
+}
+
+func standardChronologicalIssueFilters(sinceTag, untilTag *git.Tag) (filters []issueFilter) {
 	if sinceTag != nil {
 		filters = append([]issueFilter{issuesAfter(sinceTag.Timestamp)}, filters...)
 	}
@@ -442,6 +466,7 @@ func standardIssueFilters(config Config, sinceTag, untilTag *git.Tag) []issueFil
 	if untilTag != nil {
 		filters = append([]issueFilter{issuesAtOrBefore(untilTag.Timestamp)}, filters...)
 	}
+
 	return filters
 }
 

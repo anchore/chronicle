@@ -373,14 +373,14 @@ func Test_prsWithoutMergeCommit(t *testing.T) {
 func Test_prsWithChangeTypes(t *testing.T) {
 	tests := []struct {
 		name     string
-		issue    ghPullRequest
+		pr       ghPullRequest
 		label    string
 		expected bool
 	}{
 		{
 			name:  "matches on label",
 			label: "positive",
-			issue: ghPullRequest{
+			pr: ghPullRequest{
 				Labels: []string{"something-else", "positive"},
 			},
 			expected: true,
@@ -388,7 +388,7 @@ func Test_prsWithChangeTypes(t *testing.T) {
 		{
 			name:  "does not match on label",
 			label: "positive",
-			issue: ghPullRequest{
+			pr: ghPullRequest{
 				Labels: []string{"something-else", "negative"},
 			},
 			expected: false,
@@ -396,7 +396,7 @@ func Test_prsWithChangeTypes(t *testing.T) {
 		{
 			name:  "does not have change types",
 			label: "positive",
-			issue: ghPullRequest{
+			pr: ghPullRequest{
 				Labels: []string{},
 			},
 			expected: false,
@@ -408,7 +408,7 @@ func Test_prsWithChangeTypes(t *testing.T) {
 				ChangeTypesByLabel: change.TypeSet{
 					test.label: change.NewType(test.label, change.SemVerMinor),
 				},
-			})(test.issue))
+			})(test.pr))
 		})
 	}
 }
@@ -416,19 +416,19 @@ func Test_prsWithChangeTypes(t *testing.T) {
 func Test_prsWithoutLabels(t *testing.T) {
 	tests := []struct {
 		name     string
-		issue    ghPullRequest
+		pr       ghPullRequest
 		expected bool
 	}{
 		{
 			name: "omitted when labels",
-			issue: ghPullRequest{
+			pr: ghPullRequest{
 				Labels: []string{"something-else", "positive"},
 			},
 			expected: false,
 		},
 		{
 			name: "included with no labels",
-			issue: ghPullRequest{
+			pr: ghPullRequest{
 				Labels: []string{},
 			},
 			expected: true,
@@ -436,7 +436,7 @@ func Test_prsWithoutLabels(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.expected, prsWithoutLabels()(test.issue))
+			assert.Equal(t, test.expected, prsWithoutLabels()(test.pr))
 		})
 	}
 }
@@ -444,17 +444,17 @@ func Test_prsWithoutLabels(t *testing.T) {
 func Test_prsWithoutLinkedIssues(t *testing.T) {
 	tests := []struct {
 		name     string
-		issue    ghPullRequest
+		pr       ghPullRequest
 		expected bool
 	}{
 		{
 			name:     "matches when unlinked",
-			issue:    ghPullRequest{},
+			pr:       ghPullRequest{},
 			expected: true,
 		},
 		{
 			name: "does not match when linked",
-			issue: ghPullRequest{
+			pr: ghPullRequest{
 				LinkedIssues: []ghIssue{
 					{
 						Number: 1,
@@ -467,7 +467,7 @@ func Test_prsWithoutLinkedIssues(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.expected, prsWithoutLinkedIssues()(test.issue))
+			assert.Equal(t, test.expected, prsWithoutLinkedIssues()(test.pr))
 		})
 	}
 }
