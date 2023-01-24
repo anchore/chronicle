@@ -41,11 +41,11 @@ func (cfg githubSummarizer) ToGithubConfig() (github.Config, error) {
 	}
 	return github.Config{
 		Host:                   cfg.Host,
+		IncludeIssuePRAuthors:  cfg.IncludeIssuePRAuthors,
 		IncludeIssues:          cfg.IncludeIssues,
 		IncludePRs:             cfg.IncludePRs,
 		ExcludeLabels:          cfg.ExcludeLabels,
 		IssuesRequireLinkedPR:  cfg.IssuesRequireLinkedPR,
-		IncludeIssuePRAuthors:  cfg.IncludeIssuePRAuthors,
 		ConsiderPRMergeCommits: cfg.ConsiderPRMergeCommits,
 		ChangeTypesByLabel:     typeSet,
 	}, nil

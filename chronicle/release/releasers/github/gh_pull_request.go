@@ -161,13 +161,6 @@ func prsWithLabel(labels ...string) prFilter {
 	}
 }
 
-func prsWithChangeTypes(config Config) prFilter {
-	return func(pr ghPullRequest) bool {
-		changeTypes := config.ChangeTypesByLabel.ChangeTypes(pr.Labels...)
-		return len(changeTypes) > 0
-	}
-}
-
 func prsWithoutLabel(labels ...string) prFilter {
 	return func(pr ghPullRequest) bool {
 		for _, targetLabel := range labels {
