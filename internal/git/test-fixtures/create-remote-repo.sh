@@ -19,3 +19,4 @@ git config --local user.name "nope"
 trap 'popd' EXIT
 
 git remote add origin git@github.com:wagoodman/count-goober.git
+git remote add upstream git@github.com:upstream/count-goober.git

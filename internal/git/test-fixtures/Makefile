@@ -13,3 +13,6 @@ repos/commit-in-repo:
 
 repos/tag-range-repo:
 	./create-tag-range-repo.sh
+
+clean:
+	rm -rf repos/remote-repo repos/tagged-repo repos/commit-in-repo repos/tag-range-repo
