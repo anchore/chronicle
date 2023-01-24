@@ -26,6 +26,9 @@ type Reference struct {
 
 // ByChangeType returns the set of changes that match one of the given change types.
 func (s Changes) ByChangeType(types ...Type) (result Changes) {
+	if len(types) == 0 {
+		return nil
+	}
 	for _, summary := range s {
 		if ContainsAny(types, summary.ChangeTypes) || (len(summary.ChangeTypes) == 0 && types[0].Name == UnlabeledPRs) {
 			result = append(result, summary)
