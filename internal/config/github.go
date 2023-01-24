@@ -10,16 +10,17 @@ import (
 )
 
 type githubSummarizer struct {
-	Host                   string         `yaml:"host" json:"host" mapstructure:"host"`
-	ExcludeLabels          []string       `yaml:"exclude-labels" json:"exclude-labels" mapstructure:"exclude-labels"`
-	IncludeIssuePRAuthors  bool           `yaml:"include-issue-pr-authors" json:"include-issue-pr-authors" mapstructure:"include-issue-pr-authors"`
-	IncludeIssuePRs        bool           `yaml:"include-issue-prs" json:"include-issue-prs" mapstructure:"include-issue-prs"`
-	IncludePRs             bool           `yaml:"include-prs" json:"include-prs" mapstructure:"include-prs"`
-	IncludeIssues          bool           `yaml:"include-issues" json:"include-issues" mapstructure:"include-issues"`
-	IncludeUnlabeledPRs    bool           `yaml:"include-unlabeled-prs" json:"include-unlabeled-prs" mapstructure:"include-unlabeled-prs"`
-	IssuesRequireLinkedPR  bool           `yaml:"issues-require-linked-prs" json:"issues-require-linked-prs" mapstructure:"issues-require-linked-prs"`
-	ConsiderPRMergeCommits bool           `yaml:"consider-pr-merge-commits" json:"consider-pr-merge-commits" mapstructure:"consider-pr-merge-commits"`
-	Changes                []githubChange `yaml:"changes" json:"changes" mapstructure:"changes"`
+	Host                            string         `yaml:"host" json:"host" mapstructure:"host"`
+	ExcludeLabels                   []string       `yaml:"exclude-labels" json:"exclude-labels" mapstructure:"exclude-labels"`
+	IncludeIssuePRAuthors           bool           `yaml:"include-issue-pr-authors" json:"include-issue-pr-authors" mapstructure:"include-issue-pr-authors"`
+	IncludeIssuePRs                 bool           `yaml:"include-issue-prs" json:"include-issue-prs" mapstructure:"include-issue-prs"`
+	IncludeIssuesClosedAsNotPlanned bool           `yaml:"include-issues-not-planned" json:"include-issues-not-planned" mapstructure:"include-issues-not-planned"`
+	IncludePRs                      bool           `yaml:"include-prs" json:"include-prs" mapstructure:"include-prs"`
+	IncludeIssues                   bool           `yaml:"include-issues" json:"include-issues" mapstructure:"include-issues"`
+	IncludeUnlabeledPRs             bool           `yaml:"include-unlabeled-prs" json:"include-unlabeled-prs" mapstructure:"include-unlabeled-prs"`
+	IssuesRequireLinkedPR           bool           `yaml:"issues-require-linked-prs" json:"issues-require-linked-prs" mapstructure:"issues-require-linked-prs"`
+	ConsiderPRMergeCommits          bool           `yaml:"consider-pr-merge-commits" json:"consider-pr-merge-commits" mapstructure:"consider-pr-merge-commits"`
+	Changes                         []githubChange `yaml:"changes" json:"changes" mapstructure:"changes"`
 }
 
 type githubChange struct {
@@ -42,16 +43,17 @@ func (cfg githubSummarizer) ToGithubConfig() (github.Config, error) {
 		}
 	}
 	return github.Config{
-		Host:                   cfg.Host,
-		IncludeIssuePRAuthors:  cfg.IncludeIssuePRAuthors,
-		IncludeIssuePRs:        cfg.IncludeIssuePRs,
-		IncludeIssues:          cfg.IncludeIssues,
-		IncludePRs:             cfg.IncludePRs,
-		IncludeUnlabeledPRs:    cfg.IncludeUnlabeledPRs,
-		ExcludeLabels:          cfg.ExcludeLabels,
-		IssuesRequireLinkedPR:  cfg.IssuesRequireLinkedPR,
-		ConsiderPRMergeCommits: cfg.ConsiderPRMergeCommits,
-		ChangeTypesByLabel:     typeSet,
+		Host:                            cfg.Host,
+		IncludeIssuePRAuthors:           cfg.IncludeIssuePRAuthors,
+		IncludeIssuePRs:                 cfg.IncludeIssuePRs,
+		IncludeIssues:                   cfg.IncludeIssues,
+		IncludeIssuesClosedAsNotPlanned: cfg.IncludeIssuesClosedAsNotPlanned,
+		IncludePRs:                      cfg.IncludePRs,
+		IncludeUnlabeledPRs:             cfg.IncludeUnlabeledPRs,
+		ExcludeLabels:                   cfg.ExcludeLabels,
+		IssuesRequireLinkedPR:           cfg.IssuesRequireLinkedPR,
+		ConsiderPRMergeCommits:          cfg.ConsiderPRMergeCommits,
+		ChangeTypesByLabel:              typeSet,
 	}, nil
 }
 
@@ -63,6 +65,7 @@ func (cfg githubSummarizer) loadDefaultValues(v *viper.Viper) {
 	v.SetDefault("github.include-issue-pr-authors", true)
 	v.SetDefault("github.include-issue-prs", true)
 	v.SetDefault("github.include-issues", true)
+	v.SetDefault("github.include-issues-not-planned", false)
 	v.SetDefault("github.include-unlabeled-prs", true)
 	v.SetDefault("github.exclude-labels", []string{"duplicate", "question", "invalid", "wontfix", "wont-fix", "release-ignore", "changelog-ignore", "ignore"})
 	v.SetDefault("github.changes", []githubChange{
