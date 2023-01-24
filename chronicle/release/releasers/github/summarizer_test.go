@@ -797,36 +797,45 @@ func Test_createChangesFromIssues(t *testing.T) {
 		Labels:   []string{"bug"},
 	}
 
-	prWithLinkedIssues := ghPullRequest{
-		Title:    "pr with linked issues",
-		MergedAt: timeStart,
+	issue3 := ghIssue{
+		Title:    "Issue 3 no PRs",
 		Number:   3,
+		URL:      "issue-3-url",
+		ClosedAt: timeStart,
+		Labels:   []string{"bug"},
+	}
+
+	prWithLinkedIssues1 := ghPullRequest{
+		Title:    "pr 1 with linked issues",
+		MergedAt: timeStart,
+		Number:   1,
 		Labels:   []string{"bug"},
 		Author:   "some-author-1",
-		URL:      "some-url-1",
+		URL:      "pr-1-url",
 		LinkedIssues: []ghIssue{
 			issue1,
 		},
 	}
 
 	prWithLinkedIssues2 := ghPullRequest{
-		Title:    "pr with linked issues 2",
+		Title:    "pr 2 with linked issues",
 		MergedAt: timeStart,
-		Number:   4,
+		Number:   2,
 		Labels:   []string{"another-label"},
 		Author:   "some-author-2",
-		URL:      "some-url-2",
+		URL:      "pr-2-url",
 		LinkedIssues: []ghIssue{
+			issue1,
 			issue2,
 		},
 	}
 
-	prWithoutLinkedIssues := ghPullRequest{
+	prWithoutLinkedIssues1 := ghPullRequest{
 		MergedAt: timeStart,
-		Title:    "pr without linked issues",
-		Number:   6,
+		Title:    "pr 3 without linked issues",
+		Number:   3,
 		Author:   "some-author",
-		URL:      "some-url",
+		URL:      "pr-3-url",
 	}
 
 	tests := []struct {
@@ -840,17 +849,19 @@ func Test_createChangesFromIssues(t *testing.T) {
 			name: "includes author for issues",
 			config: Config{
 				IncludeIssuePRAuthors: true,
+				IncludeIssuePRs:       true,
 				ChangeTypesByLabel:    changeTypeSet,
 				Host:                  "some-host",
 			},
 			inputPrs: []ghPullRequest{
-				prWithLinkedIssues,
+				prWithLinkedIssues1,
 				prWithLinkedIssues2,
-				prWithoutLinkedIssues,
+				prWithoutLinkedIssues1,
 			},
 			issues: []ghIssue{
 				issue1,
 				issue2,
+				issue3,
 			},
 			expectedChanges: []change.Change{
 				{
@@ -863,8 +874,20 @@ func Test_createChangesFromIssues(t *testing.T) {
 							URL:  "issue-1-url",
 						},
 						{
+							Text: "PR #1",
+							URL:  "pr-1-url",
+						},
+						{
 							Text: "some-author-1",
 							URL:  "https://some-host/some-author-1",
+						},
+						{
+							Text: "PR #2",
+							URL:  "pr-2-url",
+						},
+						{
+							Text: "some-author-2",
+							URL:  "https://some-host/some-author-2",
 						},
 					},
 					EntryType: "githubIssue",
@@ -880,12 +903,29 @@ func Test_createChangesFromIssues(t *testing.T) {
 							URL:  "issue-2-url",
 						},
 						{
+							Text: "PR #2",
+							URL:  "pr-2-url",
+						},
+						{
 							Text: "some-author-2",
 							URL:  "https://some-host/some-author-2",
 						},
 					},
 					EntryType: "githubIssue",
 					Entry:     issue2,
+				},
+				{
+					Text:        "Issue 3 no PRs",
+					ChangeTypes: []change.Type{patch},
+					Timestamp:   timeStart,
+					References: []change.Reference{
+						{
+							Text: "Issue #3",
+							URL:  "issue-3-url",
+						},
+					},
+					EntryType: "githubIssue",
+					Entry:     issue3,
 				},
 			},
 		},

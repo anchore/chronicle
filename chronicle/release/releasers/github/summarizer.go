@@ -23,6 +23,7 @@ type Config struct {
 	Host                   string
 	IncludeIssuePRAuthors  bool
 	IncludeIssues          bool
+	IncludeIssuePRs        bool
 	IncludePRs             bool
 	ExcludeLabels          []string
 	ChangeTypesByLabel     change.TypeSet
@@ -306,18 +307,19 @@ func createChangesFromIssues(config Config, allMergedPRs []ghPullRequest, issues
 				},
 			}
 
-			if config.IncludeIssuePRAuthors {
-				for _, pr := range allMergedPRs {
-					if pr.Author == "" {
-						continue
+			if config.IncludeIssuePRs || config.IncludeIssuePRAuthors {
+				for _, pr := range getLinkedPRs(allMergedPRs, issue) {
+					if config.IncludeIssuePRs {
+						references = append(references, change.Reference{
+							Text: fmt.Sprintf("PR #%d", pr.Number),
+							URL:  pr.URL,
+						})
 					}
-					for _, linkedIssue := range pr.LinkedIssues {
-						if linkedIssue.URL == issue.URL {
-							references = append(references, change.Reference{
-								Text: pr.Author,
-								URL:  fmt.Sprintf("https://%s/%s", config.Host, pr.Author),
-							})
-						}
+					if config.IncludeIssuePRAuthors && pr.Author != "" {
+						references = append(references, change.Reference{
+							Text: pr.Author,
+							URL:  fmt.Sprintf("https://%s/%s", config.Host, pr.Author),
+						})
 					}
 				}
 			}
@@ -333,6 +335,17 @@ func createChangesFromIssues(config Config, allMergedPRs []ghPullRequest, issues
 		}
 	}
 	return changes
+}
+
+func getLinkedPRs(allMergedPRs []ghPullRequest, issue ghIssue) (linked []ghPullRequest) {
+	for _, pr := range allMergedPRs {
+		for _, linkedIssue := range pr.LinkedIssues {
+			if linkedIssue.URL == issue.URL {
+				linked = append(linked, pr)
+			}
+		}
+	}
+	return linked
 }
 
 func extractGithubUserAndRepo(u string) (string, string) {
