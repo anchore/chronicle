@@ -1,8 +1,6 @@
 package config
 
 import (
-	"fmt"
-
 	"github.com/spf13/viper"
 
 	"github.com/anchore/chronicle/chronicle/release/change"
@@ -30,13 +28,10 @@ type githubChange struct {
 	Labels     []string `yaml:"labels" json:"labels" mapstructure:"labels"`
 }
 
-func (cfg githubSummarizer) ToGithubConfig() (github.Config, error) {
+func (cfg githubSummarizer) ToGithubConfig() github.Config {
 	typeSet := make(change.TypeSet)
 	for _, c := range cfg.Changes {
 		k := change.ParseSemVerKind(c.SemVerKind)
-		if k == change.SemVerUnknown {
-			return github.Config{}, fmt.Errorf("unknown semver field: %q", k)
-		}
 		t := change.NewType(c.Type, k)
 		for _, l := range c.Labels {
 			typeSet[l] = t
@@ -54,7 +49,7 @@ func (cfg githubSummarizer) ToGithubConfig() (github.Config, error) {
 		IssuesRequireLinkedPR:           cfg.IssuesRequireLinkedPR,
 		ConsiderPRMergeCommits:          cfg.ConsiderPRMergeCommits,
 		ChangeTypesByLabel:              typeSet,
-	}, nil
+	}
 }
 
 func (cfg githubSummarizer) loadDefaultValues(v *viper.Viper) {
@@ -106,10 +101,10 @@ func (cfg githubSummarizer) loadDefaultValues(v *viper.Viper) {
 			SemVerKind: change.SemVerMinor.String(),
 		},
 		{
-			Type:       change.UnlabeledPRs,
-			Title:      "Unlabeled PRs",
-			Labels:     []string{""},
-			SemVerKind: change.SemVerMinor.String(),
+			Type:       change.UnknownType.Name,
+			Title:      "Additional Changes",
+			Labels:     []string{},
+			SemVerKind: change.UnknownType.Kind.String(),
 		},
 	})
 }

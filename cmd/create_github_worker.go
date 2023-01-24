@@ -11,10 +11,7 @@ import (
 )
 
 func createChangelogFromGithub() (*release.Release, *release.Description, error) {
-	ghConfig, err := appConfig.Github.ToGithubConfig()
-	if err != nil {
-		return nil, nil, err
-	}
+	ghConfig := appConfig.Github.ToGithubConfig()
 
 	gitter, err := git.New(appConfig.CliOptions.RepoPath)
 	if err != nil {
@@ -26,10 +23,7 @@ func createChangelogFromGithub() (*release.Release, *release.Description, error)
 		return nil, nil, fmt.Errorf("unable to create summarizer: %w", err)
 	}
 
-	changeTypeTitles, err := getGithubSupportedChanges()
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to get change type titles from github config: %w", err)
-	}
+	changeTypeTitles := getGithubSupportedChanges()
 
 	var untilTag = appConfig.UntilTag
 	if untilTag == "" {
@@ -64,19 +58,16 @@ func createChangelogFromGithub() (*release.Release, *release.Description, error)
 	return release.ChangelogInfo(summer, changelogConfig)
 }
 
-func getGithubSupportedChanges() ([]change.TypeTitle, error) {
+func getGithubSupportedChanges() []change.TypeTitle {
 	var supportedChanges []change.TypeTitle
 	for _, c := range appConfig.Github.Changes {
 		// TODO: this could be one source of truth upstream
 		k := change.ParseSemVerKind(c.SemVerKind)
-		if k == change.SemVerUnknown {
-			return nil, fmt.Errorf("unable to parse semver kind: %q", c.SemVerKind)
-		}
 		t := change.NewType(c.Type, k)
 		supportedChanges = append(supportedChanges, change.TypeTitle{
 			ChangeType: t,
 			Title:      c.Title,
 		})
 	}
-	return supportedChanges, nil
+	return supportedChanges
 }

@@ -936,12 +936,7 @@ func Test_createChangesFromIssues(t *testing.T) {
 			changes := createChangesFromIssues(tt.config, tt.inputPrs, tt.issues)
 			if !reflect.DeepEqual(tt.expectedChanges, changes) {
 				// print out a JSON diff
-				toJson := func(changes []change.Change) string {
-					out, err := json.Marshal(changes)
-					require.NoError(t, err)
-					return string(out)
-				}
-				assert.JSONEq(t, toJson(tt.expectedChanges), toJson(changes))
+				assert.JSONEq(t, toJson(t, tt.expectedChanges), toJson(t, changes))
 			}
 		})
 	}
@@ -1011,7 +1006,7 @@ func Test_changesFromUnlabeledPRs(t *testing.T) {
 			expectedChanges: []change.Change{
 				{
 					Text:        "pr without labels",
-					ChangeTypes: nil,
+					ChangeTypes: change.UnknownTypes,
 					Timestamp:   timeStart,
 					References: []change.Reference{
 						{
@@ -1028,7 +1023,7 @@ func Test_changesFromUnlabeledPRs(t *testing.T) {
 				},
 				{
 					Text:        "pr without labels 2",
-					ChangeTypes: nil,
+					ChangeTypes: change.UnknownTypes,
 					Timestamp:   timeStart,
 					References: []change.Reference{
 						{
@@ -1049,7 +1044,17 @@ func Test_changesFromUnlabeledPRs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.ElementsMatch(t, tt.expectedChanges, changesFromUnlabeledPRs(tt.config, tt.inputPrs, sinceTag, nil))
+			changes := changesFromUnlabeledPRs(tt.config, tt.inputPrs, sinceTag, nil, nil)
+			if !reflect.DeepEqual(tt.expectedChanges, changes) {
+				// print out a JSON diff
+				assert.JSONEq(t, toJson(t, tt.expectedChanges), toJson(t, changes))
+			}
 		})
 	}
+}
+
+func toJson(t *testing.T, changes []change.Change) string {
+	out, err := json.Marshal(changes)
+	require.NoError(t, err)
+	return string(out)
 }

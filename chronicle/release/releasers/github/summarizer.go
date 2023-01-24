@@ -180,7 +180,7 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 	}
 
 	if s.config.IncludeUnlabeledPRs {
-		changes = append(changes, changesFromUnlabeledPRs(s.config, allMergedPRs, sinceTag, untilTag)...)
+		changes = append(changes, changesFromUnlabeledPRs(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)...)
 	}
 
 	return changes, nil
@@ -256,6 +256,11 @@ func createChangesFromPRs(config Config, prs []ghPullRequest) []change.Change {
 	var summaries []change.Change
 	for _, pr := range prs {
 		changeTypes := config.ChangeTypesByLabel.ChangeTypes(pr.Labels...)
+
+		if len(changeTypes) == 0 {
+			changeTypes = change.UnknownTypes
+		}
+
 		summaries = append(summaries, change.Change{
 			Text:        pr.Title,
 			ChangeTypes: changeTypes,
@@ -321,17 +326,14 @@ func logIssues(issues []ghIssue) {
 	}
 }
 
-func changesFromUnlabeledPRs(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag) []change.Change {
+func changesFromUnlabeledPRs(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag, includeCommits []string) []change.Change {
 	// this represents the traits we wish to filter down to (not out).
 	filters := []prFilter{
-		prsAfter(sinceTag.Timestamp),
 		prsWithoutLabels(),
 		prsWithoutLinkedIssues(),
 	}
 
-	if untilTag != nil {
-		filters = append(filters, prsAtOrBefore(untilTag.Timestamp))
-	}
+	filters = append(filters, standardChronologicalPrFilters(config, sinceTag, untilTag, includeCommits)...)
 
 	filteredIssues, _ := filterPRs(allMergedPRs, filters...)
 
@@ -343,6 +345,10 @@ func changesFromUnlabeledPRs(config Config, allMergedPRs []ghPullRequest, sinceT
 func createChangesFromIssues(config Config, allMergedPRs []ghPullRequest, issues []ghIssue) (changes []change.Change) {
 	for _, issue := range issues {
 		changeTypes := config.ChangeTypesByLabel.ChangeTypes(issue.Labels...)
+
+		if len(changeTypes) == 0 {
+			changeTypes = change.UnknownTypes
+		}
 
 		references := []change.Reference{
 			{
