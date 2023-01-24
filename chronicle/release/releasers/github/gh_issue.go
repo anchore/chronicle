@@ -117,6 +117,17 @@ func issuesWithoutLabel(labels ...string) issueFilter {
 	}
 }
 
+func issuesWithChangeTypes(config Config) issueFilter {
+	return func(issue ghIssue) bool {
+		changeTypes := config.ChangeTypesByLabel.ChangeTypes(issue.Labels...)
+		keep := len(changeTypes) > 0
+		if !keep {
+			log.Tracef("issue #%d filtered out: no change types", issue.Number)
+		}
+		return keep
+	}
+}
+
 // nolint:funlen
 func fetchClosedIssues(user, repo string) ([]ghIssue, error) {
 	src := oauth2.StaticTokenSource(
