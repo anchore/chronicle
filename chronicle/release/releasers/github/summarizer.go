@@ -162,7 +162,8 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 			// githubs ontology has PRs as the source of truth for issue linking. Linked PR information
 			// is not available on the issue itself.
 			extractedIssues := issuesExtractedFromPRs(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)
-			changes = append(changes, createChangesFromIssues(s.config, allMergedPRs, extractedIssues, filterIssuesByChangeTypes)...)
+			extractedIssues = filterIssues(extractedIssues, issuesWithChangeTypes(s.config))
+			changes = append(changes, createChangesFromIssues(s.config, allMergedPRs, extractedIssues)...)
 		}
 	}
 
@@ -284,15 +285,12 @@ func logPRs(prs []ghPullRequest) {
 func changesFromIssues(config Config, allMergedPRs []ghPullRequest, allClosedIssues []ghIssue, sinceTag, untilTag *git.Tag) []change.Change {
 	filteredIssues := filterIssues(allClosedIssues, standardIssueFilters(config, sinceTag, untilTag)...)
 
+	filteredIssues = filterIssues(filteredIssues, issuesWithChangeTypes(config))
+
 	log.Debugf("issues contributing to changelog: %d", len(filteredIssues))
 	logIssues(filteredIssues)
 
-	return createChangesFromIssues(config, allMergedPRs, filteredIssues, filterIssuesByChangeTypes)
-}
-
-func filterIssuesByChangeTypes(config Config, issue ghIssue) bool {
-	changeTypes := config.ChangeTypesByLabel.ChangeTypes(issue.Labels...)
-	return len(changeTypes) > 0
+	return createChangesFromIssues(config, allMergedPRs, filteredIssues)
 }
 
 func logIssues(issues []ghIssue) {
@@ -305,40 +303,38 @@ func logIssues(issues []ghIssue) {
 	}
 }
 
-func createChangesFromIssues(config Config, allMergedPRs []ghPullRequest, issues []ghIssue, filter func(Config, ghIssue) bool) (changes []change.Change) {
+func createChangesFromIssues(config Config, allMergedPRs []ghPullRequest, issues []ghIssue) (changes []change.Change) {
 	for _, issue := range issues {
-		if filter(config, issue) {
-			changeTypes := config.ChangeTypesByLabel.ChangeTypes(issue.Labels...)
+		changeTypes := config.ChangeTypesByLabel.ChangeTypes(issue.Labels...)
 
-			references := []change.Reference{
-				{
-					Text: fmt.Sprintf("Issue #%d", issue.Number),
-					URL:  issue.URL,
-				},
-			}
+		references := []change.Reference{
+			{
+				Text: fmt.Sprintf("Issue #%d", issue.Number),
+				URL:  issue.URL,
+			},
+		}
 
-			if config.IncludeIssuePRAuthors {
-				for _, pr := range allMergedPRs {
-					for _, linkedIssue := range pr.LinkedIssues {
-						if linkedIssue.URL == issue.URL {
-							references = append(references, change.Reference{
-								Text: pr.Author,
-								URL:  fmt.Sprintf("https://%s/%s", config.Host, pr.Author),
-							})
-						}
+		if config.IncludeIssuePRAuthors {
+			for _, pr := range allMergedPRs {
+				for _, linkedIssue := range pr.LinkedIssues {
+					if linkedIssue.URL == issue.URL {
+						references = append(references, change.Reference{
+							Text: pr.Author,
+							URL:  fmt.Sprintf("https://%s/%s", config.Host, pr.Author),
+						})
 					}
 				}
 			}
-
-			changes = append(changes, change.Change{
-				Text:        issue.Title,
-				ChangeTypes: changeTypes,
-				Timestamp:   issue.ClosedAt,
-				References:  references,
-				EntryType:   "githubIssue",
-				Entry:       issue,
-			})
 		}
+
+		changes = append(changes, change.Change{
+			Text:        issue.Title,
+			ChangeTypes: changeTypes,
+			Timestamp:   issue.ClosedAt,
+			References:  references,
+			EntryType:   "githubIssue",
+			Entry:       issue,
+		})
 	}
 	return changes
 }

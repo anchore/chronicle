@@ -10,7 +10,7 @@ import (
 	"github.com/anchore/chronicle/internal"
 )
 
-var remotePattern = regexp.MustCompile(`\[remote "origin"]\s*\n\s*url\s*=\s*(?P<url>[^\s]+)\s+`)
+var remotePattern = regexp.MustCompile(`\[remote\s*"origin"]\s*\n\s*url\s*=\s*(?P<url>[^\s]+)\s+`)
 
 // TODO: can't use r.Config for same validation reasons
 func RemoteURL(p string) (string, error) {
