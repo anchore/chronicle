@@ -13,8 +13,8 @@ type githubSummarizer struct {
 	Host                   string         `yaml:"host" json:"host" mapstructure:"host"`
 	ExcludeLabels          []string       `yaml:"exclude-labels" json:"exclude-labels" mapstructure:"exclude-labels"`
 	IncludeIssuePRAuthors  bool           `yaml:"include-issue-pr-authors" json:"include-issue-pr-authors" mapstructure:"include-issue-pr-authors"`
-	IncludeIssues          bool           `yaml:"include-issues" json:"include-issues" mapstructure:"include-issues"`
 	IncludePRs             bool           `yaml:"include-prs" json:"include-prs" mapstructure:"include-prs"`
+	IncludeIssues          bool           `yaml:"include-issues" json:"include-issues" mapstructure:"include-issues"`
 	IssuesRequireLinkedPR  bool           `yaml:"issues-require-linked-prs" json:"issues-require-linked-prs" mapstructure:"issues-require-linked-prs"`
 	ConsiderPRMergeCommits bool           `yaml:"consider-pr-merge-commits" json:"consider-pr-merge-commits" mapstructure:"consider-pr-merge-commits"`
 	Changes                []githubChange `yaml:"changes" json:"changes" mapstructure:"changes"`
@@ -53,11 +53,11 @@ func (cfg githubSummarizer) ToGithubConfig() (github.Config, error) {
 
 func (cfg githubSummarizer) loadDefaultValues(v *viper.Viper) {
 	v.SetDefault("github.host", "github.com")
+	v.SetDefault("github.issues-require-linked-prs", false)
 	v.SetDefault("github.consider-pr-merge-commits", true)
+	v.SetDefault("github.include-prs", true)
 	v.SetDefault("github.include-issue-pr-authors", true)
 	v.SetDefault("github.include-issues", true)
-	v.SetDefault("github.include-prs", true)
-	v.SetDefault("github.issues-require-linked-prs", false)
 	v.SetDefault("github.exclude-labels", []string{"duplicate", "question", "invalid", "wontfix", "wont-fix", "release-ignore", "changelog-ignore", "ignore"})
 	v.SetDefault("github.changes", []githubChange{
 		{
