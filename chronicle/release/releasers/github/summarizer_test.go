@@ -1,10 +1,13 @@
 package github
 
 import (
+	"encoding/json"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/internal/git"
@@ -765,6 +768,141 @@ func Test_changesFromIssuesExtractedFromPRs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedIssues, issuesExtractedFromPRs(tt.config, tt.inputPrs, tt.since, tt.until, tt.commits))
+		})
+	}
+}
+
+func Test_createChangesFromIssues(t *testing.T) {
+	timeStart := time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC)
+
+	patch := change.NewType("patch", change.SemVerPatch)
+
+	changeTypeSet := change.TypeSet{
+		"bug": patch,
+	}
+
+	issue1 := ghIssue{
+		Title:    "Issue 1",
+		Number:   1,
+		URL:      "issue-1-url",
+		ClosedAt: timeStart,
+		Labels:   []string{"bug"},
+	}
+
+	issue2 := ghIssue{
+		Title:    "Issue 2",
+		Number:   2,
+		URL:      "issue-2-url",
+		ClosedAt: timeStart,
+		Labels:   []string{"bug"},
+	}
+
+	prWithLinkedIssues := ghPullRequest{
+		Title:    "pr with linked issues",
+		MergedAt: timeStart,
+		Number:   3,
+		Labels:   []string{"bug"},
+		Author:   "some-author-1",
+		URL:      "some-url-1",
+		LinkedIssues: []ghIssue{
+			issue1,
+		},
+	}
+
+	prWithLinkedIssues2 := ghPullRequest{
+		Title:    "pr with linked issues 2",
+		MergedAt: timeStart,
+		Number:   4,
+		Labels:   []string{"another-label"},
+		Author:   "some-author-2",
+		URL:      "some-url-2",
+		LinkedIssues: []ghIssue{
+			issue2,
+		},
+	}
+
+	prWithoutLinkedIssues := ghPullRequest{
+		MergedAt: timeStart,
+		Title:    "pr without linked issues",
+		Number:   6,
+		Author:   "some-author",
+		URL:      "some-url",
+	}
+
+	tests := []struct {
+		name            string
+		config          Config
+		inputPrs        []ghPullRequest
+		issues          []ghIssue
+		expectedChanges []change.Change
+	}{
+		{
+			name: "includes author for issues",
+			config: Config{
+				IncludeIssuePRAuthors: true,
+				ChangeTypesByLabel:    changeTypeSet,
+				Host:                  "some-host",
+			},
+			inputPrs: []ghPullRequest{
+				prWithLinkedIssues,
+				prWithLinkedIssues2,
+				prWithoutLinkedIssues,
+			},
+			issues: []ghIssue{
+				issue1,
+				issue2,
+			},
+			expectedChanges: []change.Change{
+				{
+					Text:        "Issue 1",
+					ChangeTypes: []change.Type{patch},
+					Timestamp:   timeStart,
+					References: []change.Reference{
+						{
+							Text: "Issue #1",
+							URL:  "issue-1-url",
+						},
+						{
+							Text: "some-author-1",
+							URL:  "https://some-host/some-author-1",
+						},
+					},
+					EntryType: "githubIssue",
+					Entry:     issue1,
+				},
+				{
+					Text:        "Issue 2",
+					ChangeTypes: []change.Type{patch},
+					Timestamp:   timeStart,
+					References: []change.Reference{
+						{
+							Text: "Issue #2",
+							URL:  "issue-2-url",
+						},
+						{
+							Text: "some-author-2",
+							URL:  "https://some-host/some-author-2",
+						},
+					},
+					EntryType: "githubIssue",
+					Entry:     issue2,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			changes := createChangesFromIssues(tt.config, tt.inputPrs, tt.issues)
+			if !reflect.DeepEqual(tt.expectedChanges, changes) {
+				// print out a JSON diff
+				toJson := func(changes []change.Change) string {
+					out, err := json.Marshal(changes)
+					require.NoError(t, err)
+					return string(out)
+				}
+				assert.JSONEq(t, toJson(tt.expectedChanges), toJson(changes))
+			}
 		})
 	}
 }
