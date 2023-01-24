@@ -20,15 +20,16 @@ const (
 var _ release.Summarizer = (*Summarizer)(nil)
 
 type Config struct {
-	Host                   string
-	IncludeIssuePRAuthors  bool
-	IncludeIssues          bool
-	IncludeIssuePRs        bool
-	IncludePRs             bool
-	ExcludeLabels          []string
-	ChangeTypesByLabel     change.TypeSet
-	IssuesRequireLinkedPR  bool
-	ConsiderPRMergeCommits bool
+	Host                            string
+	IncludeIssuePRAuthors           bool
+	IncludeIssues                   bool
+	IncludeIssuePRs                 bool
+	IncludeIssuesClosedAsNotPlanned bool
+	IncludePRs                      bool
+	ExcludeLabels                   []string
+	ChangeTypesByLabel              change.TypeSet
+	IssuesRequireLinkedPR           bool
+	ConsiderPRMergeCommits          bool
 }
 
 type Summarizer struct {
@@ -169,6 +170,10 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 			allClosedIssues, err := fetchClosedIssues(s.userName, s.repoName)
 			if err != nil {
 				return nil, err
+			}
+
+			if !s.config.IncludeIssuesClosedAsNotPlanned {
+				allClosedIssues = filterIssues(allClosedIssues, excludeIssuesNotPlanned(allMergedPRs))
 			}
 
 			log.Debugf("total closed issues discovered: %d", len(allClosedIssues))
