@@ -308,6 +308,9 @@ func createChangesFromIssues(config Config, allMergedPRs []ghPullRequest, issues
 
 			if config.IncludeIssuePRAuthors {
 				for _, pr := range allMergedPRs {
+					if pr.Author == "" {
+						continue
+					}
 					for _, linkedIssue := range pr.LinkedIssues {
 						if linkedIssue.URL == issue.URL {
 							references = append(references, change.Reference{
