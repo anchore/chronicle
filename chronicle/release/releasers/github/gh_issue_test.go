@@ -295,7 +295,7 @@ func Test_excludeIssuesNotPlanned(t *testing.T) {
 		expected []ghIssue
 	}{
 		{
-			name:   "includes author for issues",
+			name:   "excludes not planned issues with no linked PRs",
 			config: Config{},
 			prs: []ghPullRequest{
 				prWithLinkedIssues1,
