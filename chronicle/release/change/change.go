@@ -4,6 +4,9 @@ import (
 	"time"
 )
 
+var UnknownType = NewType("unknown", SemVerUnknown)
+var UnknownTypes = []Type{UnknownType}
+
 type Changes []Change
 
 // Change represents the smallest unit within a release that can be summarized.

@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/anchore/chronicle/chronicle/release/change"
 )
 
 func Test_issuesAtOrAfter(t *testing.T) {
@@ -318,6 +320,49 @@ func Test_excludeIssuesNotPlanned(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			filtered := filterIssues(test.issues, excludeIssuesNotPlanned(test.prs))
 			assert.Equal(t, test.expected, filtered)
+		})
+	}
+}
+
+func Test_issuesWithChangeTypes(t *testing.T) {
+	tests := []struct {
+		name     string
+		issue    ghIssue
+		label    string
+		expected bool
+	}{
+		{
+			name:  "matches on label",
+			label: "positive",
+			issue: ghIssue{
+				Labels: []string{"something-else", "positive"},
+			},
+			expected: true,
+		},
+		{
+			name:  "does not match on label",
+			label: "positive",
+			issue: ghIssue{
+				Labels: []string{"something-else", "negative"},
+			},
+			expected: false,
+		},
+		{
+			name:  "does not have change types",
+			label: "positive",
+			issue: ghIssue{
+				Labels: []string{},
+			},
+			expected: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, issuesWithChangeTypes(Config{
+				ChangeTypesByLabel: change.TypeSet{
+					test.label: change.NewType(test.label, change.SemVerMinor),
+				},
+			})(test.issue))
 		})
 	}
 }

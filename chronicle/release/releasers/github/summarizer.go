@@ -26,6 +26,7 @@ type Config struct {
 	IncludeIssuePRs                 bool
 	IncludeIssuesClosedAsNotPlanned bool
 	IncludePRs                      bool
+	IncludeUnlabeledPRs             bool
 	ExcludeLabels                   []string
 	ChangeTypesByLabel              change.TypeSet
 	IssuesRequireLinkedPR           bool
@@ -156,16 +157,12 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 	log.Debugf("total merged PRs discovered: %d", len(allMergedPRs))
 
 	if s.config.IncludePRs {
-		changes = append(changes, changesFromPRs(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)...)
+		changes = append(changes, changesFromStandardPRFilters(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)...)
 	}
 
 	if s.config.IncludeIssues {
 		if s.config.IssuesRequireLinkedPR {
-			// extract closed linked issues with closed PRs from the PR list. Why do this here?
-			// githubs ontology has PRs as the source of truth for issue linking. Linked PR information
-			// is not available on the issue itself.
-			extractedIssues := issuesExtractedFromPRs(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)
-			changes = append(changes, createChangesFromIssues(s.config, allMergedPRs, extractedIssues)...)
+			changes = append(changes, changesFromIssuesLinkedToPrs(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)...)
 		} else {
 			allClosedIssues, err := fetchClosedIssues(s.userName, s.repoName)
 			if err != nil {
@@ -180,6 +177,10 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 
 			changes = append(changes, changesFromIssues(s.config, allMergedPRs, allClosedIssues, sinceTag, untilTag)...)
 		}
+	}
+
+	if s.config.IncludeUnlabeledPRs {
+		changes = append(changes, changesFromUnlabeledPRs(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)...)
 	}
 
 	return changes, nil
@@ -240,34 +241,43 @@ func uniqueIssuesFromPRs(prs []ghPullRequest) []ghIssue {
 	return issues
 }
 
-func changesFromPRs(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag, includeCommits []string) []change.Change {
+func changesFromStandardPRFilters(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag, includeCommits []string) []change.Change {
 	includedPRs := applyStandardPRFilters(allMergedPRs, config, sinceTag, untilTag, includeCommits)
+
+	includedPRs, _ = filterPRs(includedPRs, prsWithChangeTypes(config))
 
 	log.Debugf("PRs contributing to changelog: %d", len(includedPRs))
 	logPRs(includedPRs)
 
+	return createChangesFromPRs(config, includedPRs)
+}
+
+func createChangesFromPRs(config Config, prs []ghPullRequest) []change.Change {
 	var summaries []change.Change
-	for _, pr := range includedPRs {
+	for _, pr := range prs {
 		changeTypes := config.ChangeTypesByLabel.ChangeTypes(pr.Labels...)
-		if len(changeTypes) > 0 {
-			summaries = append(summaries, change.Change{
-				Text:        pr.Title,
-				ChangeTypes: changeTypes,
-				Timestamp:   pr.MergedAt,
-				References: []change.Reference{
-					{
-						Text: fmt.Sprintf("PR #%d", pr.Number),
-						URL:  pr.URL,
-					},
-					{
-						Text: pr.Author,
-						URL:  fmt.Sprintf("https://%s/%s", config.Host, pr.Author),
-					},
-				},
-				EntryType: "githubPR",
-				Entry:     pr,
-			})
+
+		if len(changeTypes) == 0 {
+			changeTypes = change.UnknownTypes
 		}
+
+		summaries = append(summaries, change.Change{
+			Text:        pr.Title,
+			ChangeTypes: changeTypes,
+			Timestamp:   pr.MergedAt,
+			References: []change.Reference{
+				{
+					Text: fmt.Sprintf("PR #%d", pr.Number),
+					URL:  pr.URL,
+				},
+				{
+					Text: pr.Author,
+					URL:  fmt.Sprintf("https://%s/%s", config.Host, pr.Author),
+				},
+			},
+			EntryType: "githubPR",
+			Entry:     pr,
+		})
 	}
 	return summaries
 }
@@ -282,8 +292,23 @@ func logPRs(prs []ghPullRequest) {
 	}
 }
 
+func changesFromIssuesLinkedToPrs(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag, includeCommits []string) []change.Change {
+	// extract closed linked issues with closed PRs from the PR list. Why do this here?
+	// githubs ontology has PRs as the source of truth for issue linking. Linked PR information
+	// is not available on the issue itself.
+	issues := issuesExtractedFromPRs(config, allMergedPRs, sinceTag, untilTag, includeCommits)
+	issues = filterIssues(issues, issuesWithChangeTypes(config))
+
+	log.Debugf("linked issues contributing to changelog: %d", len(issues))
+	logIssues(issues)
+
+	return createChangesFromIssues(config, allMergedPRs, issues)
+}
+
 func changesFromIssues(config Config, allMergedPRs []ghPullRequest, allClosedIssues []ghIssue, sinceTag, untilTag *git.Tag) []change.Change {
 	filteredIssues := filterIssues(allClosedIssues, standardIssueFilters(config, sinceTag, untilTag)...)
+
+	filteredIssues = filterIssues(filteredIssues, issuesWithChangeTypes(config))
 
 	log.Debugf("issues contributing to changelog: %d", len(filteredIssues))
 	logIssues(filteredIssues)
@@ -301,43 +326,62 @@ func logIssues(issues []ghIssue) {
 	}
 }
 
+func changesFromUnlabeledPRs(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag, includeCommits []string) []change.Change {
+	// this represents the traits we wish to filter down to (not out).
+	filters := []prFilter{
+		prsWithoutLabels(),
+		prsWithoutLinkedIssues(),
+	}
+
+	filters = append(filters, standardChronologicalPrFilters(config, sinceTag, untilTag, includeCommits)...)
+
+	filteredIssues, _ := filterPRs(allMergedPRs, filters...)
+
+	log.Debugf("unlabeled prs contributing to changelog: %d", len(filteredIssues))
+
+	return createChangesFromPRs(config, filteredIssues)
+}
+
 func createChangesFromIssues(config Config, allMergedPRs []ghPullRequest, issues []ghIssue) (changes []change.Change) {
 	for _, issue := range issues {
 		changeTypes := config.ChangeTypesByLabel.ChangeTypes(issue.Labels...)
-		if len(changeTypes) > 0 {
-			references := []change.Reference{
-				{
-					Text: fmt.Sprintf("Issue #%d", issue.Number),
-					URL:  issue.URL,
-				},
-			}
 
-			if config.IncludeIssuePRs || config.IncludeIssuePRAuthors {
-				for _, pr := range getLinkedPRs(allMergedPRs, issue) {
-					if config.IncludeIssuePRs {
-						references = append(references, change.Reference{
-							Text: fmt.Sprintf("PR #%d", pr.Number),
-							URL:  pr.URL,
-						})
-					}
-					if config.IncludeIssuePRAuthors && pr.Author != "" {
-						references = append(references, change.Reference{
-							Text: pr.Author,
-							URL:  fmt.Sprintf("https://%s/%s", config.Host, pr.Author),
-						})
-					}
+		if len(changeTypes) == 0 {
+			changeTypes = change.UnknownTypes
+		}
+
+		references := []change.Reference{
+			{
+				Text: fmt.Sprintf("Issue #%d", issue.Number),
+				URL:  issue.URL,
+			},
+		}
+
+		if config.IncludeIssuePRs || config.IncludeIssuePRAuthors {
+			for _, pr := range getLinkedPRs(allMergedPRs, issue) {
+				if config.IncludeIssuePRs {
+					references = append(references, change.Reference{
+						Text: fmt.Sprintf("PR #%d", pr.Number),
+						URL:  pr.URL,
+					})
+				}
+				if config.IncludeIssuePRAuthors && pr.Author != "" {
+					references = append(references, change.Reference{
+						Text: pr.Author,
+						URL:  fmt.Sprintf("https://%s/%s", config.Host, pr.Author),
+					})
 				}
 			}
-
-			changes = append(changes, change.Change{
-				Text:        issue.Title,
-				ChangeTypes: changeTypes,
-				Timestamp:   issue.ClosedAt,
-				References:  references,
-				EntryType:   "githubIssue",
-				Entry:       issue,
-			})
 		}
+
+		changes = append(changes, change.Change{
+			Text:        issue.Title,
+			ChangeTypes: changeTypes,
+			Timestamp:   issue.ClosedAt,
+			References:  references,
+			EntryType:   "githubIssue",
+			Entry:       issue,
+		})
 	}
 	return changes
 }

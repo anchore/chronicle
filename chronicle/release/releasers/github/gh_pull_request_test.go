@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/anchore/chronicle/chronicle/release/change"
 )
 
 func Test_prsAtOrAfter(t *testing.T) {
@@ -364,6 +366,108 @@ func Test_prsWithoutMergeCommit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.expected, prsWithoutMergeCommit(tt.commits...)(tt.pr))
+		})
+	}
+}
+
+func Test_prsWithChangeTypes(t *testing.T) {
+	tests := []struct {
+		name     string
+		issue    ghPullRequest
+		label    string
+		expected bool
+	}{
+		{
+			name:  "matches on label",
+			label: "positive",
+			issue: ghPullRequest{
+				Labels: []string{"something-else", "positive"},
+			},
+			expected: true,
+		},
+		{
+			name:  "does not match on label",
+			label: "positive",
+			issue: ghPullRequest{
+				Labels: []string{"something-else", "negative"},
+			},
+			expected: false,
+		},
+		{
+			name:  "does not have change types",
+			label: "positive",
+			issue: ghPullRequest{
+				Labels: []string{},
+			},
+			expected: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, prsWithChangeTypes(Config{
+				ChangeTypesByLabel: change.TypeSet{
+					test.label: change.NewType(test.label, change.SemVerMinor),
+				},
+			})(test.issue))
+		})
+	}
+}
+
+func Test_prsWithoutLabels(t *testing.T) {
+	tests := []struct {
+		name     string
+		issue    ghPullRequest
+		expected bool
+	}{
+		{
+			name: "omitted when labels",
+			issue: ghPullRequest{
+				Labels: []string{"something-else", "positive"},
+			},
+			expected: false,
+		},
+		{
+			name: "included with no labels",
+			issue: ghPullRequest{
+				Labels: []string{},
+			},
+			expected: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, prsWithoutLabels()(test.issue))
+		})
+	}
+}
+
+func Test_prsWithoutLinkedIssues(t *testing.T) {
+	tests := []struct {
+		name     string
+		issue    ghPullRequest
+		expected bool
+	}{
+		{
+			name:     "matches when unlinked",
+			issue:    ghPullRequest{},
+			expected: true,
+		},
+		{
+			name: "does not match when linked",
+			issue: ghPullRequest{
+				LinkedIssues: []ghIssue{
+					{
+						Number: 1,
+						Title:  "an issue",
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, prsWithoutLinkedIssues()(test.issue))
 		})
 	}
 }

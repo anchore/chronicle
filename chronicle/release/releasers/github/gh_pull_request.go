@@ -161,6 +161,38 @@ func prsWithLabel(labels ...string) prFilter {
 	}
 }
 
+func prsWithoutLabels() prFilter {
+	return func(pr ghPullRequest) bool {
+		keep := len(pr.Labels) == 0
+		if !keep {
+			log.Tracef("PR #%d filtered out: has labels", pr.Number)
+		}
+		return keep
+	}
+}
+
+func prsWithoutLinkedIssues() prFilter {
+	return func(pr ghPullRequest) bool {
+		keep := len(pr.LinkedIssues) == 0
+		if !keep {
+			log.Tracef("PR #%d filtered out: has linked issues", pr.Number)
+		}
+		return keep
+	}
+}
+
+func prsWithChangeTypes(config Config) prFilter {
+	return func(pr ghPullRequest) bool {
+		changeTypes := config.ChangeTypesByLabel.ChangeTypes(pr.Labels...)
+
+		keep := len(changeTypes) > 0
+		if !keep {
+			log.Tracef("PR #%d filtered out: no change types", pr.Number)
+		}
+		return keep
+	}
+}
+
 func prsWithoutLabel(labels ...string) prFilter {
 	return func(pr ghPullRequest) bool {
 		for _, targetLabel := range labels {
@@ -197,6 +229,8 @@ func keepPRsWithCommits(prs []ghPullRequest, commits []string, filters ...prFilt
 			log.Tracef("PR #%d included: has selected commit %s", pr.Number, pr.MergeCommit)
 			keep, _ := filterPRs([]ghPullRequest{pr}, filters...)
 			results = append(results, keep...)
+		} else {
+			log.Tracef("PR #%d filtered out: does not have merge commit %s", pr.Number, pr.MergeCommit)
 		}
 	}
 
