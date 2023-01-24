@@ -3,7 +3,7 @@ module github.com/anchore/chronicle
 go 1.17
 
 require (
-	github.com/adrg/xdg v0.3.3
+	github.com/adrg/xdg v0.4.0
 	github.com/anchore/go-logger v0.0.0-20220728155337-03b66a5207d8
 	github.com/anchore/go-testutils v0.0.0-20200925183923-d5f45b0d3c04
 	github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4
