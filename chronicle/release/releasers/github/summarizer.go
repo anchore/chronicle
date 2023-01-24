@@ -21,6 +21,7 @@ var _ release.Summarizer = (*Summarizer)(nil)
 
 type Config struct {
 	Host                   string
+	IncludeIssuePRAuthors  bool
 	IncludeIssues          bool
 	IncludePRs             bool
 	ExcludeLabels          []string
@@ -145,35 +146,34 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 		logCommits(includeCommits)
 	}
 
-	if s.config.IncludePRs || (s.config.IssuesRequireLinkedPR && s.config.IncludeIssues) {
-		allMergedPRs, err := fetchMergedPRs(s.userName, s.repoName)
-		if err != nil {
-			return nil, err
-		}
+	allMergedPRs, err := fetchMergedPRs(s.userName, s.repoName)
+	if err != nil {
+		return nil, err
+	}
 
-		log.Debugf("total merged PRs discovered: %d", len(allMergedPRs))
+	log.Debugf("total merged PRs discovered: %d", len(allMergedPRs))
 
-		if s.config.IncludePRs {
-			changes = append(changes, changesFromPRs(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)...)
-		}
-		if s.config.IssuesRequireLinkedPR && s.config.IncludeIssues {
+	if s.config.IncludePRs {
+		changes = append(changes, changesFromPRs(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)...)
+	}
+
+	if s.config.IncludeIssues {
+		if s.config.IssuesRequireLinkedPR {
 			// extract closed linked issues with closed PRs from the PR list. Why do this here?
 			// githubs ontology has PRs as the source of truth for issue linking. Linked PR information
 			// is not available on the issue itself.
 			extractedIssues := issuesExtractedFromPRs(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)
-			changes = append(changes, createChangesFromIssues(s.config, extractedIssues)...)
+			changes = append(changes, createChangesFromIssues(s.config, allMergedPRs, extractedIssues)...)
+		} else {
+			allClosedIssues, err := fetchClosedIssues(s.userName, s.repoName)
+			if err != nil {
+				return nil, err
+			}
+
+			log.Debugf("total closed issues discovered: %d", len(allClosedIssues))
+
+			changes = append(changes, changesFromIssues(s.config, allMergedPRs, allClosedIssues, sinceTag, untilTag)...)
 		}
-	}
-
-	if s.config.IncludeIssues && !s.config.IssuesRequireLinkedPR {
-		allClosedIssues, err := fetchClosedIssues(s.userName, s.repoName)
-		if err != nil {
-			return nil, err
-		}
-
-		log.Debugf("total closed issues discovered: %d", len(allClosedIssues))
-
-		changes = append(changes, changesFromIssues(s.config, allClosedIssues, sinceTag, untilTag)...)
 	}
 
 	return changes, nil
@@ -276,13 +276,13 @@ func logPRs(prs []ghPullRequest) {
 	}
 }
 
-func changesFromIssues(config Config, allClosedIssues []ghIssue, sinceTag, untilTag *git.Tag) []change.Change {
+func changesFromIssues(config Config, allMergedPRs []ghPullRequest, allClosedIssues []ghIssue, sinceTag, untilTag *git.Tag) []change.Change {
 	filteredIssues := filterIssues(allClosedIssues, standardIssueFilters(config, sinceTag, untilTag)...)
 
 	log.Debugf("issues contributing to changelog: %d", len(filteredIssues))
 	logIssues(filteredIssues)
 
-	return createChangesFromIssues(config, filteredIssues)
+	return createChangesFromIssues(config, allMergedPRs, filteredIssues)
 }
 
 func logIssues(issues []ghIssue) {
@@ -295,23 +295,40 @@ func logIssues(issues []ghIssue) {
 	}
 }
 
-func createChangesFromIssues(config Config, issues []ghIssue) (changes []change.Change) {
+func createChangesFromIssues(config Config, allMergedPRs []ghPullRequest, issues []ghIssue) (changes []change.Change) {
 	for _, issue := range issues {
 		changeTypes := config.ChangeTypesByLabel.ChangeTypes(issue.Labels...)
 		if len(changeTypes) > 0 {
+			references := []change.Reference{
+				{
+					Text: fmt.Sprintf("Issue #%d", issue.Number),
+					URL:  issue.URL,
+				},
+			}
+
+			if config.IncludeIssuePRAuthors {
+				for _, pr := range allMergedPRs {
+					if pr.Author == "" {
+						continue
+					}
+					for _, linkedIssue := range pr.LinkedIssues {
+						if linkedIssue.URL == issue.URL {
+							references = append(references, change.Reference{
+								Text: pr.Author,
+								URL:  fmt.Sprintf("https://%s/%s", config.Host, pr.Author),
+							})
+						}
+					}
+				}
+			}
+
 			changes = append(changes, change.Change{
 				Text:        issue.Title,
 				ChangeTypes: changeTypes,
 				Timestamp:   issue.ClosedAt,
-				References: []change.Reference{
-					{
-						Text: fmt.Sprintf("Issue #%d", issue.Number),
-						URL:  issue.URL,
-					},
-					// TODO: add assignee(s) name + url
-				},
-				EntryType: "githubIssue",
-				Entry:     issue,
+				References:  references,
+				EntryType:   "githubIssue",
+				Entry:       issue,
 			})
 		}
 	}
