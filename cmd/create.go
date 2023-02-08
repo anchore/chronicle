@@ -58,6 +58,11 @@ func setCreateFlags(flags *pflag.FlagSet) {
 	)
 
 	flags.StringP(
+		"version-file", "", "",
+		"output the current version of the generated changelog to the given file",
+	)
+
+	flags.StringP(
 		"since-tag", "s", "",
 		"tag to start changelog processing from (inclusive)",
 	)
@@ -85,6 +90,7 @@ func bindCreateConfigOptions(flags *pflag.FlagSet) error {
 		"until-tag",
 		"title",
 		"speculate-next-version",
+		"version-file",
 	} {
 		if err := viper.BindPFlag(flag, flags.Lookup(flag)); err != nil {
 			return err
@@ -99,6 +105,16 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	_, description, err := worker()
 	if err != nil {
 		return err
+	}
+
+	if appConfig.VersionFile != "" {
+		f, err := os.OpenFile(appConfig.VersionFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("unable to open version file %q: %w", appConfig.VersionFile, err)
+		}
+		if _, err := f.WriteString(description.Version); err != nil {
+			return fmt.Errorf("unable to write version to file %q: %w", appConfig.VersionFile, err)
+		}
 	}
 
 	f := format.FromString(appConfig.Output)
