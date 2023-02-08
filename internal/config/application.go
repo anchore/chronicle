@@ -33,8 +33,9 @@ type Application struct {
 	Log                  logging          `yaml:"log" json:"log" mapstructure:"log"`                                                          // all logging-related options
 	CliOptions           CliOnlyOptions   `yaml:"-" json:"-"`                                                                                 // all options only available through the CLI (not via env vars or config)
 	SpeculateNextVersion bool             `yaml:"speculate-next-version" json:"speculate-next-version" mapstructure:"speculate-next-version"` // -n, guess the next version based on issues and PRs
-	SinceTag             string           `yaml:"since-tag" json:"since-tag" mapstructure:"since-tag"`
-	UntilTag             string           `yaml:"until-tag" json:"until-tag" mapstructure:"until-tag"`
+	VersionFile          string           `yaml:"version-file" json:"version-file" mapstructure:"version-file"`                               // --version-file, the path to a file containing the version to use for the changelog
+	SinceTag             string           `yaml:"since-tag" json:"since-tag" mapstructure:"since-tag"`                                        // -s, the tag to start the changelog from
+	UntilTag             string           `yaml:"until-tag" json:"until-tag" mapstructure:"until-tag"`                                        // -u, the tag to end the changelog at
 	EnforceV0            bool             `yaml:"enforce-v0" json:"enforce-v0" mapstructure:"enforce-v0"`
 	Title                string           `yaml:"title" json:"title" mapstructure:"title"`
 	Github               githubSummarizer `yaml:"github" json:"github" mapstructure:"github"`
