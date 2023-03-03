@@ -1,6 +1,7 @@
 package git
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -56,9 +57,9 @@ func CommitsBetween(repoPath string, cfg Range) ([]string, error) {
 	}
 
 	iter, err := r.Log(&git.LogOptions{
-		From:  *untilHash,
-		Since: &sinceTime,
+		From: *untilHash,
 	})
+	// BRANCH ------> 0 ---> Tip of Main
 	if err != nil {
 		return nil, fmt.Errorf("unable to find until git log for ref=%q: %w", cfg.UntilRef, err)
 	}
@@ -79,6 +80,9 @@ func CommitsBetween(repoPath string, cfg Range) ([]string, error) {
 			if cfg.IncludeStart {
 				commits = append(commits, hash)
 			}
+		case sinceTime.Before(c.Committer.When):
+			log.Errorf("found commit=%q before finding commit=%q at time=%q", hash, sinceHash, sinceTime)
+			retErr = errors.New("the previous release is probably on a different branch")
 		default:
 			commits = append(commits, hash)
 		}

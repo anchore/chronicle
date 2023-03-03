@@ -150,7 +150,7 @@ func TestCommitsBetween(t *testing.T) {
 			actual, err := CommitsBetween(test.path, test.config)
 			require.NoError(t, err)
 
-			// the answer is based off the the current (dynamically created) git log test fixture
+			// the answer is based off the current (dynamically created) git log test fixture
 			expected := gitLogRange(t, test.path, test.config.SinceRef, test.config.UntilRef)
 			require.NotEmpty(t, expected)
 
