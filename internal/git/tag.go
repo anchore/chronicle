@@ -83,7 +83,7 @@ func CommitsBetween(repoPath string, cfg Range) ([]string, error) {
 			commits = append(commits, hash)
 		}
 
-		return
+		return retErr
 	})
 
 	return commits, err
