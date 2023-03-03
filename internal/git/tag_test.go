@@ -133,6 +133,17 @@ func TestCommitsBetween(t *testing.T) {
 			},
 			count: 5,
 		},
+		{
+			name: "include start and end; filter by time",
+			path: "test-fixtures/repos/tag-range-repo",
+			config: Range{
+				SinceRef:     "v0.1.1",
+				UntilRef:     "v0.2.0",
+				IncludeStart: true,
+				IncludeEnd:   true,
+			},
+			count: 4,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
