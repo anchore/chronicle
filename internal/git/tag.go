@@ -41,12 +41,24 @@ func CommitsBetween(repoPath string, cfg Range) ([]string, error) {
 		}
 	}
 
+	var sinceTime time.Time
+	if sinceHash != nil {
+		c, err := r.CommitObject(*sinceHash)
+		if err != nil {
+			return nil, fmt.Errorf("unable to find since git commit=%q: %w", sinceHash, err)
+		}
+		sinceTime = c.Committer.When
+	}
+
 	untilHash, err := r.ResolveRevision(plumbing.Revision(cfg.UntilRef))
 	if err != nil {
 		return nil, fmt.Errorf("unable to find until git ref=%q: %w", cfg.UntilRef, err)
 	}
 
-	iter, err := r.Log(&git.LogOptions{From: *untilHash})
+	iter, err := r.Log(&git.LogOptions{
+		From:  *untilHash,
+		Since: &sinceTime,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to find until git log for ref=%q: %w", cfg.UntilRef, err)
 	}
