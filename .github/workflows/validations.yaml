@@ -24,14 +24,14 @@ jobs:
 
       - name: Restore tool cache
         id: tool-cache
-        uses: actions/cache@v3.2.3
+        uses: actions/cache@v3.3.1
         with:
           path: ${{ github.workspace }}/.tmp
           key: ${{ runner.os }}-tool-${{ hashFiles('Makefile') }}
 
       - name: Restore go cache
         id: go-cache
-        uses: actions/cache@v3.2.3
+        uses: actions/cache@v3.3.1
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
@@ -61,14 +61,14 @@ jobs:
 
       - name: Restore tool cache
         id: tool-cache
-        uses: actions/cache@v3.2.3
+        uses: actions/cache@v3.3.1
         with:
           path: ${{ github.workspace }}/.tmp
           key: ${{ runner.os }}-tool-${{ hashFiles('Makefile') }}
 
       - name: Restore go cache
         id: go-cache
-        uses: actions/cache@v3.2.3
+        uses: actions/cache@v3.3.1
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
@@ -87,7 +87,7 @@ jobs:
 
       - name: Restore test-fixture cache
         id: unit-fixture-cache
-        uses: actions/cache@v3.2.3
+        uses: actions/cache@v3.3.1
         with:
           path: internal/git/test-fixtures/repos
           key: ${{ runner.os }}-unit-fixture-cache-${{ hashFiles( 'internal/git/test-fixtures/cache.fingerprint' ) }}
@@ -112,14 +112,14 @@ jobs:
 
       - name: Restore tool cache
         id: tool-cache
-        uses: actions/cache@v3.2.3
+        uses: actions/cache@v3.3.1
         with:
           path: ${{ github.workspace }}/.tmp
           key: ${{ runner.os }}-tool-${{ hashFiles('Makefile') }}
 
       - name: Restore go cache
         id: go-cache
-        uses: actions/cache@v3.2.3
+        uses: actions/cache@v3.3.1
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
