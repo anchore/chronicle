@@ -9,7 +9,7 @@ require (
 	github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4
 	github.com/coreos/go-semver v0.3.1
 	github.com/go-git/go-git/v5 v5.4.2
-	github.com/gookit/color v1.5.2
+	github.com/gookit/color v1.5.3
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/scylladb/go-set v1.0.2
 	github.com/sergi/go-diff v1.3.1
@@ -57,7 +57,7 @@ require (
 	github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/net v0.5.0 // indirect
-	golang.org/x/sys v0.4.0 // indirect
+	golang.org/x/sys v0.6.0 // indirect
 	golang.org/x/term v0.4.0 // indirect
 	golang.org/x/text v0.6.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
