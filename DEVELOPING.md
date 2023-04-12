@@ -11,7 +11,7 @@ After cloning do the following:
 
 Checkout `make help` to see what other actions you can take.
 
-The main make tasks for common static analysis and testing are `lint`, `lint-fix`, and `unit`.
+The main make tasks for common static analysis and testing are `lint`, `format`, `lint-fix`, and `unit`.
 
 ## Architecture
 
