@@ -1,4 +1,4 @@
-name: Add Issues and PRs to the Community Board
+name: Add to OSS board
 
 on:
   issues:
@@ -8,15 +8,9 @@ on:
       - transferred
       - labeled
 
-  pull_request:
-    types:
-      - labeled
-      - opened
-      - reopened
-
 jobs:
 
-  add-to-board:
+  run:
     uses: "anchore/workflows/.github/workflows/oss-project-board-add.yaml@main"
     secrets:
       token: ${{ secrets.OSS_PROJECT_GH_TOKEN }}
