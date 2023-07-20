@@ -9,7 +9,7 @@ require (
 	github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4
 	github.com/coreos/go-semver v0.3.1
 	github.com/go-git/go-git/v5 v5.4.2
-	github.com/gookit/color v1.5.2
+	github.com/gookit/color v1.5.4
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/scylladb/go-set v1.0.2
 	github.com/sergi/go-diff v1.3.1
@@ -17,7 +17,7 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.15.0
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.4
 	github.com/wagoodman/go-partybus v0.0.0-20210627031916-db1f5573bbc5
 	github.com/wagoodman/go-presenter v0.0.0-20211015174752-f9c01afc824b
 	golang.org/x/oauth2 v0.7.0
@@ -57,7 +57,7 @@ require (
 	github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/net v0.9.0 // indirect
-	golang.org/x/sys v0.7.0 // indirect
+	golang.org/x/sys v0.10.0 // indirect
 	golang.org/x/term v0.7.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
