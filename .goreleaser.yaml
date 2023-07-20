@@ -7,8 +7,9 @@ release:
   draft: true
 
 builds:
-  - binary: chronicle
-    id: chronicle
+  - id: chronicle
+    binary: chronicle
+    dir: ./cmd/chronicle
     env:
       - CGO_ENABLED=0
     goos:

@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"encoding/json"
@@ -6,25 +6,33 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/anchore/chronicle/internal"
 	"github.com/anchore/chronicle/internal/version"
 )
 
-var outputFormat string
+func Version() *cobra.Command {
+	var outputFormat string
 
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "show the version",
-	Run:   printVersion,
+	cmd := &cobra.Command{
+		Use:   "version",
+		Short: "show the version",
+		Run: func(_ *cobra.Command, _ []string) {
+			printVersion(outputFormat)
+		},
+	}
+
+	addVersionFlags(cmd.Flags(), &outputFormat)
+
+	return cmd
 }
 
-func init() {
-	versionCmd.Flags().StringVarP(&outputFormat, "output", "o", "text", "format to show version information (available=[text, json])")
-	rootCmd.AddCommand(versionCmd)
+func addVersionFlags(flags *pflag.FlagSet, outputFormat *string) {
+	flags.StringVarP(outputFormat, "output", "o", "text", "format to show version information (available=[text, json])")
 }
 
-func printVersion(_ *cobra.Command, _ []string) {
+func printVersion(outputFormat string) {
 	versionInfo := version.FromBuild()
 
 	switch outputFormat {
