@@ -15,7 +15,6 @@ linters:
   disable-all: true
   enable:
     - asciicheck
-    - bodyclose
     - deadcode
     - depguard
     - dogsled
@@ -38,9 +37,7 @@ linters:
     - nakedret
     - nolintlint
     - revive
-    - rowserrcheck
     - staticcheck
-    - structcheck
     - stylecheck
     - typecheck
     - unconvert
@@ -50,6 +47,7 @@ linters:
     - whitespace
 
 # do not enable...
+#    - bodyclose # 1.18 compat
 #    - gochecknoglobals
 #    - gochecknoinits    # this is too aggressive
 #    - godot
@@ -62,6 +60,8 @@ linters:
 #    - maligned    # this is an excellent linter, but tricky to optimize and we are not sensitive to memory layout optimizations
 #    - nestif
 #    - prealloc    # following this rule isn't consistently a good idea, as it sometimes forces unnecessary allocations that result in less idiomatic code
+#    - rowserrcheck # 1.18 compat
 #    - scopelint   # deprecated
+#    - structcheck # 1.18 compat
 #    - testpackage
 #    - wsl         # this doens't have an auto-fixer yet and is pretty noisy (https://github.com/bombsimon/wsl/issues/90)
