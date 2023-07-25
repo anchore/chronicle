@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/anchore/clio v0.0.0-20230724153234-8ab80745e47a
-	github.com/anchore/fangs v0.0.0-20230630191858-bf3a1726ada6
+	github.com/anchore/fangs v0.0.0-20230725134830-329a9a4d20e7
 	github.com/anchore/go-logger v0.0.0-20230531193951-db5ae83e7dbe
 	github.com/anchore/go-testutils v0.0.0-20200925183923-d5f45b0d3c04
 	github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4
@@ -74,5 +74,3 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/anchore/fangs => github.com/kzantow-anchore/fangs v0.0.0-20230724192745-8b351d7b0df6
