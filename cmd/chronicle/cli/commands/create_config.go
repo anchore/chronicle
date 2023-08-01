@@ -2,9 +2,9 @@ package commands
 
 import (
 	"fmt"
-	"github.com/anchore/chronicle/cmd/chronicle/cli/options"
 
 	"github.com/anchore/chronicle/chronicle/release/format"
+	"github.com/anchore/chronicle/cmd/chronicle/cli/options"
 	"github.com/anchore/fangs"
 )
 
