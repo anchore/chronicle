@@ -1,19 +1,29 @@
 package main
 
 import (
-	"fmt"
-	"os"
-
-	"github.com/gookit/color"
-
 	"github.com/anchore/chronicle/cmd/chronicle/cli"
+	"github.com/anchore/chronicle/internal"
+	"github.com/anchore/clio"
 )
 
-func main() {
-	root := cli.New()
+const valueNotProvided = "[not provided]"
 
-	if err := root.Execute(); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, color.Red.Sprint(err.Error()))
-		os.Exit(1)
-	}
+// all variables here are provided as build-time arguments, with clear default values
+var version = valueNotProvided
+var buildDate = valueNotProvided
+var gitCommit = valueNotProvided
+var gitDescription = valueNotProvided
+
+func main() {
+	app := cli.New(
+		clio.Identification{
+			Name:           internal.ApplicationName,
+			Version:        version,
+			BuildDate:      buildDate,
+			GitCommit:      gitCommit,
+			GitDescription: gitDescription,
+		},
+	)
+
+	app.Run()
 }

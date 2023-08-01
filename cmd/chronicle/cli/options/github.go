@@ -52,7 +52,7 @@ func (c GithubSummarizer) ToGithubConfig() github.Config {
 	}
 }
 
-func NewGithubSummarizer() GithubSummarizer {
+func DefaultGithubSimmarizer() GithubSummarizer {
 	return GithubSummarizer{
 		Host:                            "github.com",
 		IssuesRequireLinkedPR:           false,

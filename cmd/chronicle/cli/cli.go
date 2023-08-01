@@ -1,25 +1,12 @@
 package cli
 
 import (
-	"github.com/spf13/cobra"
-
 	"github.com/anchore/chronicle/chronicle"
 	"github.com/anchore/chronicle/cmd/chronicle/cli/commands"
-	"github.com/anchore/chronicle/internal"
-	"github.com/anchore/chronicle/internal/version"
 	"github.com/anchore/clio"
 )
 
-func New() *cobra.Command {
-	versionInfo := version.FromBuild()
-	id := clio.Identification{
-		Name:           internal.ApplicationName,
-		Version:        versionInfo.Version,
-		GitCommit:      versionInfo.GitCommit,
-		GitDescription: versionInfo.GitTreeState,
-		BuildDate:      versionInfo.BuildDate,
-	}
-
+func New(id clio.Identification) clio.Application {
 	clioCfg := clio.NewSetupConfig(id).
 		WithGlobalConfigFlag().   // add persistent -c <path> for reading an application config from
 		WithGlobalLoggingFlags(). // add persistent -v and -q flags tied to the logging config
@@ -43,7 +30,7 @@ func New() *cobra.Command {
 
 	root.AddCommand(create)
 	root.AddCommand(commands.NextVersion(app))
-	root.AddCommand(commands.Version())
+	root.AddCommand(clio.VersionCommand(id))
 
-	return root
+	return app
 }

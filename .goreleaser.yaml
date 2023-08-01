@@ -25,10 +25,10 @@ builds:
       -w
       -s
       -extldflags '-static'
-      -X github.com/anchore/chronicle/internal/version.version={{.Version}}
-      -X github.com/anchore/chronicle/internal/version.gitCommit={{.Commit}}
-      -X github.com/anchore/chronicle/internal/version.buildDate={{.Date}}
-      -X github.com/anchore/chronicle/internal/version.gitTreeState={{.Env.BUILD_GIT_TREE_STATE}}
+      -X main.version={{.Version}}
+      -X main.gitCommit={{.Commit}}
+      -X main.buildDate={{.Date}}
+      -X main.gitDescription={{.Summary}}
 
 nfpms:
   -

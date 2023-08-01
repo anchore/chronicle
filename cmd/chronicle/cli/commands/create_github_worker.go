@@ -6,12 +6,11 @@ import (
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/chronicle/release/releasers/github"
-	"github.com/anchore/chronicle/cmd/chronicle/cli/options"
 	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
 )
 
-func createChangelogFromGithub(appConfig *options.Create) (*release.Release, *release.Description, error) {
+func createChangelogFromGithub(appConfig *createConfig) (*release.Release, *release.Description, error) {
 	ghConfig := appConfig.Github.ToGithubConfig()
 
 	gitter, err := git.New(appConfig.RepoPath)
@@ -43,7 +42,7 @@ func createChangelogFromGithub(appConfig *options.Create) (*release.Release, *re
 	var speculator release.VersionSpeculator
 	if appConfig.SpeculateNextVersion {
 		speculator = github.NewVersionSpeculator(gitter, release.SpeculationBehavior{
-			EnforceV0:           appConfig.EnforceV0,
+			EnforceV0:           bool(appConfig.EnforceV0),
 			NoChangesBumpsPatch: true,
 		})
 	}
@@ -59,7 +58,7 @@ func createChangelogFromGithub(appConfig *options.Create) (*release.Release, *re
 	return release.ChangelogInfo(summer, changelogConfig)
 }
 
-func getGithubSupportedChanges(appConfig *options.Create) []change.TypeTitle {
+func getGithubSupportedChanges(appConfig *createConfig) []change.TypeTitle {
 	var supportedChanges []change.TypeTitle
 	for _, c := range appConfig.Github.Changes {
 		// TODO: this could be one source of truth upstream

@@ -46,7 +46,7 @@ issueLoop:
 	return results
 }
 
-// nolint:deadcode,unused
+//nolint:deadcode,unused
 func issuesAtOrAfter(since time.Time) issueFilter {
 	return func(issue ghIssue) bool {
 		keep := issue.ClosedAt.After(since) || issue.ClosedAt.Equal(since)
@@ -77,7 +77,7 @@ func issuesAfter(since time.Time) issueFilter {
 	}
 }
 
-// nolint:deadcode,unused
+//nolint:deadcode,unused
 func issuesBefore(since time.Time) issueFilter {
 	return func(issue ghIssue) bool {
 		keep := issue.ClosedAt.Before(since)
@@ -154,7 +154,7 @@ func issuesWithoutLabels() issueFilter {
 	}
 }
 
-// nolint:funlen
+//nolint:funlen
 func fetchClosedIssues(user, repo string) ([]ghIssue, error) {
 	src := oauth2.StaticTokenSource(
 		// TODO: DI this

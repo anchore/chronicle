@@ -8,14 +8,13 @@ import (
 
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/format"
-	"github.com/anchore/chronicle/cmd/chronicle/cli/options"
 	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
 	"github.com/anchore/clio"
 )
 
 func Create(app clio.Application) *cobra.Command {
-	appConfig := options.NewCreate()
+	appConfig := defaultCreateConfig()
 
 	return app.SetupCommand(&cobra.Command{
 		Use:   "create [PATH]",
@@ -54,7 +53,7 @@ Create a changelog representing the changes from tag v0.14.0 until v0.18.0 (for 
 	}, appConfig)
 }
 
-func runCreate(appConfig *options.Create) error {
+func runCreate(appConfig *createConfig) error {
 	worker := selectWorker(appConfig.RepoPath)
 
 	_, description, err := worker(appConfig)
@@ -90,7 +89,8 @@ func runCreate(appConfig *options.Create) error {
 	return p.Present(os.Stdout)
 }
 
-func selectWorker(repo string) func(*options.Create) (*release.Release, *release.Description, error) {
+//nolint:revive
+func selectWorker(repo string) func(*createConfig) (*release.Release, *release.Description, error) {
 	// TODO: we only support github, but this is the spot to add support for other providers such as GitLab or Bitbucket or other VCSs altogether, such as subversion.
 	return createChangelogFromGithub
 }

@@ -13,8 +13,8 @@ import (
 )
 
 type nextVersion struct {
-	options.Repo        `yaml:",inline" mapstructure:",squash"`
-	options.NextVersion `yaml:",inline" mapstructure:",squash"`
+	RepoPath  string            `yaml:"repo-path" json:"repo-path" mapstructure:"-"`
+	EnforceV0 options.EnforceV0 `yaml:"enforce-v0" json:"enforce-v0" mapstructure:"enforce-v0"`
 }
 
 func NextVersion(app clio.Application) *cobra.Command {
@@ -47,11 +47,11 @@ func NextVersion(app clio.Application) *cobra.Command {
 }
 
 func runNextVersion(cfg *nextVersion) error {
-	appConfig := &options.Create{
-		NextVersion: cfg.NextVersion,
-		Repo:        cfg.Repo,
+	appConfig := &createConfig{
+		EnforceV0: cfg.EnforceV0,
+		RepoPath:  cfg.RepoPath,
 	}
-	cfg.SpeculateNextVersion = true
+	appConfig.SpeculateNextVersion = true
 	worker := selectWorker(cfg.RepoPath)
 
 	_, description, err := worker(appConfig)

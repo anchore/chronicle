@@ -3,19 +3,16 @@ module github.com/anchore/chronicle
 go 1.18
 
 require (
-	github.com/anchore/clio v0.0.0-20230724153234-8ab80745e47a
+	github.com/anchore/clio v0.0.0-20230801142012-e0a580d1659a
 	github.com/anchore/fangs v0.0.0-20230725134830-329a9a4d20e7
-	github.com/anchore/go-logger v0.0.0-20230531193951-db5ae83e7dbe
+	github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a
 	github.com/anchore/go-testutils v0.0.0-20200925183923-d5f45b0d3c04
-	github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4
 	github.com/coreos/go-semver v0.3.1
 	github.com/go-git/go-git/v5 v5.4.2
-	github.com/gookit/color v1.5.4
 	github.com/scylladb/go-set v1.0.2
 	github.com/sergi/go-diff v1.3.1
 	github.com/shurcooL/githubv4 v0.0.0-20201206200315-234843c633fa
 	github.com/spf13/cobra v1.7.0
-	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.4
 	github.com/wagoodman/go-partybus v0.0.0-20230516145632-8ccac152c651
 	github.com/wagoodman/go-presenter v0.0.0-20211015174752-f9c01afc824b
@@ -36,6 +33,7 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/pprof v0.0.0-20211214055906-6f57359322fd // indirect
 	github.com/google/uuid v1.3.0 // indirect
+	github.com/gookit/color v1.5.4 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
@@ -55,10 +53,11 @@ require (
 	github.com/pkg/profile v1.7.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/shurcooL/graphql v0.0.0-20200928012149-18c5c3165e3a // indirect
-	github.com/sirupsen/logrus v1.8.1 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/afero v1.9.5 // indirect
 	github.com/spf13/cast v1.5.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
+	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.16.0 // indirect
 	github.com/subosito/gotenv v1.4.2 // indirect
 	github.com/xanzy/ssh-agent v0.3.0 // indirect
