@@ -9,7 +9,7 @@ type MockInterface struct {
 	MockCommitsBetween  []string
 }
 
-func (m MockInterface) CommitsBetween(r Range) ([]string, error) {
+func (m MockInterface) CommitsBetween(_ Range) ([]string, error) {
 	return m.MockCommitsBetween, nil
 }
 

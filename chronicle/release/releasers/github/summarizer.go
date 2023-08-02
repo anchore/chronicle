@@ -99,7 +99,7 @@ func (s *Summarizer) LastRelease() (*release.Release, error) {
 	return nil, fmt.Errorf("unable to find latest release")
 }
 
-// nolint:funlen
+//nolint:funlen
 func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error) {
 	var changes []change.Change
 	var err error

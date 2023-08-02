@@ -67,7 +67,7 @@ prLoop:
 	return results, removed
 }
 
-// nolint:deadcode,unused
+//nolint:deadcode,unused
 func prsAtOrAfter(since time.Time) prFilter {
 	return func(pr ghPullRequest) bool {
 		keep := pr.MergedAt.After(since) || pr.MergedAt.Equal(since)
@@ -98,7 +98,7 @@ func prsAfter(since time.Time) prFilter {
 	}
 }
 
-// nolint:deadcode,unused
+//nolint:deadcode,unused
 func prsBefore(since time.Time) prFilter {
 	return func(pr ghPullRequest) bool {
 		keep := pr.MergedAt.Before(since)
@@ -237,7 +237,7 @@ func keepPRsWithCommits(prs []ghPullRequest, commits []string, filters ...prFilt
 	return results
 }
 
-// nolint:funlen
+//nolint:funlen
 func fetchMergedPRs(user, repo string) ([]ghPullRequest, error) {
 	src := oauth2.StaticTokenSource(
 		// TODO: DI this
