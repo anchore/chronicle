@@ -47,8 +47,8 @@ github.com/acomagu/bufpipe v1.0.3 h1:fxAGrHZTgQ9w5QqVItgzwj235/uYZYgbXitB+dLupOk
 github.com/acomagu/bufpipe v1.0.3/go.mod h1:mxdxdup/WdsKVreO5GpW4+M/1CE2sMG4jeGJ2sYmHc4=
 github.com/adrg/xdg v0.4.0 h1:RzRqFcjH4nE5C6oTAxhBtoE2IRyjBSa62SCbyPidvls=
 github.com/adrg/xdg v0.4.0/go.mod h1:N6ag73EX4wyxeaoeHctc1mas01KZgsj5tYiAIwqJE/E=
-github.com/anchore/clio v0.0.0-20230801142012-e0a580d1659a h1:78Lbwz8OMDCdDZlJc4qvj4Ll3cV1xpUIH8NGFUKE0Z4=
-github.com/anchore/clio v0.0.0-20230801142012-e0a580d1659a/go.mod h1:PrUEp9T+mMgEyPvimzwpqgJD6Zfg/9nw0BEGryY3qFo=
+github.com/anchore/clio v0.0.0-20230802135737-4778c80552e5 h1:+8PjffRlKmpulXMCYvZN+S/Abm29e8JSBmcDSdQ8jps=
+github.com/anchore/clio v0.0.0-20230802135737-4778c80552e5/go.mod h1:PrUEp9T+mMgEyPvimzwpqgJD6Zfg/9nw0BEGryY3qFo=
 github.com/anchore/fangs v0.0.0-20230725134830-329a9a4d20e7 h1:DiG9qj+JNfjodKQN5gn1HwMFJrizc8tH/90AxIwf9Lg=
 github.com/anchore/fangs v0.0.0-20230725134830-329a9a4d20e7/go.mod h1:82EGoxZTfBXSW0/zollEP+Qs3wkiKmip5yBT5j+eZpY=
 github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a h1:nJ2G8zWKASyVClGVgG7sfM5mwoZlZ2zYpIzN2OhjWkw=

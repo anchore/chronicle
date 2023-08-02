@@ -3,7 +3,7 @@ module github.com/anchore/chronicle
 go 1.18
 
 require (
-	github.com/anchore/clio v0.0.0-20230801142012-e0a580d1659a
+	github.com/anchore/clio v0.0.0-20230802135737-4778c80552e5
 	github.com/anchore/fangs v0.0.0-20230725134830-329a9a4d20e7
 	github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a
 	github.com/anchore/go-testutils v0.0.0-20200925183923-d5f45b0d3c04
