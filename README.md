@@ -198,4 +198,7 @@ The default value for `github.changes` is:
   semver-field: minor
   labels:
     - deprecated
+
+- name: unknown
+  title: Additional Changes
 ```
