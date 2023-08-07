@@ -1,12 +1,12 @@
 package options
 
 import (
-	"github.com/anchore/fangs"
+	"github.com/anchore/clio"
 )
 
 type EnforceV0 bool
 
-func (c *EnforceV0) AddFlags(flags fangs.FlagSet) {
+func (c *EnforceV0) AddFlags(flags clio.FlagSet) {
 	flags.BoolVarP(
 		(*bool)(c),
 		"enforce-v0", "e",
@@ -14,4 +14,4 @@ func (c *EnforceV0) AddFlags(flags fangs.FlagSet) {
 	)
 }
 
-var _ fangs.FlagAdder = (*EnforceV0)(nil)
+var _ clio.FlagAdder = (*EnforceV0)(nil)

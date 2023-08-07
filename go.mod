@@ -3,8 +3,7 @@ module github.com/anchore/chronicle
 go 1.18
 
 require (
-	github.com/anchore/clio v0.0.0-20230802135737-4778c80552e5
-	github.com/anchore/fangs v0.0.0-20230725134830-329a9a4d20e7
+	github.com/anchore/clio v0.0.0-20230807174420-8b6f1b04adc8
 	github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a
 	github.com/anchore/go-testutils v0.0.0-20200925183923-d5f45b0d3c04
 	github.com/coreos/go-semver v0.3.1
@@ -25,6 +24,7 @@ require (
 	github.com/ProtonMail/go-crypto v0.0.0-20230717121422-5aa5874ade95 // indirect
 	github.com/acomagu/bufpipe v1.0.4 // indirect
 	github.com/adrg/xdg v0.4.0 // indirect
+	github.com/anchore/fangs v0.0.0-20230807173929-13c94c86f47e // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
@@ -69,8 +69,8 @@ require (
 	golang.org/x/crypto v0.11.0 // indirect
 	golang.org/x/mod v0.8.0 // indirect
 	golang.org/x/net v0.12.0 // indirect
-	golang.org/x/sys v0.10.0 // indirect
-	golang.org/x/term v0.10.0 // indirect
+	golang.org/x/sys v0.11.0 // indirect
+	golang.org/x/term v0.11.0 // indirect
 	golang.org/x/text v0.11.0 // indirect
 	golang.org/x/tools v0.6.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
