@@ -5,7 +5,7 @@ import (
 
 	"github.com/anchore/chronicle/chronicle/release/format"
 	"github.com/anchore/chronicle/cmd/chronicle/cli/options"
-	"github.com/anchore/fangs"
+	"github.com/anchore/clio"
 )
 
 type createConfig struct {
@@ -20,9 +20,9 @@ type createConfig struct {
 	EnforceV0            options.EnforceV0        `yaml:"enforce-v0" json:"enforce-v0" mapstructure:"enforce-v0"`
 }
 
-var _ fangs.FlagAdder = (*createConfig)(nil)
+var _ clio.FlagAdder = (*createConfig)(nil)
 
-func (c *createConfig) AddFlags(flags fangs.FlagSet) {
+func (c *createConfig) AddFlags(flags clio.FlagSet) {
 	flags.StringVarP(
 		&c.Output,
 		"output", "o",
