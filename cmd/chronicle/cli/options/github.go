@@ -3,6 +3,7 @@ package options
 import (
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/chronicle/release/releasers/github"
+	"github.com/anchore/clio"
 )
 
 type GithubSummarizer struct {
@@ -19,6 +20,22 @@ type GithubSummarizer struct {
 	ConsiderPRMergeCommits          bool           `yaml:"consider-pr-merge-commits" json:"consider-pr-merge-commits" mapstructure:"consider-pr-merge-commits"`
 	Changes                         []GithubChange `yaml:"changes" json:"changes" mapstructure:"changes"`
 }
+
+func (c *GithubSummarizer) DescribeFields(descriptions clio.FieldDescriptionSet) {
+	descriptions.Add(&c.Host, "the github host to use")
+	descriptions.Add(&c.ExcludeLabels, "labels to exclude from changelog")
+	descriptions.Add(&c.IncludeIssuePRAuthors, "include PR authors in change description")
+	descriptions.Add(&c.IncludeIssuePRs, "include PR link in change description")
+	descriptions.Add(&c.IncludeIssuesClosedAsNotPlanned, "include issues closed as not planned")
+	descriptions.Add(&c.IncludePRs, "include PRs, including those without linked issues")
+	descriptions.Add(&c.IncludeIssues, "include issues")
+	descriptions.Add(&c.IncludeUnlabeledIssues, "include issues without labels")
+	descriptions.Add(&c.IncludeUnlabeledPRs, "include PRs without labels or linked issues")
+	descriptions.Add(&c.IssuesRequireLinkedPR, "only include issues with linked PRs")
+	descriptions.Add(&c.ConsiderPRMergeCommits, "include merge commits")
+}
+
+var _ clio.FieldDescriber = (*GithubSummarizer)(nil)
 
 type GithubChange struct {
 	Type       string   `yaml:"name" json:"name" mapstructure:"name"`
