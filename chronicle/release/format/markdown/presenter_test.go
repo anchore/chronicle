@@ -23,7 +23,8 @@ func TestMarkdownPresenter_Present(t *testing.T) {
 		t,
 		must(
 			NewMarkdownPresenter(Config{
-				Title: "Changelog",
+				// this is the default configuration from the CLI
+				Title: `{{ .Version }}`,
 				Description: release.Description{
 					SupportedChanges: []change.TypeTitle{
 						{
@@ -155,7 +156,7 @@ func TestMarkdownPresenter_Present_NoChanges(t *testing.T) {
 		t,
 		must(
 			NewMarkdownPresenter(Config{
-				Title: "",
+				Title: "Changelog",
 				Description: release.Description{
 					SupportedChanges: []change.TypeTitle{},
 					Release: release.Release{

@@ -1,6 +1,7 @@
 package markdown
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"strings"
@@ -53,6 +54,17 @@ func NewMarkdownPresenter(config Config) (*Presenter, error) {
 		return nil, fmt.Errorf("unable to parse markdown presenter template: %w", err)
 	}
 
+	titleTemplater, err := template.New("title").Funcs(funcMap).Parse(config.Title)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse markdown presenter title template: %w", err)
+	}
+
+	buf := bytes.Buffer{}
+	if err := titleTemplater.Execute(&buf, config); err != nil {
+		return nil, fmt.Errorf("unable to template title: %w", err)
+	}
+	p.config.Title = buf.String()
+
 	p.templater = templater
 
 	return &p, nil
@@ -92,12 +104,23 @@ func formatSummary(summary change.Change) string {
 		}
 	}
 
+	var refs string
 	for _, ref := range summary.References {
-		if ref.URL == "" {
-			result += fmt.Sprintf(" %s", ref.Text)
-		} else {
-			result += fmt.Sprintf(" [%s](%s)", ref.Text, ref.URL)
+		switch {
+		case ref.URL == "":
+			refs += fmt.Sprintf(" %s", ref.Text)
+		case strings.HasPrefix(ref.Text, "@") && strings.HasPrefix(ref.URL, "https://github.com/"):
+			// the github release page will automatically show all contributors as a footer. However, if you
+			// embed the contributor's github handle in a link, then this feature will not work.
+			refs += fmt.Sprintf(" %s", ref.Text)
+		default:
+			refs += fmt.Sprintf(" [%s](%s)", ref.Text, ref.URL)
 		}
+	}
+
+	refs = strings.TrimSpace(refs)
+	if refs != "" {
+		result += fmt.Sprintf(" _(%s)", refs)
 	}
 
 	return result + "\n"
