@@ -3,6 +3,7 @@ package markdown
 import (
 	"fmt"
 	"io"
+	"strings"
 	"text/template"
 
 	"github.com/wagoodman/go-presenter"
@@ -12,13 +13,11 @@ import (
 )
 
 const (
-	markdownHeaderTemplate = `# {{.Title}}
+	markdownHeaderTemplate = `{{if .Title }}# {{.Title}}
 
-## [{{.Version}}]({{.VCSReferenceURL}}) ({{ .Date.Format "2006-01-02" }})
+{{ end }}{{if .Changes }}{{ formatChangeSections .Changes }}
 
-[Full Changelog]({{.VCSChangesURL}})
-
-{{ formatChangeSections .Changes }}
+{{ end }}**[(Full Changelog)]({{.VCSChangesURL}})**
 `
 )
 
@@ -71,7 +70,7 @@ func (m Presenter) formatChangeSections(changes change.Changes) string {
 			result += formatChangeSection(section.Title, summaries) + "\n"
 		}
 	}
-	return result
+	return strings.TrimRight(result, "\n")
 }
 
 func formatChangeSection(title string, summaries []change.Change) string {
@@ -83,14 +82,30 @@ func formatChangeSection(title string, summaries []change.Change) string {
 }
 
 func formatSummary(summary change.Change) string {
-	result := fmt.Sprintf("- %s", summary.Text)
+	result := fmt.Sprintf("- %s", strings.TrimSpace(summary.Text))
+	if !endsWithPunctuation(result) {
+		switch result[len(result)-1:] {
+		case "!", ".", "?":
+			// pass
+		default:
+			result += "."
+		}
+	}
+
 	for _, ref := range summary.References {
 		if ref.URL == "" {
-			result += fmt.Sprintf(" [%s]", ref.Text)
+			result += fmt.Sprintf(" %s", ref.Text)
 		} else {
-			result += fmt.Sprintf(" [[%s](%s)]", ref.Text, ref.URL)
+			result += fmt.Sprintf(" [%s](%s)", ref.Text, ref.URL)
 		}
 	}
 
 	return result + "\n"
+}
+
+func endsWithPunctuation(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	return strings.Contains("!.?", s[len(s)-1:]) //nolint:gocritic
 }

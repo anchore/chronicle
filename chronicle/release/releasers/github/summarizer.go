@@ -282,11 +282,11 @@ func createChangesFromPRs(config Config, prs []ghPullRequest) []change.Change {
 			Timestamp:   pr.MergedAt,
 			References: []change.Reference{
 				{
-					Text: fmt.Sprintf("PR #%d", pr.Number),
+					Text: fmt.Sprintf("#%d", pr.Number),
 					URL:  pr.URL,
 				},
 				{
-					Text: pr.Author,
+					Text: fmt.Sprintf("@%s", pr.Author),
 					URL:  fmt.Sprintf("https://%s/%s", config.Host, pr.Author),
 				},
 			},
@@ -380,7 +380,7 @@ func createChangesFromIssues(config Config, allMergedPRs []ghPullRequest, issues
 
 		references := []change.Reference{
 			{
-				Text: fmt.Sprintf("Issue #%d", issue.Number),
+				Text: fmt.Sprintf("#%d", issue.Number),
 				URL:  issue.URL,
 			},
 		}
@@ -389,13 +389,13 @@ func createChangesFromIssues(config Config, allMergedPRs []ghPullRequest, issues
 			for _, pr := range getLinkedPRs(allMergedPRs, issue) {
 				if config.IncludeIssuePRs {
 					references = append(references, change.Reference{
-						Text: fmt.Sprintf("PR #%d", pr.Number),
+						Text: fmt.Sprintf("#%d", pr.Number),
 						URL:  pr.URL,
 					})
 				}
 				if config.IncludeIssuePRAuthors && pr.Author != "" {
 					references = append(references, change.Reference{
-						Text: pr.Author,
+						Text: fmt.Sprintf("@%s", pr.Author),
 						URL:  fmt.Sprintf("https://%s/%s", config.Host, pr.Author),
 					})
 				}
