@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
@@ -118,6 +119,15 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 		includeStart = true
 	}
 
+	var sinceTime *time.Time
+	if sinceTag != nil {
+		sinceRelease, err := fetchRelease(s.userName, s.repoName, sinceTag.Name)
+		if err != nil {
+			return nil, fmt.Errorf("unable to fetch release %q: %w", sinceTag.Name, err)
+		}
+		sinceTime = &sinceRelease.Date
+	}
+
 	var untilTag *git.Tag
 	untilHash := untilRef
 	if untilRef != "" {
@@ -150,18 +160,18 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 		logCommits(includeCommits)
 	}
 
-	allMergedPRs, err := fetchMergedPRs(s.userName, s.repoName)
+	allMergedPRs, err := fetchMergedPRs(s.userName, s.repoName, sinceTime)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Debugf("total merged PRs discovered: %d", len(allMergedPRs))
+	log.WithFields("since", sinceTime).Debugf("total merged PRs discovered: %d", len(allMergedPRs))
 
 	if s.config.IncludePRs {
 		changes = append(changes, changesFromStandardPRFilters(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)...)
 	}
 
-	allClosedIssues, err := fetchClosedIssues(s.userName, s.repoName)
+	allClosedIssues, err := fetchClosedIssues(s.userName, s.repoName, sinceTime)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +180,7 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 		allClosedIssues = filterIssues(allClosedIssues, excludeIssuesNotPlanned(allMergedPRs))
 	}
 
-	log.Debugf("total closed issues discovered: %d", len(allClosedIssues))
+	log.WithFields("since", sinceTime).Debugf("total closed issues discovered: %d", len(allClosedIssues))
 
 	if s.config.IncludeIssues {
 		if s.config.IssuesRequireLinkedPR {
@@ -342,7 +352,7 @@ func changesFromUnlabeledPRs(config Config, allMergedPRs []ghPullRequest, sinceT
 
 	filteredIssues, _ := filterPRs(allMergedPRs, filters...)
 
-	log.Debugf("unlabeled prs contributing to changelog: %d", len(filteredIssues))
+	log.Debugf("unlabeled PRs contributing to changelog: %d", len(filteredIssues))
 
 	return createChangesFromPRs(config, filteredIssues)
 }

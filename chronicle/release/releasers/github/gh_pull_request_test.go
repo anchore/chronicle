@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/anchore/chronicle/chronicle/release/change"
@@ -468,6 +469,83 @@ func Test_prsWithoutLinkedIssues(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, test.expected, prsWithoutLinkedIssues()(test.pr))
+		})
+	}
+}
+
+func Test_checkSearchTermination(t *testing.T) {
+	since := githubv4.DateTime{Time: time.Date(1987, time.September, 16, 19, 34, 0, 0, time.UTC)}
+	hourAfter := &githubv4.DateTime{Time: since.Add(time.Hour)}
+	minuteAfter := &githubv4.DateTime{Time: since.Add(time.Minute)}
+	minuteBefore := &githubv4.DateTime{Time: since.Add(-time.Minute)}
+
+	type args struct {
+		since     *time.Time
+		updatedAt *githubv4.DateTime
+		mergedAt  *githubv4.DateTime
+	}
+	tests := []struct {
+		name          string
+		args          args
+		wantProcess   bool
+		wantTerminate bool
+	}{
+		{
+			name: "go case candidate",
+			args: args{
+				since:     &since.Time,
+				updatedAt: hourAfter,
+				mergedAt:  hourAfter,
+			},
+			wantProcess:   true,
+			wantTerminate: false,
+		},
+		{
+			name: "candidate updated after the merge, and merged after the compare date",
+			args: args{
+				since:     &since.Time,
+				updatedAt: hourAfter,
+				mergedAt:  minuteAfter,
+			},
+			wantProcess:   true,
+			wantTerminate: false,
+		},
+		{
+			name: "candidate updated after the merge, but merged before the compare date",
+			args: args{
+				since:     &since.Time,
+				updatedAt: hourAfter,
+				mergedAt:  minuteBefore,
+			},
+			wantProcess:   false,
+			wantTerminate: false,
+		},
+		{
+			name: "candidate updated before the merge, and merged before the compare date",
+			args: args{
+				since:     &since.Time,
+				updatedAt: minuteBefore,
+				mergedAt:  minuteBefore,
+			},
+			wantProcess:   false,
+			wantTerminate: true,
+		},
+		{
+			name: "impossible: candidate updated before the merge, but merged after the compare date",
+			args: args{
+				since:     &since.Time,
+				updatedAt: minuteBefore,
+				mergedAt:  minuteAfter,
+			},
+			wantProcess:   true,
+			wantTerminate: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotProcess, gotTerminate := checkSearchTermination(tt.args.since, tt.args.updatedAt, tt.args.mergedAt)
+			assert.Equalf(t, tt.wantProcess, gotProcess, "wantProcess: checkSearchTermination(%v, %v, %v)", tt.args.since, tt.args.updatedAt, tt.args.mergedAt)
+			assert.Equalf(t, tt.wantTerminate, gotTerminate, "wantTerminate: checkSearchTermination(%v, %v, %v)", tt.args.since, tt.args.updatedAt, tt.args.mergedAt)
 		})
 	}
 }
