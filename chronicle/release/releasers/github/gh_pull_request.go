@@ -337,7 +337,8 @@ func fetchMergedPRs(user, repo string, since *time.Time) ([]ghPullRequest, error
 
 			// limit = query.RateLimit
 
-			for _, prEdge := range query.Repository.PullRequests.Edges {
+			for i := range query.Repository.PullRequests.Edges {
+				prEdge := query.Repository.PullRequests.Edges[i]
 				saw++
 				process, terminate = checkSearchTermination(since, &prEdge.Node.UpdatedAt, &prEdge.Node.MergedAt)
 				if !process || terminate {
