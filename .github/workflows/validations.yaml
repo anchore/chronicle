@@ -20,7 +20,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Restore tool cache
         id: tool-cache
@@ -57,7 +57,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Restore tool cache
         id: tool-cache
@@ -108,7 +108,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Restore tool cache
         id: tool-cache

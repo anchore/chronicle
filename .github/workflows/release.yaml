@@ -16,7 +16,7 @@ jobs:
     environment: release
     runs-on: ubuntu-latest # This OS choice is arbitrary. None of the steps in this job are specific to either Linux or macOS.
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       # we don't want to release commits that have been pushed and tagged, but not necessarily merged onto main
       - name: Ensure tagged commit is on main
@@ -59,7 +59,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
