@@ -15,7 +15,6 @@ linters:
   disable-all: true
   enable:
     - asciicheck
-    - depguard
     - dogsled
     - dupl
     - errcheck
@@ -46,6 +45,7 @@ linters:
 
 # do not enable...
 #    - bodyclose # 1.18 compat
+#    - depguard   # we don't have a specific configuration for this
 #    - gochecknoglobals
 #    - gochecknoinits    # this is too aggressive
 #    - godot

@@ -234,7 +234,8 @@ func fetchClosedIssues(user, repo string, since *time.Time) ([]ghIssue, error) {
 
 			// limit = query.RateLimit
 
-			for _, iEdge := range query.Repository.Issues.Edges {
+			for i := range query.Repository.Issues.Edges {
+				iEdge := query.Repository.Issues.Edges[i]
 				saw++
 				process, terminate = checkSearchTermination(since, &iEdge.Node.UpdatedAt, &iEdge.Node.ClosedAt)
 				if !process || terminate {
