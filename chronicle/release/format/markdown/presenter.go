@@ -7,6 +7,8 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/leodido/go-conventionalcommits"
+	cc "github.com/leodido/go-conventionalcommits/parser"
 	"github.com/wagoodman/go-presenter"
 
 	"github.com/anchore/chronicle/chronicle/release"
@@ -94,14 +96,10 @@ func formatChangeSection(title string, summaries []change.Change) string {
 }
 
 func formatSummary(summary change.Change) string {
-	result := fmt.Sprintf("- %s", strings.TrimSpace(summary.Text))
-	if !endsWithPunctuation(result) {
-		switch result[len(result)-1:] {
-		case "!", ".", "?":
-			// pass
-		default:
-			result += "."
-		}
+	result := removeConventionalCommitPrefix(strings.TrimSpace(summary.Text))
+	result = fmt.Sprintf("- %s", result)
+	if endsWithPunctuation(result) {
+		result = result[:len(result)-1]
 	}
 
 	var refs string
@@ -120,7 +118,7 @@ func formatSummary(summary change.Change) string {
 
 	refs = strings.TrimSpace(refs)
 	if refs != "" {
-		result += fmt.Sprintf(" _(%s)", refs)
+		result += fmt.Sprintf(" [%s]", refs)
 	}
 
 	return result + "\n"
@@ -131,4 +129,20 @@ func endsWithPunctuation(s string) bool {
 		return false
 	}
 	return strings.Contains("!.?", s[len(s)-1:]) //nolint:gocritic
+}
+
+func removeConventionalCommitPrefix(s string) string {
+	res, err := cc.NewMachine(cc.WithTypes(conventionalcommits.TypesConventional)).Parse([]byte(s))
+	if err != nil || res == nil || (res != nil && !res.Ok()) {
+		// probably not a conventional commit
+		return s
+	}
+
+	// conventional commits always have a prefix and the message starts after the first ":"
+	fields := strings.SplitN(s, ":", 2)
+	if len(fields) == 2 {
+		return strings.TrimSpace(fields[1])
+	}
+
+	return s
 }
