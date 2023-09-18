@@ -1451,7 +1451,6 @@ func gitTagCommit(t *testing.T, path, tag string) string {
 func gitHeadCommit(t *testing.T, path string) string {
 	t.Helper()
 
-	// why the ~1? we want git log to return inclusive results
 	cmd := exec.Command("git", "--no-pager", "rev-parse", "HEAD")
 	cmd.Dir = path
 	output, err := cmd.Output()
