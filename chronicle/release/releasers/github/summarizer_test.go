@@ -2,7 +2,10 @@ package github
 
 import (
 	"encoding/json"
+	"fmt"
+	"os/exec"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -1187,4 +1190,276 @@ func toJson(t *testing.T, changes []change.Change) string {
 	out, err := json.Marshal(changes)
 	require.NoError(t, err)
 	return string(out)
+}
+
+func TestSummarizer_getChangeScope(t *testing.T) {
+	testTime := time.Now()
+	tests := []struct {
+		name           string
+		repoFixture    string
+		config         Config
+		sinceRef       string
+		untilRef       string
+		releaseFetcher releaseFetcher
+		want           *changeScope
+		wantErr        assert.ErrorAssertionFunc
+	}{
+		{
+			name:        "tagged start and end state (go case for release)",
+			repoFixture: "test-fixtures/repos/v0.2.0-repo",
+			sinceRef:    "v0.1.0", // the caller infers this and passes it explicitly (tag only)
+			untilRef:    "v0.2.0", // the caller infers this and passes it explicitly (tag only)
+			config: Config{
+				ConsiderPRMergeCommits: true,
+			},
+			releaseFetcher: func(_, _, tag string) (*ghRelease, error) {
+				assert.Equal(t, "v0.1.0", tag)
+				return &ghRelease{
+					Tag:      tag,
+					Date:     testTime,
+					IsLatest: true,
+					IsDraft:  false,
+				}, nil
+			},
+			want: &changeScope{
+				Commits: gitLogRange(t, "test-fixtures/repos/v0.2.0-repo", "v0.1.0", "v0.2.0", false),
+				Start: changePoint{
+					Ref: "v0.1.0",
+					Tag: &git.Tag{
+						Name:      "v0.1.0",
+						Timestamp: testTime,
+						Commit:    gitTagCommit(t, "test-fixtures/repos/v0.2.0-repo", "v0.1.0"),
+					},
+					Inclusive: false,
+					Timestamp: &testTime,
+				},
+				End: changePoint{
+					Ref: "v0.2.0",
+					Tag: &git.Tag{
+						Name:      "v0.2.0",
+						Timestamp: testTime,
+						Commit:    gitTagCommit(t, "test-fixtures/repos/v0.2.0-repo", "v0.2.0"),
+					},
+					Inclusive: true,
+					Timestamp: &testTime,
+				},
+			},
+		},
+		{
+			name:        "tagged start but not end state",
+			repoFixture: "test-fixtures/repos/v0.3.0-dev-repo",
+			sinceRef:    "v0.2.0", // the caller infers this and passes it explicitly (tag only)
+			untilRef:    "",
+			config: Config{
+				ConsiderPRMergeCommits: true,
+			},
+			releaseFetcher: func(_, _, tag string) (*ghRelease, error) {
+				assert.Equal(t, "v0.2.0", tag)
+				return &ghRelease{
+					Tag:      tag,
+					Date:     testTime,
+					IsLatest: true,
+					IsDraft:  false,
+				}, nil
+			},
+			want: &changeScope{
+				Commits: gitLogRange(t, "test-fixtures/repos/v0.3.0-dev-repo", "v0.2.0", "", false),
+				Start: changePoint{
+					Ref: "v0.2.0",
+					Tag: &git.Tag{
+						Name:      "v0.2.0",
+						Timestamp: testTime,
+						Commit:    gitTagCommit(t, "test-fixtures/repos/v0.3.0-dev-repo", "v0.2.0"),
+					},
+					Inclusive: false,
+					Timestamp: &testTime,
+				},
+				End: changePoint{
+					Ref:       gitHeadCommit(t, "test-fixtures/repos/v0.3.0-dev-repo"),
+					Tag:       nil,
+					Inclusive: true,
+					Timestamp: nil,
+				},
+			},
+		},
+		{
+			name:        "first release (already has start tag)",
+			repoFixture: "test-fixtures/repos/v0.3.0-dev-repo",
+			sinceRef:    "v0.2.0",
+			untilRef:    "",
+			config: Config{
+				ConsiderPRMergeCommits: true,
+			},
+			releaseFetcher: func(_, _, _ string) (*ghRelease, error) {
+				return nil, nil
+			},
+			want: &changeScope{
+				Commits: gitLogRange(t, "test-fixtures/repos/v0.3.0-dev-repo", "v0.2.0", "", false),
+				Start: changePoint{
+					Ref: "v0.2.0",
+					Tag: &git.Tag{
+						Name:      "v0.2.0",
+						Timestamp: testTime,
+						Commit:    gitTagCommit(t, "test-fixtures/repos/v0.3.0-dev-repo", "v0.2.0"),
+					},
+					Inclusive: false,
+					Timestamp: nil, // this is the difference between this test and the previous one
+				},
+				End: changePoint{
+					Ref:       gitHeadCommit(t, "test-fixtures/repos/v0.3.0-dev-repo"),
+					Tag:       nil,
+					Inclusive: true,
+					Timestamp: nil,
+				},
+			},
+		},
+		{
+			name:        "first release (no tag found)",
+			repoFixture: "test-fixtures/repos/v0.1.0-dev-repo",
+			sinceRef:    "",
+			untilRef:    "",
+			config: Config{
+				ConsiderPRMergeCommits: true,
+			},
+			releaseFetcher: func(_, _, _ string) (*ghRelease, error) {
+				return nil, nil
+			},
+			want: &changeScope{
+				Commits: gitLogRange(t, "test-fixtures/repos/v0.1.0-dev-repo", "", "", false),
+				Start: changePoint{
+					Ref:       gitFirstCommit(t, "test-fixtures/repos/v0.1.0-dev-repo"),
+					Tag:       nil,
+					Inclusive: true, // this is the difference between this test and others
+					Timestamp: nil,
+				},
+				End: changePoint{
+					Ref:       gitHeadCommit(t, "test-fixtures/repos/v0.1.0-dev-repo"),
+					Tag:       nil,
+					Inclusive: true,
+					Timestamp: nil,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.wantErr == nil {
+				tt.wantErr = assert.NoError
+			}
+
+			gitter, err := git.New(tt.repoFixture)
+			require.NoError(t, err)
+
+			// ensure that the times are sourced similarly... but the real values don't need to be under test
+			gitter = mockGitter{
+				timestamp: testTime,
+				Interface: gitter,
+			}
+
+			s, err := NewSummarizer(gitter, tt.config)
+			require.NoError(t, err)
+			s.releaseFetcher = tt.releaseFetcher
+
+			got, err := s.getChangeScope(tt.sinceRef, tt.untilRef)
+			if !tt.wantErr(t, err, fmt.Sprintf("getChangeScope(%v, %v)", tt.sinceRef, tt.untilRef)) {
+				return
+			}
+
+			assert.Equalf(t, tt.want, got, "getChangeScope(%v, %v)", tt.sinceRef, tt.untilRef)
+		})
+	}
+}
+
+type mockGitter struct {
+	timestamp time.Time
+	git.Interface
+}
+
+func (m mockGitter) SearchForTag(tagRef string) (*git.Tag, error) {
+	a, err := m.Interface.SearchForTag(tagRef)
+	if a != nil {
+		a.Timestamp = m.timestamp
+	}
+	return a, err
+}
+
+func gitFirstCommit(t *testing.T, path string) string {
+	t.Helper()
+
+	cmd := exec.Command("git", "--no-pager", "log", "--reverse", `--pretty=format:%H`)
+	cmd.Dir = path
+	output, err := cmd.Output()
+	require.NoError(t, err)
+
+	rows := strings.Split(strings.TrimSpace(string(output)), "\n")
+	require.NotEmpty(t, rows)
+	return rows[0]
+}
+
+func gitLogRange(t *testing.T, path, since, until string, startInclusive bool) []string {
+	t.Helper()
+
+	since = strings.TrimSpace(since)
+
+	var modifier string
+	if startInclusive {
+		// why the ~1? we want git log to return inclusive results
+		modifier = "~1"
+	}
+
+	args := []string{
+		"--no-pager", "log", `--pretty=format:%H`,
+	}
+
+	if since != "" {
+		args = append(args, fmt.Sprintf("%s%s..%s", since, modifier, until))
+	}
+
+	cmd := exec.Command("git", args...)
+	cmd.Dir = path
+	output, err := cmd.Output()
+	require.NoError(t, err)
+
+	rows := strings.Split(strings.TrimSpace(string(output)), "\n")
+	require.NotEmpty(t, rows)
+	return rows
+}
+
+func gitTagCommit(t *testing.T, path, tag string) string {
+	t.Helper()
+
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		t.Fatal("require 'tag'")
+	}
+
+	// why the ~1? we want git log to return inclusive results
+	cmd := exec.Command("git", "--no-pager", "log", `--pretty=format:%H`, fmt.Sprintf("%s~1..%s", tag, tag))
+	cmd.Dir = path
+	output, err := cmd.Output()
+	require.NoError(t, err)
+
+	rows := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(rows) != 1 {
+		t.Fatalf("unable to get commit for tag=%s: %q", tag, output)
+	}
+	require.NotEmpty(t, rows[0])
+	return rows[0]
+}
+
+func gitHeadCommit(t *testing.T, path string) string {
+	t.Helper()
+
+	// why the ~1? we want git log to return inclusive results
+	cmd := exec.Command("git", "--no-pager", "rev-parse", "HEAD")
+	cmd.Dir = path
+	output, err := cmd.Output()
+	require.NoError(t, err)
+
+	rows := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(rows) != 1 {
+		t.Fatalf("unable to get commit for head: %q", output)
+	}
+	require.NotEmpty(t, rows[0])
+	return rows[0]
 }

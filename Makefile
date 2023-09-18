@@ -164,6 +164,7 @@ unit: $(RESULTS_DIR) fixtures ## Run unit tests (with coverage)
 fixtures:
 	$(call title,Generating test fixtures)
 	cd internal/git/test-fixtures && make
+	cd chronicle/release/releasers/github/test-fixtures && make
 
 fixtures-fingerprint:
 	find internal/git/test-fixtures/*.sh -type f -exec md5sum {} + | awk '{print $1}' | sort | md5sum | tee internal/git/test-fixtures/cache.fingerprint && echo "$(FIXTURE_CACHE_BUSTER)" >> internal/git/test-fixtures/cache.fingerprint
@@ -182,7 +183,7 @@ $(SNAPSHOT_DIR): ## Build snapshot release binaries and packages
 	$(TEMP_DIR)/goreleaser build --snapshot --skip-validate --rm-dist --config $(TEMP_DIR)/goreleaser.yaml
 
 .PHONY: changelog
-changelog: clean-changelog CHANGELOG.md
+changelog: clean-changelog $(CHANGELOG)
 	@docker run -it --rm \
 		-v $(shell pwd)/CHANGELOG.md:/CHANGELOG.md \
 		rawkode/mdv \

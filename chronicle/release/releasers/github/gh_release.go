@@ -10,6 +10,8 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type releaseFetcher func(user, repo, tag string) (*ghRelease, error)
+
 type ghRelease struct {
 	Tag      string
 	Date     time.Time

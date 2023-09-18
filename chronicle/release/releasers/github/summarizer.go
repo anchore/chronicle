@@ -36,10 +36,26 @@ type Config struct {
 }
 
 type Summarizer struct {
-	git      git.Interface
-	userName string
-	repoName string
-	config   Config
+	git            git.Interface
+	userName       string
+	repoName       string
+	config         Config
+	releaseFetcher releaseFetcher
+}
+
+// changeScope is used to describe the start and end of a changes made in a repo.
+type changeScope struct {
+	Commits []string
+	Start   changePoint
+	End     changePoint
+}
+
+// changePoint is a single point on the timeline of changes in a repo.
+type changePoint struct {
+	Ref       string
+	Tag       *git.Tag
+	Inclusive bool
+	Timestamp *time.Time
 }
 
 func NewSummarizer(gitter git.Interface, config Config) (*Summarizer, error) {
@@ -56,15 +72,16 @@ func NewSummarizer(gitter git.Interface, config Config) (*Summarizer, error) {
 	log.WithFields("owner", user, "repo", repo).Debug("github summarizer")
 
 	return &Summarizer{
-		git:      gitter,
-		userName: user,
-		repoName: repo,
-		config:   config,
+		git:            gitter,
+		userName:       user,
+		repoName:       repo,
+		config:         config,
+		releaseFetcher: fetchRelease,
 	}, nil
 }
 
 func (s *Summarizer) Release(ref string) (*release.Release, error) {
-	targetRelease, err := fetchRelease(s.userName, s.repoName, ref)
+	targetRelease, err := s.releaseFetcher(s.userName, s.repoName, ref)
 	if err != nil {
 		return nil, err
 	}
@@ -100,78 +117,124 @@ func (s *Summarizer) LastRelease() (*release.Release, error) {
 	return nil, fmt.Errorf("unable to find latest release")
 }
 
-//nolint:funlen
 func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error) {
-	var changes []change.Change
-	var err error
-
-	var includeStart, includeEnd bool
-
-	var sinceTag *git.Tag
-	sinceHash := sinceRef
-	if sinceRef != "" {
-		sinceTag, err = s.git.SearchForTag(sinceRef)
-		if err != nil {
-			return nil, err
-		}
-		includeStart = false
-	} else {
-		includeStart = true
+	scope, err := s.getChangeScope(sinceRef, untilRef)
+	if err != nil {
+		return nil, err
 	}
 
-	var sinceTime *time.Time
-	if sinceTag != nil {
-		sinceRelease, err := fetchRelease(s.userName, s.repoName, sinceTag.Name)
-		if err != nil {
-			return nil, fmt.Errorf("unable to fetch release %q: %w", sinceTag.Name, err)
-		}
-		sinceTime = &sinceRelease.Date
+	if scope == nil {
+		return nil, fmt.Errorf("unable to find start and end of changes: %w", err)
+	}
+
+	return s.changes(*scope)
+}
+
+func (s *Summarizer) getChangeScope(sinceRef, untilRef string) (*changeScope, error) {
+	sinceTag, sinceRef, includeStart, sinceTime, err := s.getSince(sinceRef)
+	if err != nil {
+		return nil, err
 	}
 
 	var untilTag *git.Tag
-	untilHash := untilRef
+	var untilTime *time.Time
 	if untilRef != "" {
 		untilTag, err = s.git.SearchForTag(untilRef)
 		if err != nil {
 			return nil, err
 		}
-		includeEnd = false
+		untilTime = &untilTag.Timestamp
 	} else {
-		untilHash, err = s.git.HeadTagOrCommit()
+		untilRef, err = s.git.HeadTagOrCommit()
 		if err != nil {
 			return nil, err
 		}
-		includeEnd = true
 	}
 
 	var includeCommits []string
 	if s.config.ConsiderPRMergeCommits {
 		includeCommits, err = s.git.CommitsBetween(git.Range{
-			SinceRef:     sinceHash,
-			UntilRef:     untilHash,
+			SinceRef:     sinceRef,
+			UntilRef:     untilRef,
 			IncludeStart: includeStart,
-			IncludeEnd:   includeEnd,
+			IncludeEnd:   true,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("unable to fetch commit range: %v", err)
 		}
-
-		log.Debugf("release comprised of %d commits", len(includeCommits))
-		logCommits(includeCommits)
 	}
 
-	allMergedPRs, err := fetchMergedPRs(s.userName, s.repoName, sinceTime)
+	return &changeScope{
+		Commits: includeCommits,
+		Start: changePoint{
+			Ref:       sinceRef,
+			Tag:       sinceTag,
+			Inclusive: includeStart,
+			Timestamp: sinceTime,
+		},
+		End: changePoint{
+			Ref:       untilRef,
+			Tag:       untilTag,
+			Inclusive: true,
+			Timestamp: untilTime,
+		},
+	}, nil
+}
+
+func (s *Summarizer) getSince(sinceRef string) (*git.Tag, string, bool, *time.Time, error) {
+	var err error
+	var sinceTag *git.Tag
+	var includeStart bool
+
+	if sinceRef != "" {
+		sinceTag, err = s.git.SearchForTag(sinceRef)
+		if err != nil {
+			return nil, "", false, nil, err
+		}
+	}
+
+	var sinceTime *time.Time
+	if sinceTag != nil {
+		sinceRelease, err := s.releaseFetcher(s.userName, s.repoName, sinceTag.Name)
+		if err != nil {
+			return nil, "", false, nil, fmt.Errorf("unable to fetch release %q: %w", sinceTag.Name, err)
+		}
+		if sinceRelease != nil {
+			sinceTime = &sinceRelease.Date
+		}
+	}
+
+	if sinceTag == nil {
+		sinceRef, err = s.git.FirstCommit()
+		if err != nil {
+			return nil, "", false, nil, fmt.Errorf("unable to find first commit: %w", err)
+		}
+		includeStart = true
+	}
+
+	return sinceTag, sinceRef, includeStart, sinceTime, nil
+}
+
+func (s *Summarizer) changes(scope changeScope) ([]change.Change, error) {
+	var changes []change.Change
+
+	if s.config.ConsiderPRMergeCommits {
+		log.Debugf("release comprises %d commits", len(scope.Commits))
+		logCommits(scope.Commits)
+	}
+
+	allMergedPRs, err := fetchMergedPRs(s.userName, s.repoName, scope.Start.Timestamp)
 	if err != nil {
 		return nil, err
 	}
 
-	log.WithFields("since", sinceTime).Debugf("total merged PRs discovered: %d", len(allMergedPRs))
+	log.WithFields("since", scope.Start.Timestamp).Debugf("total merged PRs discovered: %d", len(allMergedPRs))
 
 	if s.config.IncludePRs {
-		changes = append(changes, changesFromStandardPRFilters(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)...)
+		changes = append(changes, changesFromStandardPRFilters(s.config, allMergedPRs, scope.Start.Tag, scope.End.Tag, scope.Commits)...)
 	}
 
-	allClosedIssues, err := fetchClosedIssues(s.userName, s.repoName, sinceTime)
+	allClosedIssues, err := fetchClosedIssues(s.userName, s.repoName, scope.Start.Timestamp)
 	if err != nil {
 		return nil, err
 	}
@@ -180,22 +243,22 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 		allClosedIssues = filterIssues(allClosedIssues, excludeIssuesNotPlanned(allMergedPRs))
 	}
 
-	log.WithFields("since", sinceTime).Debugf("total closed issues discovered: %d", len(allClosedIssues))
+	log.WithFields("since", scope.Start.Timestamp).Debugf("total closed issues discovered: %d", len(allClosedIssues))
 
 	if s.config.IncludeIssues {
 		if s.config.IssuesRequireLinkedPR {
-			changes = append(changes, changesFromIssuesLinkedToPrs(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)...)
+			changes = append(changes, changesFromIssuesLinkedToPrs(s.config, allMergedPRs, scope.Start.Tag, scope.End.Tag, scope.Commits)...)
 		} else {
-			changes = append(changes, changesFromIssues(s.config, allMergedPRs, allClosedIssues, sinceTag, untilTag)...)
+			changes = append(changes, changesFromIssues(s.config, allMergedPRs, allClosedIssues, scope.Start.Tag, scope.End.Tag)...)
 		}
 	}
 
 	if s.config.IncludeUnlabeledIssues {
-		changes = append(changes, changesFromUnlabeledIssues(s.config, allMergedPRs, allClosedIssues, sinceTag, untilTag)...)
+		changes = append(changes, changesFromUnlabeledIssues(s.config, allMergedPRs, allClosedIssues, scope.Start.Tag, scope.End.Tag)...)
 	}
 
 	if s.config.IncludeUnlabeledPRs {
-		changes = append(changes, changesFromUnlabeledPRs(s.config, allMergedPRs, sinceTag, untilTag, includeCommits)...)
+		changes = append(changes, changesFromUnlabeledPRs(s.config, allMergedPRs, scope.Start.Tag, scope.End.Tag, scope.Commits)...)
 	}
 
 	return changes, nil
