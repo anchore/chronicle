@@ -1350,7 +1350,8 @@ func TestSummarizer_getChangeScope(t *testing.T) {
 			gitter, err := git.New(tt.repoFixture)
 			require.NoError(t, err)
 
-			// ensure that the times are sourced similarly... but the real values don't need to be under test
+			// we want to use the real git interface, however, we do not want to put any timestamps
+			// under test, so we have a mock to override the timestamp
 			gitter = mockGitter{
 				timestamp: testTime,
 				Interface: gitter,
