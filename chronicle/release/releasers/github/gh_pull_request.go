@@ -67,7 +67,7 @@ prLoop:
 	return results, removed
 }
 
-// nolint:deadcode,unused
+//nolint:deadcode,unused
 func prsAtOrAfter(since time.Time) prFilter {
 	return func(pr ghPullRequest) bool {
 		keep := pr.MergedAt.After(since) || pr.MergedAt.Equal(since)
@@ -98,7 +98,7 @@ func prsAfter(since time.Time) prFilter {
 	}
 }
 
-// nolint:deadcode,unused
+//nolint:deadcode,unused
 func prsBefore(since time.Time) prFilter {
 	return func(pr ghPullRequest) bool {
 		keep := pr.MergedAt.Before(since)
@@ -237,15 +237,19 @@ func keepPRsWithCommits(prs []ghPullRequest, commits []string, filters ...prFilt
 	return results
 }
 
-// nolint:funlen
-func fetchMergedPRs(user, repo string) ([]ghPullRequest, error) {
+//nolint:funlen
+func fetchMergedPRs(user, repo string, since *time.Time) ([]ghPullRequest, error) {
 	src := oauth2.StaticTokenSource(
 		// TODO: DI this
 		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
 	)
 	httpClient := oauth2.NewClient(context.Background(), src)
 	client := githubv4.NewClient(httpClient)
-	var allPRs []ghPullRequest
+	var (
+		pages  = 0
+		saw    = 0
+		allPRs []ghPullRequest
+	)
 
 	{
 		// TODO: act on hitting a rate limit
@@ -276,8 +280,9 @@ func fetchMergedPRs(user, repo string) ([]ghPullRequest, error) {
 							MergeCommit struct {
 								OID githubv4.String
 							}
-							MergedAt githubv4.DateTime
-							Labels   struct {
+							UpdatedAt githubv4.DateTime
+							MergedAt  githubv4.DateTime
+							Labels    struct {
 								Edges []struct {
 									Node struct {
 										Name githubv4.String
@@ -305,7 +310,7 @@ func fetchMergedPRs(user, repo string) ([]ghPullRequest, error) {
 							} `graphql:"closingIssuesReferences(last:10)"`
 						}
 					}
-				} `graphql:"pullRequests(first:100, states:MERGED, after:$prCursor)"`
+				} `graphql:"pullRequests(first:100, states:MERGED, after:$prCursor, orderBy:{field: UPDATED_AT, direction: DESC})"`
 			} `graphql:"repository(owner:$repositoryOwner, name:$repositoryName)"`
 
 			RateLimit rateLimit
@@ -317,14 +322,29 @@ func fetchMergedPRs(user, repo string) ([]ghPullRequest, error) {
 		}
 
 		// var limit rateLimit
-		for {
+		var (
+			process   bool
+			terminate = false
+		)
+
+		for !terminate {
+			log.WithFields("user", user, "repo", repo, "page", pages).Trace("fetching merged PRs from github.com")
+
 			err := client.Query(context.Background(), &query, variables)
 			if err != nil {
 				return nil, err
 			}
+
 			// limit = query.RateLimit
 
-			for _, prEdge := range query.Repository.PullRequests.Edges {
+			for i := range query.Repository.PullRequests.Edges {
+				prEdge := query.Repository.PullRequests.Edges[i]
+				saw++
+				process, terminate = checkSearchTermination(since, &prEdge.Node.UpdatedAt, &prEdge.Node.MergedAt)
+				if !process || terminate {
+					continue
+				}
+
 				var labels []string
 				for _, lEdge := range prEdge.Node.Labels.Edges {
 					labels = append(labels, string(lEdge.Node.Name))
@@ -359,8 +379,28 @@ func fetchMergedPRs(user, repo string) ([]ghPullRequest, error) {
 				break
 			}
 			variables["prCursor"] = githubv4.NewString(query.Repository.PullRequests.PageInfo.EndCursor)
+			pages++
 		}
 	}
 
+	log.WithFields("kept", len(allPRs), "saw", saw, "pages", pages, "since", since).Trace("merged PRs fetched from github.com")
+
 	return allPRs, nil
+}
+
+func checkSearchTermination(since *time.Time, updatedAt, closedAt *githubv4.DateTime) (process bool, terminate bool) {
+	process = true
+	if since == nil {
+		return
+	}
+
+	if closedAt.Before(*since) {
+		process = false
+	}
+
+	if updatedAt.Before(*since) {
+		terminate = true
+	}
+
+	return
 }

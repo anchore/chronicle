@@ -5,6 +5,7 @@ import "fmt"
 var _ Interface = (*gitter)(nil)
 
 type Interface interface {
+	FirstCommit() (string, error)
 	HeadTagOrCommit() (string, error)
 	HeadTag() (string, error)
 	RemoteURL() (string, error)
@@ -48,4 +49,8 @@ func (g gitter) SearchForTag(tagRef string) (*Tag, error) {
 
 func (g gitter) TagsFromLocal() ([]Tag, error) {
 	return TagsFromLocal(g.repoPath)
+}
+
+func (g gitter) FirstCommit() (string, error) {
+	return FirstCommit(g.repoPath)
 }

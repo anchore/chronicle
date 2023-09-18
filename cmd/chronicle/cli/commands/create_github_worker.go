@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"fmt"
@@ -10,10 +10,10 @@ import (
 	"github.com/anchore/chronicle/internal/log"
 )
 
-func createChangelogFromGithub() (*release.Release, *release.Description, error) {
+func createChangelogFromGithub(appConfig *createConfig) (*release.Release, *release.Description, error) {
 	ghConfig := appConfig.Github.ToGithubConfig()
 
-	gitter, err := git.New(appConfig.CliOptions.RepoPath)
+	gitter, err := git.New(appConfig.RepoPath)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -23,7 +23,7 @@ func createChangelogFromGithub() (*release.Release, *release.Description, error)
 		return nil, nil, fmt.Errorf("unable to create summarizer: %w", err)
 	}
 
-	changeTypeTitles := getGithubSupportedChanges()
+	changeTypeTitles := getGithubSupportedChanges(appConfig)
 
 	var untilTag = appConfig.UntilTag
 	if untilTag == "" {
@@ -42,13 +42,13 @@ func createChangelogFromGithub() (*release.Release, *release.Description, error)
 	var speculator release.VersionSpeculator
 	if appConfig.SpeculateNextVersion {
 		speculator = github.NewVersionSpeculator(gitter, release.SpeculationBehavior{
-			EnforceV0:           appConfig.EnforceV0,
+			EnforceV0:           bool(appConfig.EnforceV0),
 			NoChangesBumpsPatch: true,
 		})
 	}
 
 	changelogConfig := release.ChangelogInfoConfig{
-		RepoPath:          appConfig.CliOptions.RepoPath,
+		RepoPath:          appConfig.RepoPath,
 		SinceTag:          appConfig.SinceTag,
 		UntilTag:          untilTag,
 		VersionSpeculator: speculator,
@@ -58,7 +58,7 @@ func createChangelogFromGithub() (*release.Release, *release.Description, error)
 	return release.ChangelogInfo(summer, changelogConfig)
 }
 
-func getGithubSupportedChanges() []change.TypeTitle {
+func getGithubSupportedChanges(appConfig *createConfig) []change.TypeTitle {
 	var supportedChanges []change.TypeTitle
 	for _, c := range appConfig.Github.Changes {
 		// TODO: this could be one source of truth upstream

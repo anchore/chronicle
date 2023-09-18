@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 	"github.com/anchore/chronicle/chronicle/release/format/markdown"
 )
 
-type presentationTask func(description release.Description) (presenter.Presenter, error)
+type presentationTask func(title string, description release.Description) (presenter.Presenter, error)
 
 func selectPresenter(f format.Format) (presentationTask, error) {
 	switch f {
@@ -24,13 +24,13 @@ func selectPresenter(f format.Format) (presentationTask, error) {
 	}
 }
 
-func presentMarkdown(description release.Description) (presenter.Presenter, error) {
+func presentMarkdown(title string, description release.Description) (presenter.Presenter, error) {
 	return markdown.NewMarkdownPresenter(markdown.Config{
 		Description: description,
-		Title:       appConfig.Title,
+		Title:       title,
 	})
 }
 
-func presentJSON(description release.Description) (presenter.Presenter, error) {
+func presentJSON(_ string, description release.Description) (presenter.Presenter, error) {
 	return json.NewJSONPresenter(description)
 }

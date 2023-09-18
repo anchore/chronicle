@@ -1,3 +1,24 @@
+BIN = chronicle
+TEMP_DIR = ./.tmp
+RESULTS_DIR = test/results
+COVER_REPORT = $(RESULTS_DIR)/unit-coverage-details.txt
+COVER_TOTAL = $(RESULTS_DIR)/unit-coverage-summary.txt
+
+# Command templates #################################
+LINT_CMD = $(TEMP_DIR)/golangci-lint run --tests=false --timeout=2m --config .golangci.yaml
+GOIMPORTS_CMD = $(TEMP_DIR)/gosimports -local github.com/anchore
+RELEASE_CMD = $(TEMP_DIR)/goreleaser release --rm-dist
+SNAPSHOT_CMD = $(RELEASE_CMD) --skip-publish --snapshot --skip-sign
+CHRONICLE_CMD = $(TEMP_DIR)/chronicle
+
+# Tool versions #################################
+GOLANG_CI_VERSION = v1.54.2
+GOBOUNCER_VERSION = v0.4.0
+GORELEASER_VERSION = v1.17.0
+GOSIMPORTS_VERSION = v0.3.8
+CHRONICLE_VERSION = latest
+
+# Formatting variables #################################
 BOLD := $(shell tput -T linux bold)
 PURPLE := $(shell tput -T linux setaf 5)
 GREEN := $(shell tput -T linux setaf 2)
@@ -7,28 +28,22 @@ RESET := $(shell tput -T linux sgr0)
 TITLE := $(BOLD)$(PURPLE)
 SUCCESS := $(BOLD)$(GREEN)
 
-BIN = chronicle
-TEMPDIR = ./.tmp
-RESULTSDIR = test/results
-COVER_REPORT = $(RESULTSDIR)/unit-coverage-details.txt
-COVER_TOTAL = $(RESULTSDIR)/unit-coverage-summary.txt
-LINTCMD = $(TEMPDIR)/golangci-lint run --tests=false --timeout=2m --config .golangci.yaml
-GOIMPORTS_CMD = $(TEMPDIR)/gosimports -local github.com/anchore
+# Test variables #################################
 # the quality gate lower threshold for unit test total % coverage (by function statements)
 COVERAGE_THRESHOLD := 50
 # CI cache busting values; change these if you want CI to not use previous stored cache
 FIXTURE_CACHE_BUSTER = "88738d2f"
 
 ## Build variables
-DISTDIR=./dist
-SNAPSHOTDIR=./snapshot
-GITTREESTATE=$(if $(shell git status --porcelain),dirty,clean)
-OS := $(shell uname)
+DIST_DIR=./dist
+SNAPSHOT_DIR=./snapshot
+OS=$(shell uname | tr '[:upper:]' '[:lower:]')
+CHANGELOG := CHANGELOG.md
 
 ifeq ($(OS),Darwin)
-	SNAPSHOT_CMD=$(shell realpath $(shell pwd)/$(SNAPSHOTDIR)/$(BIN)-macos_darwin_amd64/$(BIN))
+	SNAPSHOT_CMD=$(realpath $(shell pwd)/$(SNAPSHOT_DIR)/$(BIN)-macos_darwin_amd64/$(BIN))
 else
-	SNAPSHOT_CMD=$(shell realpath $(shell pwd)/$(SNAPSHOTDIR)/$(BIN)_linux_amd64/$(BIN))
+	SNAPSHOT_CMD=$(realpath $(shell pwd)/$(SNAPSHOT_DIR)/$(BIN)_linux_amd64/$(BIN))
 endif
 
 ifeq "$(strip $(VERSION))" ""
@@ -37,20 +52,20 @@ endif
 
 ## Variable assertions
 
-ifndef TEMPDIR
-	$(error TEMPDIR is not set)
+ifndef TEMP_DIR
+	$(error TEMP_DIR is not set)
 endif
 
-ifndef RESULTSDIR
-	$(error RESULTSDIR is not set)
+ifndef RESULTS_DIR
+	$(error RESULTS_DIR is not set)
 endif
 
-ifndef DISTDIR
-	$(error DISTDIR is not set)
+ifndef DIST_DIR
+	$(error DIST_DIR is not set)
 endif
 
-ifndef SNAPSHOTDIR
-	$(error SNAPSHOTDIR is not set)
+ifndef SNAPSHOT_DIR
+	$(error SNAPSHOT_DIR is not set)
 endif
 
 ifndef REF_NAME
@@ -74,29 +89,29 @@ test: unit  ## Run all tests
 ci-bootstrap:
 	DEBIAN_FRONTEND=noninteractive sudo apt update && sudo -E apt install -y bc jq libxml2-utils
 
-$(RESULTSDIR):
-	mkdir -p $(RESULTSDIR)
+$(RESULTS_DIR):
+	mkdir -p $(RESULTS_DIR)
 
-$(TEMPDIR):
-	mkdir -p $(TEMPDIR)
+$(TEMP_DIR):
+	mkdir -p $(TEMP_DIR)
 
 .PHONY: bootstrap-tools
-bootstrap-tools: $(TEMPDIR)
-	GO111MODULE=off GOBIN=$(shell realpath $(TEMPDIR)) go get -u golang.org/x/perf/cmd/benchstat
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(TEMPDIR)/ v1.47.2
-	curl -sSfL https://raw.githubusercontent.com/wagoodman/go-bouncer/master/bouncer.sh | sh -s -- -b $(TEMPDIR)/ v0.4.0
+bootstrap-tools: $(TEMP_DIR)
+	GO111MODULE=off GOBIN=$(realpath $(TEMP_DIR)) go get -u golang.org/x/perf/cmd/benchstat
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(TEMP_DIR)/ $(GOLANG_CI_VERSION)
+	curl -sSfL https://raw.githubusercontent.com/wagoodman/go-bouncer/master/bouncer.sh | sh -s -- -b $(TEMP_DIR)/ $(GOBOUNCER_VERSION)
 	# we purposefully use the latest version of chronicle released
-	curl -sSfL https://raw.githubusercontent.com/anchore/chronicle/main/install.sh | sh -s -- -b $(TEMPDIR)/ v0.6.0
-	.github/scripts/goreleaser-install.sh -b $(TEMPDIR)/ v0.182.1
+	curl -sSfL https://raw.githubusercontent.com/anchore/chronicle/main/install.sh | sh -s -- -b $(TEMP_DIR)/ $(CHRONICLE_VERSION)
+	GOBIN="$(realpath $(TEMP_DIR))" go install github.com/goreleaser/goreleaser@$(GORELEASER_VERSION)
 	# the only difference between goimports and gosimports is that gosimports removes extra whitespace between import blocks (see https://github.com/golang/go/issues/20818)
-	GOBIN="$(shell realpath $(TEMPDIR))" go install github.com/rinchsan/gosimports/cmd/gosimports@v0.1.5
+	GOBIN="$(realpath $(TEMP_DIR))" go install github.com/rinchsan/gosimports/cmd/gosimports@$(GOSIMPORTS_VERSION)
 
 .PHONY: bootstrap-go
 bootstrap-go:
 	go mod download
 
 .PHONY: bootstrap
-bootstrap: $(RESULTSDIR) bootstrap-go bootstrap-tools ## Download and install all go dependencies (+ prep tooling in the ./tmp dir)
+bootstrap: $(RESULTS_DIR) bootstrap-go bootstrap-tools ## Download and install all go dependencies (+ prep tooling in the ./tmp dir)
 	$(call title,Bootstrapping dependencies)
 
 .PHONY: static-analysis
@@ -110,30 +125,34 @@ lint: ## Run gofmt + golangci lint checks
 	@test -z "$(shell gofmt -l -s .)"
 
 	# run all golangci-lint rules
-	$(LINTCMD)
+	$(LINT_CMD)
 	@[ -z "$(shell $(GOIMPORTS_CMD) -d .)" ] || (echo "goimports needs to be fixed" && false)
 
 	# go tooling does not play well with certain filename characters, ensure the common cases don't result in future "go get" failures
 	$(eval MALFORMED_FILENAMES := $(shell find . | grep -e ':'))
 	@bash -c "[[ '$(MALFORMED_FILENAMES)' == '' ]] || (printf '\nfound unsupported filename characters:\n$(MALFORMED_FILENAMES)\n\n' && false)"
 
-.PHONY: lint-fix
-lint-fix: ## Auto-format all source code + run golangci lint fixers
-	$(call title,Running lint fixers)
+.PHONY: format
+format: ## Auto-format all source code
+	$(call title,Running formatters)
 	gofmt -w -s .
 	$(GOIMPORTS_CMD) -w .
-	$(LINTCMD) --fix
 	go mod tidy
+
+.PHONY: lint-fix
+lint-fix: format  ## Auto-format all source code + run golangci lint fixers
+	$(call title,Running lint fixers)
+	$(LINT_CMD) --fix
 
 .PHONY: check-licenses
 check-licenses:
-	$(TEMPDIR)/bouncer check
+	$(TEMP_DIR)/bouncer check ./...
 
 check-go-mod-tidy:
 	@ .github/scripts/go-mod-tidy-check.sh && echo "go.mod and go.sum are tidy!"
 
 .PHONY: unit
-unit: $(RESULTSDIR) fixtures ## Run unit tests (with coverage)
+unit: $(RESULTS_DIR) fixtures ## Run unit tests (with coverage)
 	$(call title,Running unit tests)
 	go test  -coverprofile $(COVER_REPORT) $(shell go list ./... | grep -v anchore/chronicle/test)
 	@go tool cover -func $(COVER_REPORT) | grep total |  awk '{print substr($$3, 1, length($$3)-1)}' > $(COVER_TOTAL)
@@ -145,67 +164,66 @@ unit: $(RESULTSDIR) fixtures ## Run unit tests (with coverage)
 fixtures:
 	$(call title,Generating test fixtures)
 	cd internal/git/test-fixtures && make
+	cd chronicle/release/releasers/github/test-fixtures && make
 
 fixtures-fingerprint:
 	find internal/git/test-fixtures/*.sh -type f -exec md5sum {} + | awk '{print $1}' | sort | md5sum | tee internal/git/test-fixtures/cache.fingerprint && echo "$(FIXTURE_CACHE_BUSTER)" >> internal/git/test-fixtures/cache.fingerprint
 
 .PHONY: build
-build: $(SNAPSHOTDIR) ## Build release snapshot binaries and packages
+build: $(SNAPSHOT_DIR) ## Build release snapshot binaries and packages
 
-$(SNAPSHOTDIR): ## Build snapshot release binaries and packages
+$(SNAPSHOT_DIR): ## Build snapshot release binaries and packages
 	$(call title,Building snapshot artifacts)
 	# create a config with the dist dir overridden
-	echo "dist: $(SNAPSHOTDIR)" > $(TEMPDIR)/goreleaser.yaml
-	cat .goreleaser.yaml >> $(TEMPDIR)/goreleaser.yaml
+	echo "dist: $(SNAPSHOT_DIR)" > $(TEMP_DIR)/goreleaser.yaml
+	cat .goreleaser.yaml >> $(TEMP_DIR)/goreleaser.yaml
 
 	# build release snapshots
 	BUILD_GIT_TREE_STATE=$(GITTREESTATE) \
-	$(TEMPDIR)/goreleaser build --snapshot --skip-validate --rm-dist --config $(TEMPDIR)/goreleaser.yaml
+	$(TEMP_DIR)/goreleaser build --snapshot --skip-validate --rm-dist --config $(TEMP_DIR)/goreleaser.yaml
 
 .PHONY: changelog
-changelog: clean-changelog CHANGELOG.md
+changelog: clean-changelog $(CHANGELOG)
 	@docker run -it --rm \
 		-v $(shell pwd)/CHANGELOG.md:/CHANGELOG.md \
 		rawkode/mdv \
 			-t 748.5989 \
 			/CHANGELOG.md
 
-CHANGELOG.md:
-	$(TEMPDIR)/chronicle > CHANGELOG.md
+$(CHANGELOG):
+	$(TEMP_DIR)/chronicle > $(CHANGELOG)
 
 .PHONY: release
-release: clean-dist CHANGELOG.md ## Build and publish final binaries and packages.
+release: clean-dist $(CHANGELOG) ## Build and publish final binaries and packages.
 	$(call title,Publishing release artifacts)
 
 	# create a config with the dist dir overridden
-	echo "dist: $(DISTDIR)" > $(TEMPDIR)/goreleaser.yaml
-	cat .goreleaser.yaml >> $(TEMPDIR)/goreleaser.yaml
+	echo "dist: $(DIST_DIR)" > $(TEMP_DIR)/goreleaser.yaml
+	cat .goreleaser.yaml >> $(TEMP_DIR)/goreleaser.yaml
 
-	# TODO: in the future add chronicle to generate changelogs
 	# release (note the version transformation from v0.7.0 --> 0.7.0)
 	bash -c "\
-		BUILD_GIT_TREE_STATE=$(GITTREESTATE) \
 		VERSION=$(VERSION:v%=%) \
-		$(TEMPDIR)/goreleaser \
+		$(TEMP_DIR)/goreleaser \
 			--rm-dist \
-			--config $(TEMPDIR)/goreleaser.yaml  \
-			--release-notes <(cat CHANGELOG.md)"
+			--config $(TEMP_DIR)/goreleaser.yaml  \
+			--release-notes <(cat $(CHANGELOG))"
 
 .PHONY: clean
 clean: clean-dist clean-snapshot  ## Remove previous builds, result reports, and test cache
-	rm -rf $(RESULTSDIR)/*
+	rm -rf $(RESULTS_DIR)/*
 
 .PHONY: clean-snapshot
 clean-snapshot:
-	rm -rf $(SNAPSHOTDIR) $(TEMPDIR)/goreleaser.yaml
+	rm -rf $(SNAPSHOT_DIR) $(TEMP_DIR)/goreleaser.yaml
 
 .PHONY: clean-dist
 clean-dist: clean-changelog
-	rm -rf $(DISTDIR) $(TEMPDIR)/goreleaser.yaml
+	rm -rf $(DIST_DIR) $(TEMP_DIR)/goreleaser.yaml
 
 .PHONY: clean-changelog
 clean-changelog:
-	rm -f CHANGELOG.md
+	rm -f $(CHANGELOG)
 
 .PHONY: help
 help:

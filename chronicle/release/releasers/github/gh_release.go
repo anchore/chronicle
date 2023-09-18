@@ -10,6 +10,8 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type releaseFetcher func(user, repo, tag string) (*ghRelease, error)
+
 type ghRelease struct {
 	Tag      string
 	Date     time.Time
@@ -26,7 +28,7 @@ func latestNonDraftRelease(releases []ghRelease) *ghRelease {
 	return nil
 }
 
-// nolint:funlen
+//nolint:funlen
 func fetchAllReleases(user, repo string) ([]ghRelease, error) {
 	src := oauth2.StaticTokenSource(
 		// TODO: DI this

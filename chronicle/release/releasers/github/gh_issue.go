@@ -46,7 +46,7 @@ issueLoop:
 	return results
 }
 
-// nolint:deadcode,unused
+//nolint:deadcode,unused
 func issuesAtOrAfter(since time.Time) issueFilter {
 	return func(issue ghIssue) bool {
 		keep := issue.ClosedAt.After(since) || issue.ClosedAt.Equal(since)
@@ -77,7 +77,7 @@ func issuesAfter(since time.Time) issueFilter {
 	}
 }
 
-// nolint:deadcode,unused
+//nolint:deadcode,unused
 func issuesBefore(since time.Time) issueFilter {
 	return func(issue ghIssue) bool {
 		keep := issue.ClosedAt.Before(since)
@@ -154,15 +154,19 @@ func issuesWithoutLabels() issueFilter {
 	}
 }
 
-// nolint:funlen
-func fetchClosedIssues(user, repo string) ([]ghIssue, error) {
+//nolint:funlen
+func fetchClosedIssues(user, repo string, since *time.Time) ([]ghIssue, error) {
 	src := oauth2.StaticTokenSource(
 		// TODO: DI this
 		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
 	)
 	httpClient := oauth2.NewClient(context.Background(), src)
 	client := githubv4.NewClient(httpClient)
-	var allIssues []ghIssue
+	var (
+		pages     = 0
+		saw       = 0
+		allIssues []ghIssue
+	)
 
 	{
 		// TODO: act on hitting a rate limit
@@ -192,6 +196,7 @@ func fetchClosedIssues(user, repo string) ([]ghIssue, error) {
 							}
 							Closed      githubv4.Boolean
 							ClosedAt    githubv4.DateTime
+							UpdatedAt   githubv4.DateTime
 							StateReason githubv4.String
 							Labels      struct {
 								Edges []struct {
@@ -202,7 +207,7 @@ func fetchClosedIssues(user, repo string) ([]ghIssue, error) {
 							} `graphql:"labels(first:100)"`
 						}
 					}
-				} `graphql:"issues(first:100, states:CLOSED, after:$issuesCursor)"`
+				} `graphql:"issues(first:100, states:CLOSED, after:$issuesCursor, orderBy:{field: UPDATED_AT, direction: DESC})"`
 			} `graphql:"repository(owner:$repositoryOwner, name:$repositoryName)"`
 
 			RateLimit rateLimit
@@ -214,14 +219,29 @@ func fetchClosedIssues(user, repo string) ([]ghIssue, error) {
 		}
 
 		// var limit rateLimit
-		for {
+		var (
+			process   bool
+			terminate = false
+		)
+
+		for !terminate {
+			log.WithFields("user", user, "repo", repo, "page", pages).Trace("fetching closed issues from github.com")
+
 			err := client.Query(context.Background(), &query, variables)
 			if err != nil {
 				return nil, err
 			}
+
 			// limit = query.RateLimit
 
-			for _, iEdge := range query.Repository.Issues.Edges {
+			for i := range query.Repository.Issues.Edges {
+				iEdge := query.Repository.Issues.Edges[i]
+				saw++
+				process, terminate = checkSearchTermination(since, &iEdge.Node.UpdatedAt, &iEdge.Node.ClosedAt)
+				if !process || terminate {
+					continue
+				}
+
 				var labels []string
 				for _, lEdge := range iEdge.Node.Labels.Edges {
 					labels = append(labels, string(lEdge.Node.Name))
@@ -242,6 +262,7 @@ func fetchClosedIssues(user, repo string) ([]ghIssue, error) {
 				break
 			}
 			variables["issuesCursor"] = githubv4.NewString(query.Repository.Issues.PageInfo.EndCursor)
+			pages++
 		}
 
 		// for idx, is := range allIssues {
@@ -249,6 +270,8 @@ func fetchClosedIssues(user, repo string) ([]ghIssue, error) {
 		//}
 		// printJSON(limit)
 	}
+
+	log.WithFields("kept", len(allIssues), "saw", saw, "pages", pages, "since", since).Trace("closed PRs fetched from github.com")
 
 	return allIssues, nil
 }
