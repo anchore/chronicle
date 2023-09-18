@@ -870,23 +870,23 @@ func Test_createChangesFromIssues(t *testing.T) {
 					Timestamp:   timeStart,
 					References: []change.Reference{
 						{
-							Text: "Issue #1",
+							Text: "#1",
 							URL:  "issue-1-url",
 						},
 						{
-							Text: "PR #1",
+							Text: "#1",
 							URL:  "pr-1-url",
 						},
 						{
-							Text: "some-author-1",
+							Text: "@some-author-1",
 							URL:  "https://some-host/some-author-1",
 						},
 						{
-							Text: "PR #2",
+							Text: "#2",
 							URL:  "pr-2-url",
 						},
 						{
-							Text: "some-author-2",
+							Text: "@some-author-2",
 							URL:  "https://some-host/some-author-2",
 						},
 					},
@@ -899,15 +899,15 @@ func Test_createChangesFromIssues(t *testing.T) {
 					Timestamp:   timeStart,
 					References: []change.Reference{
 						{
-							Text: "Issue #2",
+							Text: "#2",
 							URL:  "issue-2-url",
 						},
 						{
-							Text: "PR #2",
+							Text: "#2",
 							URL:  "pr-2-url",
 						},
 						{
-							Text: "some-author-2",
+							Text: "@some-author-2",
 							URL:  "https://some-host/some-author-2",
 						},
 					},
@@ -920,7 +920,7 @@ func Test_createChangesFromIssues(t *testing.T) {
 					Timestamp:   timeStart,
 					References: []change.Reference{
 						{
-							Text: "Issue #3",
+							Text: "#3",
 							URL:  "issue-3-url",
 						},
 					},
@@ -1010,11 +1010,11 @@ func Test_changesFromUnlabeledPRs(t *testing.T) {
 					Timestamp:   timeStart,
 					References: []change.Reference{
 						{
-							Text: "PR #6",
+							Text: "#6",
 							URL:  "some-url",
 						},
 						{
-							Text: "some-author",
+							Text: "@some-author",
 							URL:  "https://some-host/some-author",
 						},
 					},
@@ -1027,11 +1027,11 @@ func Test_changesFromUnlabeledPRs(t *testing.T) {
 					Timestamp:   timeStart,
 					References: []change.Reference{
 						{
-							Text: "PR #7",
+							Text: "#7",
 							URL:  "some-url-2",
 						},
 						{
-							Text: "some-author-2",
+							Text: "@some-author-2",
 							URL:  "https://some-host/some-author-2",
 						},
 					},
@@ -1140,15 +1140,15 @@ func Test_changesFromUnlabeledIssues(t *testing.T) {
 					Timestamp:   timeStart,
 					References: []change.Reference{
 						{
-							Text: "Issue #6",
+							Text: "#6",
 							URL:  "some-url",
 						},
 						{
-							Text: "PR #1",
+							Text: "#1",
 							URL:  "pr-1-url",
 						},
 						{
-							Text: "pr-1-author",
+							Text: "@pr-1-author",
 							URL:  "https://some-host/pr-1-author",
 						},
 					},
@@ -1161,7 +1161,7 @@ func Test_changesFromUnlabeledIssues(t *testing.T) {
 					Timestamp:   timeStart,
 					References: []change.Reference{
 						{
-							Text: "Issue #7",
+							Text: "#7",
 							URL:  "some-url-2",
 						},
 					},

@@ -1,0 +1,36 @@
+
+[TestMarkdownPresenter_Present - 1]
+# v0.19.1
+
+### Bug Fixes
+
+- Redirect cursor hide/show to stderr [[#456](https://github.com/anchore/syft/pull/456)]
+
+### Added Features
+
+- added feature [[#457](https://github.com/anchore/syft/pull/457) @wagoodman]
+- another added feature
+
+### Breaking Changes
+
+- breaking change [[#458](https://github.com/anchore/syft/pull/458) [#450](https://github.com/anchore/syft/issues/450) @wagoodman]
+
+**[(Full Changelog)](https://github.com/anchore/syft/compare/v0.19.0...v0.19.1)**
+
+---
+
+[TestMarkdownPresenter_Present_NoTitle - 1]
+### Bug Fixes
+
+- Redirect cursor hide/show to stderr [[#456](https://github.com/anchore/syft/pull/456)]
+
+**[(Full Changelog)](https://github.com/anchore/syft/compare/v0.19.0...v0.19.1)**
+
+---
+
+[TestMarkdownPresenter_Present_NoChanges - 1]
+# Changelog
+
+**[(Full Changelog)](https://github.com/anchore/syft/compare/v0.19.0...v0.19.1)**
+
+---

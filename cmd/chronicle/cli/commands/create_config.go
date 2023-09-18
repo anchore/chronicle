@@ -66,7 +66,7 @@ func defaultCreateConfig() *createConfig {
 		VersionFile:          "",
 		SinceTag:             "",
 		UntilTag:             "",
-		Title:                "",
+		Title:                `{{ .Version }}`,
 		RepoPath:             "",
 		SpeculateNextVersion: false,
 		EnforceV0:            false,
