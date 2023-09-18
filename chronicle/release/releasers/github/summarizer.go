@@ -141,13 +141,13 @@ func (s *Summarizer) getChangeScope(sinceRef, untilRef string) (*changeScope, er
 	if untilRef != "" {
 		untilTag, err = s.git.SearchForTag(untilRef)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to find git tag %q: %w", untilRef, err)
 		}
 		untilTime = &untilTag.Timestamp
 	} else {
 		untilRef, err = s.git.HeadTagOrCommit()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to find git head reference: %w", err)
 		}
 	}
 
@@ -189,7 +189,7 @@ func (s *Summarizer) getSince(sinceRef string) (*git.Tag, string, bool, *time.Ti
 	if sinceRef != "" {
 		sinceTag, err = s.git.SearchForTag(sinceRef)
 		if err != nil {
-			return nil, "", false, nil, err
+			return nil, "", false, nil, fmt.Errorf("unable to find git tag %q: %w", sinceRef, err)
 		}
 	}
 
