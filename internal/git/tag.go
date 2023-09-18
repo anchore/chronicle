@@ -26,7 +26,6 @@ type Range struct {
 	IncludeEnd   bool
 }
 
-// TODO: put under test
 func CommitsBetween(repoPath string, cfg Range) ([]string, error) {
 	r, err := git.PlainOpen(repoPath)
 	if err != nil {
@@ -51,7 +50,7 @@ func CommitsBetween(repoPath string, cfg Range) ([]string, error) {
 		return nil, fmt.Errorf("unable to find until git log for ref=%q: %w", cfg.UntilRef, err)
 	}
 
-	log.WithFields("since", sinceHash, "until", untilHash).Trace("searching commit range")
+	log.WithFields("since", sinceHash, "until", untilHash, "include-end", cfg.IncludeEnd, "include-start", cfg.IncludeStart).Trace("searching commit range")
 
 	var commits []string
 	err = iter.ForEach(func(c *object.Commit) (retErr error) {
