@@ -25,6 +25,13 @@ func TestTagsFromLocal(t *testing.T) {
 				"v0.2.0",
 			},
 		},
+		{
+			name: "annotated tags",
+			path: "test-fixtures/repos/annotated-tagged-repo",
+			expects: []string{
+				"v0.1.0",
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -63,6 +70,12 @@ func TestSearchForTag(t *testing.T) {
 			path:     "test-fixtures/repos/tag-range-repo",
 			tag:      "v1.84793.23849",
 			hasMatch: false,
+		},
+		{
+			name:     "annotated tag exists",
+			path:     "test-fixtures/repos/annotated-tagged-repo",
+			tag:      "v0.1.0",
+			hasMatch: true,
 		},
 	}
 	for _, test := range tests {
@@ -199,7 +212,7 @@ func gitTagCommit(t *testing.T, path, tag string) string {
 	}
 
 	// why the ~1? we want git log to return inclusive results
-	cmd := exec.Command("git", "--no-pager", "log", `--pretty=format:%H`, fmt.Sprintf("%s~1..%s", tag, tag))
+	cmd := exec.Command("git", "--no-pager", "log", `--pretty=format:%H`, "-1", tag)
 	cmd.Dir = path
 	output, err := cmd.Output()
 	require.NoError(t, err)

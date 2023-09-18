@@ -92,7 +92,19 @@ func SearchForTag(repoPath, tagRef string) (*Tag, error) {
 		return nil, fmt.Errorf("unable to find git ref=%q", tagRef)
 	}
 
-	commit, err := r.CommitObject(ref.Hash())
+	// lightweight tags point directly to the commit object, but annotated tags point to a tag object.
+	// for this reason we need to resolve the correct reference first.
+
+	revHash, err := r.ResolveRevision(plumbing.Revision(ref.Name()))
+	if err != nil {
+		return nil, fmt.Errorf("unable to resolve revision for %q: %w", ref.Name(), err)
+	}
+
+	if revHash == nil {
+		return nil, fmt.Errorf("unable to resolve revision for %q", ref.Name())
+	}
+
+	commit, err := r.CommitObject(*revHash)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +136,19 @@ func TagsFromLocal(repoPath string) ([]Tag, error) {
 			return nil, err
 		}
 
-		c, err := r.CommitObject(t.Hash())
+		// lightweight tags point directly to the commit object, but annotated tags point to a tag object.
+		// for this reason we need to resolve the correct reference first.
+
+		revHash, err := r.ResolveRevision(plumbing.Revision(t.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("unable to resolve revision for %q: %w", t.Name(), err)
+		}
+
+		if revHash == nil {
+			return nil, fmt.Errorf("unable to resolve revision for %q", t.Name())
+		}
+
+		c, err := r.CommitObject(*revHash)
 		if err != nil {
 			log.Debugf("unable to get tag '%s' info from commit=%q: %w", t.Name().String(), t.Hash().String(), err)
 			continue
