@@ -19,4 +19,6 @@ git config --local user.name "nope"
 trap 'popd' EXIT
 
 git commit -m 'something' --allow-empty
+# show that there is a difference between the resolved commit timestamp and the tag timestamp
+sleep 3
 git tag -a v0.1.0 -m "tagging v0.1.0"

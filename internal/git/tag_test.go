@@ -5,7 +5,9 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,6 +44,34 @@ func TestTagsFromLocal(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, test.expects, names)
+		})
+	}
+}
+
+func TestTagsFromLocal_processTag_timestamp(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		expects []Tag
+	}{
+		{
+			name:    "lightweight tags case",
+			path:    "test-fixtures/repos/tag-range-repo",
+			expects: expectedTags(t, "test-fixtures/repos/tag-range-repo"),
+		},
+		{
+			name:    "annotated tags",
+			path:    "test-fixtures/repos/annotated-tagged-repo",
+			expects: expectedTags(t, "test-fixtures/repos/annotated-tagged-repo"),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual, err := TagsFromLocal(test.path)
+			require.NoError(t, err)
+			if d := cmp.Diff(test.expects, actual); d != "" {
+				t.Fatalf("unexpected tags (-want +got):\n%s", d)
+			}
 		})
 	}
 }
@@ -236,4 +266,98 @@ func popBack(items []string) []string {
 		return items
 	}
 	return items[:len(items)-1]
+}
+
+func expectedTags(t *testing.T, path string) []Tag {
+	t.Helper()
+
+	cmd := exec.Command("git", "--no-pager", "for-each-ref", "refs/tags")
+	cmd.Dir = path
+	output, err := cmd.Output()
+	require.NoError(t, err)
+
+	rows := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	var tags []Tag
+	for _, row := range rows {
+		// process rows like: "55b45584644cc820f0c0d64a64321d69b3def778 commit\trefs/tags/v0.1.0"
+		fields := strings.Split(strings.ReplaceAll(row, "\t", " "), " ")
+		if len(fields) != 3 {
+			t.Fatalf("unexpected row: %q", row)
+		}
+
+		// type commit = lightweight tag... the tag commit is the ref to the blob
+		// type tag = annotated tag... the tag commit has tag info
+		tagCommit, ty, name := fields[0], fields[1], fields[2]
+		nameFields := strings.Split(name, "/")
+		date := dateForCommit(t, path, tagCommit)
+		var annotated bool
+		switch ty {
+		case "tag":
+			annotated = true
+			date = dateForAnnotatedTag(t, path, name)
+		case "commit":
+			annotated = false
+			date = dateForCommit(t, path, tagCommit)
+		default:
+			t.Fatalf("unexpected type: %q", ty)
+		}
+
+		tags = append(tags, Tag{
+			Name:      nameFields[len(nameFields)-1],
+			Timestamp: date,
+			Commit:    tagHash(t, path, name),
+			Annotated: annotated,
+		})
+	}
+
+	return tags
+}
+
+func dateForCommit(t *testing.T, path string, commit string) time.Time {
+	cmd := exec.Command("git", "--no-pager", "show", "-s", "--format=%ci", fmt.Sprintf("%s^{commit}", commit))
+	cmd.Dir = path
+	output, err := cmd.Output()
+	require.NoError(t, err)
+
+	rows := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(rows) != 1 {
+		t.Fatalf("unable to get commit for commit=%s: %q", commit, output)
+	}
+
+	// output should be something like: "2023-09-18 15:15:40 -0400"
+	tt, err := time.Parse("2006-01-02 15:04:05 -0700", rows[0])
+	require.NoError(t, err)
+	return tt
+}
+
+func dateForAnnotatedTag(t *testing.T, path string, tag string) time.Time {
+	cmd := exec.Command("git", "--no-pager", "for-each-ref", `--format="%(creatordate)"`, tag)
+	cmd.Dir = path
+	output, err := cmd.Output()
+	require.NoError(t, err)
+
+	rows := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(rows) != 1 {
+		t.Fatalf("unable to get commit for tag=%s: %q", tag, output)
+	}
+
+	// output should be something like: "Mon Sep 18 17:22:13 2023 -0400"
+	tt, err := time.Parse(`"Mon Jan 2 15:04:05 2006 -0700"`, rows[0])
+	require.NoError(t, err)
+	return tt
+}
+
+func tagHash(t *testing.T, repo string, tag string) string {
+	cmd := exec.Command("git", "--no-pager", "show", "-s", "--format=%H", fmt.Sprintf("%s^{commit}", tag))
+	cmd.Dir = repo
+	output, err := cmd.Output()
+	require.NoError(t, err)
+
+	rows := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(rows) != 1 {
+		t.Fatalf("unable to get commit for tag=%s: %q", tag, output)
+	}
+
+	return rows[0]
 }

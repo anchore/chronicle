@@ -17,6 +17,7 @@ type Tag struct {
 	Name      string
 	Timestamp time.Time
 	Commit    string
+	Annotated bool
 }
 
 type Range struct {
@@ -50,7 +51,7 @@ func CommitsBetween(repoPath string, cfg Range) ([]string, error) {
 		return nil, fmt.Errorf("unable to find until git log for ref=%q: %w", cfg.UntilRef, err)
 	}
 
-	log.WithFields("since", sinceHash, "until", untilHash, "include-end", cfg.IncludeEnd, "include-start", cfg.IncludeStart).Trace("searching commit range")
+	log.WithFields("since", sinceHash, "until", untilHash, cfg.IncludeStart).Trace("searching commit range")
 
 	var commits []string
 	err = iter.ForEach(func(c *object.Commit) (retErr error) {
@@ -91,28 +92,7 @@ func SearchForTag(repoPath, tagRef string) (*Tag, error) {
 		return nil, fmt.Errorf("unable to find git ref=%q", tagRef)
 	}
 
-	// lightweight tags point directly to the commit object, but annotated tags point to a tag object.
-	// for this reason we need to resolve the correct reference first.
-
-	revHash, err := r.ResolveRevision(plumbing.Revision(ref.Name()))
-	if err != nil {
-		return nil, fmt.Errorf("unable to resolve revision for %q: %w", ref.Name(), err)
-	}
-
-	if revHash == nil {
-		return nil, fmt.Errorf("unable to resolve revision for %q", ref.Name())
-	}
-
-	commit, err := r.CommitObject(*revHash)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Tag{
-		Name:      tagRef,
-		Timestamp: commit.Committer.When,
-		Commit:    commit.Hash.String(),
-	}, nil
+	return newTag(r, ref)
 }
 
 func TagsFromLocal(repoPath string) ([]Tag, error) {
@@ -121,43 +101,72 @@ func TagsFromLocal(repoPath string) ([]Tag, error) {
 		return nil, err
 	}
 
-	tagrefs, err := r.Tags()
+	tagRefs, err := r.Tags()
 	if err != nil {
 		return nil, err
 	}
 
 	var tags []Tag
 	for {
-		t, err := tagrefs.Next()
+		t, err := tagRefs.Next()
 		if err == io.EOF || t == nil {
 			break
 		} else if err != nil {
 			return nil, err
 		}
 
-		// lightweight tags point directly to the commit object, but annotated tags point to a tag object.
-		// for this reason we need to resolve the correct reference first.
-
-		revHash, err := r.ResolveRevision(plumbing.Revision(t.Name()))
+		tag, err := newTag(r, t)
 		if err != nil {
-			return nil, fmt.Errorf("unable to resolve revision for %q: %w", t.Name(), err)
+			// TODO
+			return nil, err
 		}
-
-		if revHash == nil {
-			return nil, fmt.Errorf("unable to resolve revision for %q", t.Name())
-		}
-
-		c, err := r.CommitObject(*revHash)
-		if err != nil {
-			log.Debugf("unable to get tag '%s' info from commit=%q: %w", t.Name().String(), t.Hash().String(), err)
+		if tag == nil {
 			continue
 		}
 
-		tags = append(tags, Tag{
-			Name:      t.Name().Short(),
-			Timestamp: c.Committer.When,
-			Commit:    t.Hash().String(),
-		})
+		tags = append(tags, *tag)
 	}
 	return tags, nil
+}
+
+func newTag(r *git.Repository, t *plumbing.Reference) (*Tag, error) {
+	// the plumbing reference is to the tag. For a lightweight tag, the tag object points directly to the commit
+	// with the code blob. For an annotated tag, the tag object has a commit for the tag itself, but resolves to
+	// the commit with the code blob. It's important to use the timestamp from the tag object when available
+	// for annotated tags and to use the commit timestamp for lightweight tags.
+
+	if !t.Name().IsTag() {
+		return nil, nil
+	}
+
+	c, err := r.CommitObject(t.Hash())
+	if err == nil && c != nil {
+		// this is a lightweight tag... the tag hash points directly to the commit object
+		return &Tag{
+			Name:      t.Name().Short(),
+			Timestamp: c.Committer.When,
+			Commit:    c.Hash.String(),
+			Annotated: false,
+		}, nil
+	}
+
+	// this is an annotated tag... the tag hash points to a tag object, which points to the commit object
+	// use the timestamp info from the tag object
+
+	tagObj, err := object.GetTag(r.Storer, t.Hash())
+	if err != nil {
+		return nil, fmt.Errorf("unable to resolve tag for %q: %w", t.Name(), err)
+	}
+
+	if tagObj == nil {
+		return nil, fmt.Errorf("unable to resolve tag for %q", t.Name())
+	}
+
+	return &Tag{
+		Name: t.Name().Short(),
+		// without the timezone info the timezone will have zone info as the offset, which is already encoded...
+		Timestamp: tagObj.Tagger.When.In(time.Local),
+		Commit:    tagObj.Target.String(),
+		Annotated: true,
+	}, nil
 }

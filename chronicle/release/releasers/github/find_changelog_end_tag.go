@@ -23,12 +23,12 @@ func FindChangelogEndTag(summer release.Summarizer, gitter git.Interface) (strin
 		// no release found, assume that this is the correct release info
 		return "", fmt.Errorf("unable to fetch release=%q : %w", currentTag, err)
 	} else if taggedRelease != nil {
-		log.Debugf("found existing tag=%q however, it already has an associated release. ignoring...", currentTag)
+		log.WithFields("tag", currentTag).Debug("found existing tag however, it already has an associated release. ignoring...")
 		// return commitRef, nil
 		return "", nil
 	}
 
-	log.Debugf("found existing tag=%q at HEAD which does not have an associated release", currentTag)
+	log.WithFields("tag", currentTag).Debug("found existing tag at HEAD which does not have an associated release")
 
 	// a tag was found and there is no existing release for this tag
 	return currentTag, nil

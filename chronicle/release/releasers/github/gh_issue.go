@@ -163,7 +163,7 @@ func fetchClosedIssues(user, repo string, since *time.Time) ([]ghIssue, error) {
 	httpClient := oauth2.NewClient(context.Background(), src)
 	client := githubv4.NewClient(httpClient)
 	var (
-		pages     = 0
+		pages     = 1
 		saw       = 0
 		allIssues []ghIssue
 	)

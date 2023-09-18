@@ -19,4 +19,6 @@ git config --local user.name "nope"
 trap 'popd' EXIT
 
 git commit -m 'something' --allow-empty
+# show that the timestamp cannot be extracted from the lightweight tag
+sleep 3
 git tag v0.1.0
