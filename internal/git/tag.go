@@ -51,7 +51,7 @@ func CommitsBetween(repoPath string, cfg Range) ([]string, error) {
 		return nil, fmt.Errorf("unable to find until git log for ref=%q: %w", cfg.UntilRef, err)
 	}
 
-	log.WithFields("since", sinceHash, "until", untilHash, cfg.IncludeStart).Trace("searching commit range")
+	log.WithFields("since", sinceHash, "until", untilHash).Trace("searching commit range")
 
 	var commits []string
 	err = iter.ForEach(func(c *object.Commit) (retErr error) {
@@ -117,7 +117,6 @@ func TagsFromLocal(repoPath string) ([]Tag, error) {
 
 		tag, err := newTag(r, t)
 		if err != nil {
-			// TODO
 			return nil, err
 		}
 		if tag == nil {
@@ -164,7 +163,11 @@ func newTag(r *git.Repository, t *plumbing.Reference) (*Tag, error) {
 
 	return &Tag{
 		Name: t.Name().Short(),
-		// without the timezone info the timezone will have zone info as the offset, which is already encoded...
+		// it is possible for this git lib to return timestamps parsed from the underlying data that have the timezone
+		// but not the name of the timezone. This can result in odd suffixes like "-0400 -0400" instead of "-0400 EDT".
+		// This causes some difficulty in testing since the user's local git config and env may result in different
+		// values. Here I've normalized to the local timezone which tends to be the most common case. Downstream of
+		// this function, the timestamp is converted to UTC.
 		Timestamp: tagObj.Tagger.When.In(time.Local),
 		Commit:    tagObj.Target.String(),
 		Annotated: true,

@@ -241,7 +241,7 @@ func gitTagCommit(t *testing.T, path, tag string) string {
 		t.Fatal("require 'tag'")
 	}
 
-	// why the ~1? we want git log to return inclusive results
+	// note: the -1 is to stop listing entries after the first entry
 	cmd := exec.Command("git", "--no-pager", "log", `--pretty=format:%H`, "-1", tag)
 	cmd.Dir = path
 	output, err := cmd.Output()
@@ -315,6 +315,7 @@ func expectedTags(t *testing.T, path string) []Tag {
 }
 
 func dateForCommit(t *testing.T, path string, commit string) time.Time {
+	// note: %ci is the committer date in an ISO 8601-like format
 	cmd := exec.Command("git", "--no-pager", "show", "-s", "--format=%ci", fmt.Sprintf("%s^{commit}", commit))
 	cmd.Dir = path
 	output, err := cmd.Output()
@@ -332,6 +333,8 @@ func dateForCommit(t *testing.T, path string, commit string) time.Time {
 }
 
 func dateForAnnotatedTag(t *testing.T, path string, tag string) time.Time {
+	// for-each-ref is a nice way to get the raw information about a tag object ad not the information about the commit
+	// the tag object points to (in this case we're interested in the tag object's timestamp).
 	cmd := exec.Command("git", "--no-pager", "for-each-ref", `--format="%(creatordate)"`, tag)
 	cmd.Dir = path
 	output, err := cmd.Output()
@@ -349,6 +352,8 @@ func dateForAnnotatedTag(t *testing.T, path string, tag string) time.Time {
 }
 
 func tagHash(t *testing.T, repo string, tag string) string {
+	// note: this will work for both lightweight and annotated tags since we are dereferencing the tag to the closest
+	// commit object with the ^{commit} syntax
 	cmd := exec.Command("git", "--no-pager", "show", "-s", "--format=%H", fmt.Sprintf("%s^{commit}", tag))
 	cmd.Dir = repo
 	output, err := cmd.Output()

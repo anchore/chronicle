@@ -35,7 +35,8 @@ func headTag(repoPath string, orCommit bool) (string, error) {
 			return fmt.Errorf("found")
 		}
 
-		// a little extra work for annotated tags
+		// this is an annotated tag... since annotated tags are stored within their own commit we need to resolve the
+		// revision to get the commit the tag object points to (that is the commit with the code blob).
 		revHash, err := r.ResolveRevision(plumbing.Revision(t.Name()))
 		if err != nil {
 			return nil

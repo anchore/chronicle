@@ -276,6 +276,8 @@ func logChangeScope(c changeScope, considerCommits bool) {
 	// in cases where the git tag is a lightweight tag encourage users to migrate to using annotated tags since
 	// the annotated tag will have a timestamp associated with when the tag action was done and not when the PR merge
 	// to main was done.
+	// From https://git-scm.com/docs/git-tag:
+	// > Annotated tags are meant for release while lightweight tags are meant for private or temporary object labels.
 	if c.End.Tag != nil && !c.End.Tag.Annotated {
 		log.WithFields("tag", c.End.Tag.Name).Warn("use of a lightweight git tag found, use annotated git tags for more accurate results")
 	}
