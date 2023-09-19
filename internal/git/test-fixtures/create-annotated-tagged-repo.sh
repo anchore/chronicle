@@ -9,9 +9,9 @@ else
     echo "creating fixture..."
 fi
 
-git init repos/tagged-repo
+git init repos/annotated-tagged-repo
 
-pushd repos/tagged-repo
+pushd repos/annotated-tagged-repo
 
 git config --local user.email "nope@nope.com"
 git config --local user.name "nope"
@@ -19,6 +19,6 @@ git config --local user.name "nope"
 trap 'popd' EXIT
 
 git commit -m 'something' --allow-empty
-# show that the timestamp cannot be extracted from the lightweight tag
+# show that there is a difference between the resolved commit timestamp and the tag timestamp
 sleep 3
-git tag v0.1.0
+git tag -a v0.1.0 -m "tagging v0.1.0"

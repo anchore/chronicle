@@ -11,6 +11,7 @@ import (
 	"github.com/anchore/chronicle/internal"
 	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
+	"github.com/anchore/go-logger"
 )
 
 const (
@@ -127,6 +128,8 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 		return nil, fmt.Errorf("unable to find start and end of changes: %w", err)
 	}
 
+	logChangeScope(*scope, s.config.ConsiderPRMergeCommits)
+
 	return s.changes(*scope)
 }
 
@@ -141,13 +144,13 @@ func (s *Summarizer) getChangeScope(sinceRef, untilRef string) (*changeScope, er
 	if untilRef != "" {
 		untilTag, err = s.git.SearchForTag(untilRef)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to find git tag %q: %w", untilRef, err)
 		}
 		untilTime = &untilTag.Timestamp
 	} else {
 		untilRef, err = s.git.HeadTagOrCommit()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to find git head reference: %w", err)
 		}
 	}
 
@@ -189,7 +192,7 @@ func (s *Summarizer) getSince(sinceRef string) (*git.Tag, string, bool, *time.Ti
 	if sinceRef != "" {
 		sinceTag, err = s.git.SearchForTag(sinceRef)
 		if err != nil {
-			return nil, "", false, nil, err
+			return nil, "", false, nil, fmt.Errorf("unable to find git tag %q: %w", sinceRef, err)
 		}
 	}
 
@@ -217,11 +220,6 @@ func (s *Summarizer) getSince(sinceRef string) (*git.Tag, string, bool, *time.Ti
 
 func (s *Summarizer) changes(scope changeScope) ([]change.Change, error) {
 	var changes []change.Change
-
-	if s.config.ConsiderPRMergeCommits {
-		log.Debugf("release comprises %d commits", len(scope.Commits))
-		logCommits(scope.Commits)
-	}
 
 	allMergedPRs, err := fetchMergedPRs(s.userName, s.repoName, scope.Start.Timestamp)
 	if err != nil {
@@ -264,13 +262,50 @@ func (s *Summarizer) changes(scope changeScope) ([]change.Change, error) {
 	return changes, nil
 }
 
+func logChangeScope(c changeScope, considerCommits bool) {
+	log.WithFields("since", c.Start.Ref, "until", c.End.Ref).Info("searching for changes")
+	log.WithFields(changePointFields(c.Start)).Debug("  ├── since")
+	log.WithFields(changePointFields(c.End)).Debug("  └── until")
+
+	if considerCommits {
+		log.Debugf("release comprises %d commits", len(c.Commits))
+		logCommits(c.Commits)
+	}
+
+	// in a release process there tends to be a start point that is a github release and an end point that is a git tag.
+	// in cases where the git tag is a lightweight tag encourage users to migrate to using annotated tags since
+	// the annotated tag will have a timestamp associated with when the tag action was done and not when the PR merge
+	// to main was done.
+	// From https://git-scm.com/docs/git-tag:
+	// > Annotated tags are meant for release while lightweight tags are meant for private or temporary object labels.
+	if c.End.Tag != nil && !c.End.Tag.Annotated {
+		log.WithFields("tag", c.End.Tag.Name).Warn("use of a lightweight git tag found, use annotated git tags for more accurate results")
+	}
+}
+
+func changePointFields(p changePoint) logger.Fields {
+	fields := logger.Fields{}
+	if p.Tag != nil {
+		fields["tag"] = p.Tag.Name
+		fields["commit"] = p.Tag.Commit
+	} else if p.Ref != "" {
+		fields["commit"] = p.Ref
+	}
+	fields["inclusive"] = p.Inclusive
+	if p.Timestamp != nil {
+		fields["timestamp"] = internal.FormatDateTime(*p.Timestamp)
+	}
+
+	return fields
+}
+
 func logCommits(commits []string) {
 	for idx, commit := range commits {
 		var branch = treeBranch
 		if idx == len(commits)-1 {
 			branch = treeLeaf
 		}
-		log.Tracef("  %s %s", branch, commit)
+		log.Debugf("  %s %s", branch, commit)
 	}
 }
 

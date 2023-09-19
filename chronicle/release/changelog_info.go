@@ -29,9 +29,9 @@ func ChangelogInfo(summer Summarizer, config ChangelogInfoConfig) (*Release, *De
 	}
 
 	if startRelease != nil {
-		log.WithFields("tag", startRelease.Version, "release-timestamp", internal.FormatDateTime(startRelease.Date)).Info("since")
+		log.WithFields("tag", startRelease.Version, "release-timestamp", internal.FormatDateTime(startRelease.Date)).Trace("since")
 	} else {
-		log.Info("since the beginning of history")
+		log.Trace("since the beginning of git history")
 	}
 
 	releaseVersion, changes, err := changelogChanges(startRelease.Version, summer, config)
@@ -96,7 +96,7 @@ func speculateNextVersion(speculator VersionSpeculator, startReleaseVersion stri
 	if nextUniqueVersion != nextIdealVersion {
 		log.Debugf("speculated a release version that matches an existing tag=%q, selecting the next best version...", nextIdealVersion)
 	}
-	log.Infof("speculative release version=%q", nextUniqueVersion)
+	log.WithFields("version", nextUniqueVersion).Info("speculative release version")
 	return nextUniqueVersion, nil
 }
 

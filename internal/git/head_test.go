@@ -19,6 +19,11 @@ func TestHeadTagOrCommit(t *testing.T) {
 			expects: "v0.1.0",
 		},
 		{
+			name:    "head has annotated tag",
+			path:    "test-fixtures/repos/annotated-tagged-repo",
+			expects: "v0.1.0",
+		},
+		{
 			name: "head has no tag",
 			path: "test-fixtures/repos/commit-in-repo",
 			// since we don't commit the exact fixture, we don't know what the value will be (but the length

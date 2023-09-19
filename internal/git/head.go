@@ -8,6 +8,14 @@ import (
 )
 
 func HeadTagOrCommit(repoPath string) (string, error) {
+	return headTag(repoPath, true)
+}
+
+func HeadTag(repoPath string) (string, error) {
+	return headTag(repoPath, false)
+}
+
+func headTag(repoPath string, orCommit bool) (string, error) {
 	r, err := git.PlainOpen(repoPath)
 	if err != nil {
 		return "", fmt.Errorf("unable to open repo: %w", err)
@@ -16,11 +24,29 @@ func HeadTagOrCommit(repoPath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("unable fetch head: %w", err)
 	}
+
 	tagRefs, _ := r.Tags()
 	var tagName string
 
 	_ = tagRefs.ForEach(func(t *plumbing.Reference) error {
 		if t.Hash().String() == ref.Hash().String() {
+			// for lightweight tags
+			tagName = t.Name().Short()
+			return fmt.Errorf("found")
+		}
+
+		// this is an annotated tag... since annotated tags are stored within their own commit we need to resolve the
+		// revision to get the commit the tag object points to (that is the commit with the code blob).
+		revHash, err := r.ResolveRevision(plumbing.Revision(t.Name()))
+		if err != nil {
+			return nil
+		}
+
+		if revHash == nil {
+			return nil
+		}
+
+		if *revHash == ref.Hash() {
 			tagName = t.Name().Short()
 			return fmt.Errorf("found")
 		}
@@ -31,31 +57,10 @@ func HeadTagOrCommit(repoPath string) (string, error) {
 		return tagName, nil
 	}
 
-	return ref.Hash().String(), nil
-}
-
-func HeadTag(repoPath string) (string, error) {
-	r, err := git.PlainOpen(repoPath)
-	if err != nil {
-		return "", fmt.Errorf("unable to open repo: %w", err)
+	if orCommit {
+		return ref.Hash().String(), nil
 	}
-	ref, err := r.Head()
-	if err != nil {
-		return "", fmt.Errorf("unable fetch head: %w", err)
-	}
-	tagRefs, _ := r.Tags()
-	var tagName string
-
-	_ = tagRefs.ForEach(func(t *plumbing.Reference) error {
-		if t.Hash().String() == ref.Hash().String() {
-			tagName = t.Name().Short()
-			return fmt.Errorf("found")
-		}
-		return nil
-	})
-
-	// note: if there is no tag, then an empty value is returned
-	return tagName, nil
+	return "", nil
 }
 
 func HeadCommit(repoPath string) (string, error) {
