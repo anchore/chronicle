@@ -1,0 +1,31 @@
+# Release
+
+## Creating a release
+
+This release process itself should be as automated as possible, and has only a few steps:
+
+1. **Trigger a new release with `make release`**. At this point you'll see a preview
+   changelog in the terminal. If you're happy with the changelog, press `y` to continue, otherwise
+   you can abort and adjust the labels on the PRs and issues to be included in the release and
+   re-run the release trigger command.
+
+1. A release admin must approve the release on the GitHub Actions release pipeline run page.
+   Once approved, the release pipeline will generate all assets and publish a GitHub Release.
+
+1. If there is a release Milestone, close it.
+
+Ideally releasing should be done often with small increments when possible. Unless a
+breaking change is blocking the release, or no fixes/features have been merged, a good
+target release cadence is between every 1 or 2 weeks.
+
+
+## Retracting a release
+
+If a release is found to be problematic, it can be retracted with the following steps:
+
+- Delete the GitHub Release
+- Add a new `retract` entry in the go.mod for the versioned release
+
+**Note**: do not delete release tags from the git repository since there may already be references to the release
+in the go proxy, which will cause confusion when trying to reuse the tag later (the H1 hash will not match and there
+will be a warning when users try to pull the new release).
