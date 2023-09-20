@@ -219,14 +219,13 @@ ci-release: ci-check clean-dist $(CHANGELOG)
 	echo "dist: $(DIST_DIR)" > $(TEMP_DIR)/goreleaser.yaml
 	cat .goreleaser.yaml >> $(TEMP_DIR)/goreleaser.yaml
 
+	# release (note the version transformation from v0.7.0 --> 0.7.0)
 	bash -c "\
-		$(RELEASE_CMD) \
-			--config $(TEMP_DIR)/goreleaser.yaml \
-			--release-notes <(cat $(CHANGELOG)) \
-				 || (cat /tmp/quill-*.log && false)"
-
-	# upload the version file that supports the application version update check (excluding pre-releases)
-	.github/scripts/update-version-file.sh "$(DIST_DIR)" "$(VERSION)"
+		VERSION=$(VERSION:v%=%) \
+		$(TEMP_DIR)/goreleaser \
+			--rm-dist \
+			--config $(TEMP_DIR)/goreleaser.yaml  \
+			--release-notes <(cat $(CHANGELOG))"
 
 
 ## Cleanup targets #################################
