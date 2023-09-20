@@ -10,13 +10,14 @@ GOIMPORTS_CMD = $(TEMP_DIR)/gosimports -local github.com/anchore
 RELEASE_CMD = $(TEMP_DIR)/goreleaser release --rm-dist
 SNAPSHOT_CMD = $(RELEASE_CMD) --skip-publish --snapshot --skip-sign
 CHRONICLE_CMD = $(TEMP_DIR)/chronicle
+GLOW_CMD = $(TEMP_DIR)/glow
 
 # Tool versions #################################
 GOLANG_CI_VERSION = v1.54.2
 GOBOUNCER_VERSION = v0.4.0
 GORELEASER_VERSION = v1.17.0
 GOSIMPORTS_VERSION = v0.3.8
-CHRONICLE_VERSION = latest
+GLOW_VERSION := v1.5.1
 
 # Formatting variables #################################
 BOLD := $(shell tput -T linux bold)
@@ -85,6 +86,9 @@ all: clean static-analysis test ## Run all linux-based checks
 .PHONY: test
 test: unit  ## Run all tests
 
+
+## Bootstrapping targets #################################
+
 .PHONY: ci-bootstrap
 ci-bootstrap:
 	DEBIAN_FRONTEND=noninteractive sudo apt update && sudo -E apt install -y bc jq libxml2-utils
@@ -101,10 +105,12 @@ bootstrap-tools: $(TEMP_DIR)
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(TEMP_DIR)/ $(GOLANG_CI_VERSION)
 	curl -sSfL https://raw.githubusercontent.com/wagoodman/go-bouncer/master/bouncer.sh | sh -s -- -b $(TEMP_DIR)/ $(GOBOUNCER_VERSION)
 	# we purposefully use the latest version of chronicle released
-	curl -sSfL https://raw.githubusercontent.com/anchore/chronicle/main/install.sh | sh -s -- -b $(TEMP_DIR)/ $(CHRONICLE_VERSION)
+	#curl -sSfL https://raw.githubusercontent.com/anchore/chronicle/main/install.sh | sh -s -- -b $(TEMP_DIR)/ $(CHRONICLE_VERSION)
+	GOBIN="$(realpath $(TEMP_DIR))" go install ./cmd/chronicle
 	GOBIN="$(realpath $(TEMP_DIR))" go install github.com/goreleaser/goreleaser@$(GORELEASER_VERSION)
 	# the only difference between goimports and gosimports is that gosimports removes extra whitespace between import blocks (see https://github.com/golang/go/issues/20818)
 	GOBIN="$(realpath $(TEMP_DIR))" go install github.com/rinchsan/gosimports/cmd/gosimports@$(GOSIMPORTS_VERSION)
+	GOBIN="$(realpath $(TEMP_DIR))" go install github.com/charmbracelet/glow@$(GLOW_VERSION)
 
 .PHONY: bootstrap-go
 bootstrap-go:
@@ -113,6 +119,9 @@ bootstrap-go:
 .PHONY: bootstrap
 bootstrap: $(RESULTS_DIR) bootstrap-go bootstrap-tools ## Download and install all go dependencies (+ prep tooling in the ./tmp dir)
 	$(call title,Bootstrapping dependencies)
+
+
+## Static analysis targets #################################
 
 .PHONY: static-analysis
 static-analysis: lint check-go-mod-tidy check-licenses
@@ -151,6 +160,9 @@ check-licenses:
 check-go-mod-tidy:
 	@ .github/scripts/go-mod-tidy-check.sh && echo "go.mod and go.sum are tidy!"
 
+
+## Testing targets #################################
+
 .PHONY: unit
 unit: $(RESULTS_DIR) fixtures ## Run unit tests (with coverage)
 	$(call title,Running unit tests)
@@ -160,6 +172,8 @@ unit: $(RESULTS_DIR) fixtures ## Run unit tests (with coverage)
 	@if [ $$(echo "$$(cat $(COVER_TOTAL)) >= $(COVERAGE_THRESHOLD)" | bc -l) -ne 1 ]; then echo "$(RED)$(BOLD)Failed coverage quality gate (> $(COVERAGE_THRESHOLD)%)$(RESET)" && false; fi
 
 
+## Test-fixture-related targets #################################
+
 .PHONY: fixtures
 fixtures:
 	$(call title,Generating test fixtures)
@@ -168,6 +182,9 @@ fixtures:
 
 fixtures-fingerprint:
 	find internal/git/test-fixtures/*.sh -type f -exec md5sum {} + | awk '{print $1}' | sort | md5sum | tee internal/git/test-fixtures/cache.fingerprint && echo "$(FIXTURE_CACHE_BUSTER)" >> internal/git/test-fixtures/cache.fingerprint
+
+
+## Build-related targets #################################
 
 .PHONY: build
 build: $(SNAPSHOT_DIR) ## Build release snapshot binaries and packages
@@ -183,31 +200,40 @@ $(SNAPSHOT_DIR): ## Build snapshot release binaries and packages
 	$(TEMP_DIR)/goreleaser build --snapshot --skip-validate --rm-dist --config $(TEMP_DIR)/goreleaser.yaml
 
 .PHONY: changelog
-changelog: clean-changelog $(CHANGELOG)
-	@docker run -it --rm \
-		-v $(shell pwd)/CHANGELOG.md:/CHANGELOG.md \
-		rawkode/mdv \
-			-t 748.5989 \
-			/CHANGELOG.md
+changelog: clean-changelog  ## Generate and show the changelog for the current unreleased version
+	$(CHRONICLE_CMD) -vvv -n --version-file VERSION > $(CHANGELOG)
+	@$(GLOW_CMD) $(CHANGELOG)
 
 $(CHANGELOG):
-	$(TEMP_DIR)/chronicle > $(CHANGELOG)
+	$(CHRONICLE_CMD) -vvv > $(CHANGELOG)
 
 .PHONY: release
-release: clean-dist $(CHANGELOG) ## Build and publish final binaries and packages.
+release:
+	@.github/scripts/trigger-release.sh
+
+.PHONY: ci-release
+ci-release: ci-check clean-dist $(CHANGELOG)
 	$(call title,Publishing release artifacts)
 
 	# create a config with the dist dir overridden
 	echo "dist: $(DIST_DIR)" > $(TEMP_DIR)/goreleaser.yaml
 	cat .goreleaser.yaml >> $(TEMP_DIR)/goreleaser.yaml
 
-	# release (note the version transformation from v0.7.0 --> 0.7.0)
 	bash -c "\
-		VERSION=$(VERSION:v%=%) \
-		$(TEMP_DIR)/goreleaser \
-			--rm-dist \
-			--config $(TEMP_DIR)/goreleaser.yaml  \
-			--release-notes <(cat $(CHANGELOG))"
+		$(RELEASE_CMD) \
+			--config $(TEMP_DIR)/goreleaser.yaml \
+			--release-notes <(cat $(CHANGELOG)) \
+				 || (cat /tmp/quill-*.log && false)"
+
+	# upload the version file that supports the application version update check (excluding pre-releases)
+	.github/scripts/update-version-file.sh "$(DIST_DIR)" "$(VERSION)"
+
+
+## Cleanup targets #################################
+
+.PHONY: ci-check
+ci-check:
+	@.github/scripts/ci-check.sh
 
 .PHONY: clean
 clean: clean-dist clean-snapshot  ## Remove previous builds, result reports, and test cache
@@ -224,6 +250,9 @@ clean-dist: clean-changelog
 .PHONY: clean-changelog
 clean-changelog:
 	rm -f $(CHANGELOG)
+
+
+## Halp! #################################
 
 .PHONY: help
 help:
