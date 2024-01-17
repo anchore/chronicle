@@ -7,4 +7,4 @@ permissions:
 
 jobs:
   run:
-    uses: anchore/workflows/.github/workflows/dependabot-automation.yaml@dependabot-auto-approve
+    uses: anchore/workflows/.github/workflows/dependabot-automation.yaml@main
