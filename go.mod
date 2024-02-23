@@ -10,7 +10,7 @@ require (
 	github.com/gkampitakis/go-snaps v0.5.2
 	github.com/go-git/go-git/v5 v5.11.0
 	github.com/google/go-cmp v0.6.0
-	github.com/leodido/go-conventionalcommits v0.11.0
+	github.com/leodido/go-conventionalcommits v0.12.0
 	github.com/scylladb/go-set v1.0.2
 	github.com/shurcooL/githubv4 v0.0.0-20201206200315-234843c633fa
 	github.com/spf13/cobra v1.8.0
