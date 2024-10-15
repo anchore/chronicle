@@ -1,0 +1,7 @@
+github.com/anchore/go-make v0.0.0-20241015191239-c034ec26303b h1:nE6NPZC7FoFCvx1J5ZVx+zocoX7Ad1+fqIa0H7hVFW4=
+github.com/anchore/go-make v0.0.0-20241015191239-c034ec26303b/go.mod h1:NjYr9nD5XSA6hefDKBs4bzZ2lKIBC5H8HZcSMvBn/90=
+golang.org/x/mod v0.21.0 h1:vvrHzRwRfVKSiLrG+d4FMl/Qi4ukBCE6kZlTUkDYRT0=
+golang.org/x/mod v0.21.0/go.mod h1:6SkKJ3Xj0I0BrPOZoBy3bdMptDDU9oJrpohJ3eWZ1fY=
+gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
+gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
+gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
