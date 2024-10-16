@@ -2,6 +2,7 @@ package main
 
 import (
 	. "github.com/anchore/go-make"
+	"github.com/anchore/go-make/tasks/gobuild"
 	"github.com/anchore/go-make/tasks/golint"
 	"github.com/anchore/go-make/tasks/gotest"
 	"github.com/anchore/go-make/tasks/release"
@@ -35,15 +36,18 @@ func main() {
 		RollupTask("default", "run all validations", "static-analysis", "test"),
 		golint.FormatTask(),
 		golint.LintFixTask(),
-		golint.StaticAnalysis(),
+		golint.StaticAnalysisTask(),
 		release.ChangelogTask(),
 		release.WorkflowTask(),
+		release.CIReleaseTask(),
+		gobuild.SnapshotTask(),
 		fixturesFingerprintTask,
 		fixturesTask,
-		gotest.Test(gotest.WithLevel("unit")),
+		gotest.Test("unit"),
 		RollupTask("test", "run all levels of test", "unit"),
 	)
 }
 
 // TODO: clean
-// TODO: snapshot dir
+// TODO: there is a task with task children that also get registered
+// TODO: there are task labels that also act as names
