@@ -11,7 +11,6 @@ import (
 )
 
 func TestFirstCommit(t *testing.T) {
-
 	tests := []struct {
 		name     string
 		repoPath string

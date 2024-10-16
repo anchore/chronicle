@@ -17,7 +17,6 @@ import (
 )
 
 func Test_extractGithubUserAndRepo(t *testing.T) {
-
 	tests := []struct {
 		url  string
 		user string
@@ -553,12 +552,12 @@ func Test_prFilters_byCommits(t *testing.T) {
 }
 
 func Test_changesFromIssuesExtractedFromPRs(t *testing.T) {
-	//log.Log = logger.NewLogrusLogger(logger.LogrusConfig{
+	// log.Log = logger.NewLogrusLogger(logger.LogrusConfig{
 	//	EnableConsole: true,
 	//	EnableFile:    false,
 	//	Structured:    false,
 	//	Level:         logrus.TraceLevel,
-	//})
+	// })
 	patch := change.NewType("patch", change.SemVerPatch)
 	feature := change.NewType("added-feature", change.SemVerMinor)
 	breaking := change.NewType("breaking-change", change.SemVerMajor)

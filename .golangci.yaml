@@ -1,3 +1,6 @@
+run:
+  tests: false
+
 # TODO: enable this when we have coverage on docstring comments
 #issues:
 #  # The list of ids of default excludes to include or disable.

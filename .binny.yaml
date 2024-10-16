@@ -15,6 +15,14 @@ tools:
     with:
       repo: anchore/syft
 
+  # used for signing the checksums file at release
+  - name: cosign
+    version:
+      want: v2.4.1
+    method: github-release
+    with:
+      repo: sigstore/cosign
+
   # used to sign mac binaries at release
   - name: quill
     version:
