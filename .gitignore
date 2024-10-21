@@ -2,7 +2,7 @@
 go.work
 go.work.sum
 .tool-versions
-.mise.yaml
+.mise.toml
 
 # tool and bin directories
 .tmp/
