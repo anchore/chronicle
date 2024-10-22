@@ -1,8 +1,8 @@
 module github.com/anchore/chronicle/make
 
-go 1.22.0
+go 1.22.1
 
-require github.com/anchore/go-make v0.0.0-20241021192429-7e18af0fc7f9
+require github.com/anchore/go-make v0.0.0-20241022203551-494d90ce1a4a
 
 require (
 	github.com/kr/text v0.2.0 // indirect

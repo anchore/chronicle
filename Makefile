@@ -1,3 +1,7 @@
+.PHONY: test
+test:
+	@go run -C make . test
+
 .PHONY: *
 .DEFAULT_GOAL: make-default
 

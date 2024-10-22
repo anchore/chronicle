@@ -21,7 +21,6 @@ linters:
     - dogsled
     - dupl
     - errcheck
-    - exportloopref
     - funlen
     - gocognit
     - goconst
@@ -49,6 +48,7 @@ linters:
 # do not enable...
 #    - bodyclose # 1.18 compat
 #    - depguard   # we don't have a specific configuration for this
+#    - exportloopref   # no longer relevant post go 1.22
 #    - gochecknoglobals
 #    - gochecknoinits    # this is too aggressive
 #    - godot
