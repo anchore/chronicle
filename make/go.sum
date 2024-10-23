@@ -4,6 +4,8 @@ github.com/anchore/go-make v0.0.0-20241022203551-494d90ce1a4a h1:ttcnRZCKhNWkBem
 github.com/anchore/go-make v0.0.0-20241022203551-494d90ce1a4a/go.mod h1:y2KCL40/pLMqMu5PGqxGUs/1taaQjZVkuCGXFi9Lcic=
 github.com/anchore/go-make v0.0.0-20241023195051-94aca613f855 h1:/HOfJkk2BEYp1HTQjlyLq0VY6lC5LAcS3jhgFajwIUM=
 github.com/anchore/go-make v0.0.0-20241023195051-94aca613f855/go.mod h1:y2KCL40/pLMqMu5PGqxGUs/1taaQjZVkuCGXFi9Lcic=
+github.com/anchore/go-make v0.0.0-20241023203325-08c3c0d8fcfb h1:c+mHPjWcLNEZuUcsEYWwE8wju8C8rFWyM7qU3SdzrI4=
+github.com/anchore/go-make v0.0.0-20241023203325-08c3c0d8fcfb/go.mod h1:y2KCL40/pLMqMu5PGqxGUs/1taaQjZVkuCGXFi9Lcic=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/pretty v0.3.1/go.mod h1:hoEshYVHaxMs3cyo3Yncou5ZscifuDolrwPKZanG3xk=
