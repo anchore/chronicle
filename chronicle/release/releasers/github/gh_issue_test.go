@@ -10,7 +10,6 @@ import (
 )
 
 func Test_issuesAtOrAfter(t *testing.T) {
-
 	tests := []struct {
 		name     string
 		issue    ghIssue
@@ -50,7 +49,6 @@ func Test_issuesAtOrAfter(t *testing.T) {
 }
 
 func Test_issuesAfter(t *testing.T) {
-
 	tests := []struct {
 		name     string
 		issue    ghIssue
@@ -90,7 +88,6 @@ func Test_issuesAfter(t *testing.T) {
 }
 
 func Test_issuesAtOrBefore(t *testing.T) {
-
 	tests := []struct {
 		name     string
 		issue    ghIssue
@@ -130,7 +127,6 @@ func Test_issuesAtOrBefore(t *testing.T) {
 }
 
 func Test_issuesBefore(t *testing.T) {
-
 	tests := []struct {
 		name     string
 		issue    ghIssue
@@ -170,7 +166,6 @@ func Test_issuesBefore(t *testing.T) {
 }
 
 func Test_issuesWithLabel(t *testing.T) {
-
 	tests := []struct {
 		name     string
 		issue    ghIssue
@@ -206,7 +201,6 @@ func Test_issuesWithLabel(t *testing.T) {
 }
 
 func Test_issuesWithoutLabel(t *testing.T) {
-
 	tests := []struct {
 		name     string
 		issue    ghIssue

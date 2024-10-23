@@ -40,7 +40,7 @@ func NextVersion(app clio.Application) *cobra.Command {
 			cfg.RepoPath = repo
 			return nil
 		},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return runNextVersion(cfg)
 		},
 	}, cfg)
