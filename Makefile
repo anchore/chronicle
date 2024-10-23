@@ -2,6 +2,10 @@
 test:
 	@go run -C make . test
 
+.PHONY: snapshot
+snapshot:
+	@go run -C make . snapshot
+
 .PHONY: *
 .DEFAULT_GOAL: make-default
 
