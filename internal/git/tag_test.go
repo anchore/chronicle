@@ -176,13 +176,24 @@ func TestCommitsBetween(t *testing.T) {
 			},
 			count: 5,
 		},
+		{
+			name: "include start and end; filter by time",
+			path: "test-fixtures/repos/tag-range-repo",
+			config: Range{
+				SinceRef:     "v0.1.1",
+				UntilRef:     "v0.2.0",
+				IncludeStart: true,
+				IncludeEnd:   true,
+			},
+			count: 4,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			actual, err := CommitsBetween(test.path, test.config)
 			require.NoError(t, err)
 
-			// the answer is based off the the current (dynamically created) git log test fixture
+			// the answer is based off the current (dynamically created) git log test fixture
 			expected := gitLogRange(t, test.path, test.config.SinceRef, test.config.UntilRef)
 			require.NotEmpty(t, expected)
 
