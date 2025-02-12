@@ -13,7 +13,7 @@ CHRONICLE_CMD = $(TEMP_DIR)/chronicle
 GLOW_CMD = $(TEMP_DIR)/glow
 
 # Tool versions #################################
-GOLANG_CI_VERSION = v1.54.2
+GOLANG_CI_VERSION = v1.64.2
 GOBOUNCER_VERSION = v0.4.0
 GORELEASER_VERSION = v1.17.0
 GOSIMPORTS_VERSION = v0.3.8
@@ -101,7 +101,6 @@ $(TEMP_DIR):
 
 .PHONY: bootstrap-tools
 bootstrap-tools: $(TEMP_DIR)
-	GO111MODULE=off GOBIN=$(realpath $(TEMP_DIR)) go get -u golang.org/x/perf/cmd/benchstat
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(TEMP_DIR)/ $(GOLANG_CI_VERSION)
 	curl -sSfL https://raw.githubusercontent.com/wagoodman/go-bouncer/master/bouncer.sh | sh -s -- -b $(TEMP_DIR)/ $(GOBOUNCER_VERSION)
 	# we purposefully use the latest version of chronicle released
