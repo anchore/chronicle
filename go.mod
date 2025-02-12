@@ -1,7 +1,6 @@
 module github.com/anchore/chronicle
 
-go 1.21.1
-toolchain go1.22.5
+go 1.24.0
 
 require (
 	github.com/anchore/clio v0.0.0-20230802135737-4778c80552e5
