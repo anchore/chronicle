@@ -17,7 +17,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/wagoodman/go-partybus v0.0.0-20230516145632-8ccac152c651
 	github.com/wagoodman/go-presenter v0.0.0-20211015174752-f9c01afc824b
-	golang.org/x/oauth2 v0.25.0
+	golang.org/x/oauth2 v0.28.0
 )
 
 require (
