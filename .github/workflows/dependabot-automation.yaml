@@ -4,7 +4,8 @@ on:
 
 permissions:
   pull-requests: write
+  contents: write
 
 jobs:
   run:
-    uses: anchore/workflows/.github/workflows/dependabot-automation.yaml@main
+    uses: anchore/workflows/.github/workflows/dependabot-automation.yaml@auto-merge

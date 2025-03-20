@@ -1,5 +1,7 @@
 CHANGELOG.md
 VERSION
+.mise.toml
+.tool/
 /test/results
 /dist
 /snapshot
