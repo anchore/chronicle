@@ -5,6 +5,4 @@ on:
 jobs:
   run:
     uses: anchore/workflows/.github/workflows/dependabot-automation.yaml@auto-merge
-    secrets:
-      TOKEN_APP_ID: ${{ secrets.TOKEN_APP_ID }}
-      TOKEN_APP_PRIVATE_KEY: ${{ secrets.TOKEN_APP_PRIVATE_KEY }}
+    secrets: inherit
