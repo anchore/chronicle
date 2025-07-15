@@ -14,12 +14,16 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Check if tag already exists
         # note: this will fail if the tag already exists
+        env:
+          VERSION: ${{ github.event.inputs.version }}
         run: |
-          [[ "${{ github.event.inputs.version }}" == v* ]] || (echo "version '${{ github.event.inputs.version }}' does not have a 'v' prefix" && exit 1)
-          git tag ${{ github.event.inputs.version }}
+          [[ "$VERSION" == v* ]] || (echo "version '$VERSION' does not have a 'v' prefix" && exit 1)
+          git tag "$VERSION"
 
       - name: Check static analysis results
         uses: fountainhead/action-wait-for-check@5a908a24814494009c4bb27c242ea38c93c593be #v1.2.0
@@ -41,9 +45,12 @@ jobs:
 
       - name: Quality gate
         if: steps.static-analysis.outputs.conclusion != 'success' || steps.unit.outputs.conclusion != 'success'
+        env:
+          STATIC_ANALYSIS_STATUS: ${{ steps.static-analysis.outputs.conclusion }}
+          UNIT_TEST_STATUS: ${{ steps.unit.outputs.conclusion }}
         run: |
-          echo "Static Analysis Status: ${{ steps.static-analysis.conclusion }}"
-          echo "Unit Test Status: ${{ steps.unit.outputs.conclusion }}"
+          echo "Static Analysis Status: $STATIC_ANALYSIS_STATUS"
+          echo "Unit Test Status: $UNIT_TEST_STATUS"
           false
 
   release:
@@ -56,6 +63,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Bootstrap environment
         uses: ./.github/actions/bootstrap
@@ -64,13 +72,14 @@ jobs:
           build-cache-key-prefix: "snapshot"
 
       - name: Tag release
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --global user.name "anchoreci"
           git config --global user.email "anchoreci@users.noreply.github.com"
-          git tag -a ${{ github.event.inputs.version }} -m "Release ${{ github.event.inputs.version }}"
+          git tag -a "$VERSION" -m "Release $VERSION"
           git push origin --tags
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & publish release artifacts
         run: make ci-release
