@@ -2,7 +2,7 @@ module github.com/anchore/chronicle/make
 
 go 1.24.0
 
-require github.com/anchore/go-make v0.0.0-20250807150705-9985599ddb72
+require github.com/anchore/go-make v0.0.0-20250807161149-2208dac08134
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.9.1 // indirect
