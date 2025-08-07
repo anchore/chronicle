@@ -37,7 +37,13 @@ jobs:
       - run: echo All Unit Tests passed
 
   All-Unit-Tests:
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-22.04
+          - windows-2022
+          - macos-14
     permissions:
       contents: read
     steps:
