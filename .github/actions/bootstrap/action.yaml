@@ -31,16 +31,6 @@ runs:
         path: ${{ github.workspace }}/.tool
         key: ${{ inputs.cache-key-prefix }}-${{ runner.os }}-tool-${{ hashFiles('Makefile') }}
 
-    - name: (cache-miss) Bootstrap project tools
-      shell: bash
-      if: steps.tool-cache.outputs.cache-hit != 'true'
-      run: make bootstrap-tools
-
-    - name: (cache-miss) Bootstrap go dependencies
-      shell: bash
-      if: steps.go-mod-cache.outputs.cache-hit != 'true' && inputs.use-go-cache == 'true'
-      run: make bootstrap-go
-
     - name: Install apt packages
       if: inputs.bootstrap-apt-packages != ''
       shell: bash
