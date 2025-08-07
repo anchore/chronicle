@@ -33,6 +33,8 @@ jobs:
     name: "Unit tests"
     needs: All-Unit-Tests
     runs-on: ubuntu-latest
+    steps:
+      - run: echo All Unit Tests passed
 
   All-Unit-Tests:
     runs-on: ubuntu-22.04
