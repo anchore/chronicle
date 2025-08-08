@@ -58,8 +58,8 @@ jobs:
         id: unit-fixtures
         shell: bash # Windows
         run: |
+          echo "FIXTURES_FINGERPRINT=$(make fixtures:fingerprint)" >> "$GITHUB_OUTPUT"
           {
-            echo "FIXTURES_FINGERPRINT=$(make fixtures:fingerprint)"
             echo 'FIXTURES_DIRECTORIES<<EOF'
             make fixtures:directories
             echo EOF
