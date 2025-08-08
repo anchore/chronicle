@@ -61,7 +61,7 @@ jobs:
           echo "FIXTURES_FINGERPRINT=$(make fixtures:fingerprint)" >> "$GITHUB_OUTPUT"
           {
             echo 'FIXTURES_DIRECTORIES<<EOF'
-            make fixtures:directories
+            echo "$(make fixtures:directories)"
             echo EOF
           } >> "$GITHUB_OUTPUT"
 
