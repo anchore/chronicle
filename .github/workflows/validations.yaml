@@ -58,8 +58,7 @@ jobs:
         id: unit-fixtures
         shell: bash # Windows
         run: |
-          echo "FIXTURES_DIRECTORIES<<EOF$(make fixtures:directories)" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "FIXTURES_DIRECTORIES=$(make fixtures:directories)" >> "$GITHUB_OUTPUT"
           echo "FIXTURES_FINGERPRINT=$(make fixtures:fingerprint)" >> "$GITHUB_OUTPUT"
 
       - name: Restore test-fixture cache
