@@ -56,6 +56,7 @@ jobs:
 
       - name: Build cache key for test-fixture
         id: cache-key
+        shell: bash # Windows
         run: echo "CACHE_FINGERPRINT=$(make fixtures:fingerprint)" >> "$GITHUB_OUTPUT"
 
       - name: Restore test-fixture cache
@@ -80,6 +81,13 @@ jobs:
 
       - name: Bootstrap environment
         uses: ./.github/actions/bootstrap
+        with:
+          # why have another build cache key? We don't want unit/integration/etc test build caches to replace
+          # the snapshot build cache, which includes builds for all OSs and architectures. As long as this key is
+          # unique from the build-cache-key-prefix in other CI jobs, we should be fine.
+          #
+          # note: ideally this value should match what is used in release (just to help with build times).
+          cache-key-prefix: "snapshot"
 
       - name: Build snapshot artifacts
         run: make snapshot

@@ -4,8 +4,9 @@ description: "Bootstrap all tools and dependencies"
 inputs:
   go-version:
     description: "Go version to install"
-    required: true
-    default: "1.24.x"
+  go-version-file:
+    description: "Go version file to use"
+    default: "go.mod"
   cache-key-prefix:
     description: "Prefix all cache keys with this value"
     required: true
@@ -29,7 +30,7 @@ runs:
       uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 #v4.2.3
       with:
         path: ${{ github.workspace }}/.tool
-        key: ${{ inputs.cache-key-prefix }}-${{ runner.os }}-tool-${{ hashFiles('Makefile') }}
+        key: ${{ inputs.cache-key-prefix }}-${{ runner.os }}-tool-${{ hashFiles('.binny.yaml') }}
 
     - name: Install apt packages
       if: inputs.bootstrap-apt-packages != ''

@@ -69,7 +69,7 @@ jobs:
         uses: ./.github/actions/bootstrap
         with:
           # use the same cache we used for building snapshots
-          build-cache-key-prefix: "snapshot"
+          cache-key-prefix: "snapshot"
 
       - name: Tag release
         env:
