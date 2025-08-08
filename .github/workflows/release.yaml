@@ -66,7 +66,7 @@ jobs:
           persist-credentials: true
 
       - name: Bootstrap environment
-        uses: ./.github/actions/bootstrap
+        uses: anchore/go-make/.github/actions/bootstrap@package-split
         with:
           # use the same cache we used for building snapshots
           cache-key-prefix: "snapshot"
