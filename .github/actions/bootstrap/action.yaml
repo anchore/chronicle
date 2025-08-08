@@ -4,9 +4,9 @@ description: "Bootstrap all tools and dependencies"
 inputs:
   go-version:
     description: "Go version to install"
-    default: "1.24.x"
   go-version-file:
     description: "Go version file to use"
+    default: go.mod
   cache-key-prefix:
     description: "Prefix all cache keys with this value"
     required: true
@@ -20,10 +20,13 @@ runs:
   steps:
     # note: go mod and build is automatically cached on default with v4+
     - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
-      if: inputs.go-version != ''
+      if: inputs.go-version != '' || inputs.go-version-file != ''
       with:
         go-version: ${{ inputs.go-version }}
         go-version-file: ${{ inputs.go-version-file }}
+        cache-dependency-path: |
+          go.sum
+          make/go.sum
 
     - name: Restore tool cache
       id: tool-cache
