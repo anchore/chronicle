@@ -46,7 +46,7 @@ issueLoop:
 	return results
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func issuesAtOrAfter(since time.Time) issueFilter {
 	return func(issue ghIssue) bool {
 		keep := issue.ClosedAt.After(since) || issue.ClosedAt.Equal(since)
@@ -77,7 +77,7 @@ func issuesAfter(since time.Time) issueFilter {
 	}
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func issuesBefore(since time.Time) issueFilter {
 	return func(issue ghIssue) bool {
 		keep := issue.ClosedAt.Before(since)

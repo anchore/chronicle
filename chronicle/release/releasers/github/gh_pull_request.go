@@ -67,7 +67,7 @@ prLoop:
 	return results, removed
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func prsAtOrAfter(since time.Time) prFilter {
 	return func(pr ghPullRequest) bool {
 		keep := pr.MergedAt.After(since) || pr.MergedAt.Equal(since)
@@ -98,7 +98,7 @@ func prsAfter(since time.Time) prFilter {
 	}
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func prsBefore(since time.Time) prFilter {
 	return func(pr ghPullRequest) bool {
 		keep := pr.MergedAt.Before(since)
