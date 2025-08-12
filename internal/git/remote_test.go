@@ -15,7 +15,7 @@ func TestRemoteUrl(t *testing.T) {
 	}{
 		{
 			name:    "go case",
-			path:    "test-fixtures/repos/remote-repo",
+			path:    "testdata/repos/remote-repo",
 			expects: "git@github.com:wagoodman/count-goober.git",
 		},
 	}

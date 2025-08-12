@@ -20,7 +20,7 @@ func TestTagsFromLocal(t *testing.T) {
 	}{
 		{
 			name: "go case",
-			path: "test-fixtures/repos/tag-range-repo",
+			path: "testdata/repos/tag-range-repo",
 			expects: []string{
 				"v0.1.0",
 				"v0.1.1",
@@ -29,7 +29,7 @@ func TestTagsFromLocal(t *testing.T) {
 		},
 		{
 			name: "annotated tags",
-			path: "test-fixtures/repos/annotated-tagged-repo",
+			path: "testdata/repos/annotated-tagged-repo",
 			expects: []string{
 				"v0.1.0",
 			},
@@ -56,13 +56,13 @@ func TestTagsFromLocal_processTag_timestamp(t *testing.T) {
 	}{
 		{
 			name:    "lightweight tags case",
-			path:    "test-fixtures/repos/tag-range-repo",
-			expects: expectedTags(t, "test-fixtures/repos/tag-range-repo"),
+			path:    "testdata/repos/tag-range-repo",
+			expects: expectedTags(t, "testdata/repos/tag-range-repo"),
 		},
 		{
 			name:    "annotated tags",
-			path:    "test-fixtures/repos/annotated-tagged-repo",
-			expects: expectedTags(t, "test-fixtures/repos/annotated-tagged-repo"),
+			path:    "testdata/repos/annotated-tagged-repo",
+			expects: expectedTags(t, "testdata/repos/annotated-tagged-repo"),
 		},
 	}
 	for _, test := range tests {
@@ -85,25 +85,25 @@ func TestSearchForTag(t *testing.T) {
 	}{
 		{
 			name:     "first tag exists",
-			path:     "test-fixtures/repos/tag-range-repo",
+			path:     "testdata/repos/tag-range-repo",
 			tag:      "v0.1.0",
 			hasMatch: true,
 		},
 		{
 			name:     "last tag exists",
-			path:     "test-fixtures/repos/tag-range-repo",
+			path:     "testdata/repos/tag-range-repo",
 			tag:      "v0.2.0",
 			hasMatch: true,
 		},
 		{
 			name:     "fake tag",
-			path:     "test-fixtures/repos/tag-range-repo",
+			path:     "testdata/repos/tag-range-repo",
 			tag:      "v1.84793.23849",
 			hasMatch: false,
 		},
 		{
 			name:     "annotated tag exists",
-			path:     "test-fixtures/repos/annotated-tagged-repo",
+			path:     "testdata/repos/annotated-tagged-repo",
 			tag:      "v0.1.0",
 			hasMatch: true,
 		},
@@ -134,7 +134,7 @@ func TestCommitsBetween(t *testing.T) {
 	}{
 		{
 			name: "all inclusive",
-			path: "test-fixtures/repos/tag-range-repo",
+			path: "testdata/repos/tag-range-repo",
 			config: Range{
 				SinceRef:     "v0.1.0",
 				UntilRef:     "v0.2.0",
@@ -145,7 +145,7 @@ func TestCommitsBetween(t *testing.T) {
 		},
 		{
 			name: "exclude start",
-			path: "test-fixtures/repos/tag-range-repo",
+			path: "testdata/repos/tag-range-repo",
 			config: Range{
 				SinceRef:     "v0.1.0",
 				UntilRef:     "v0.2.0",
@@ -156,7 +156,7 @@ func TestCommitsBetween(t *testing.T) {
 		},
 		{
 			name: "exclude end",
-			path: "test-fixtures/repos/tag-range-repo",
+			path: "testdata/repos/tag-range-repo",
 			config: Range{
 				SinceRef:     "v0.1.0",
 				UntilRef:     "v0.2.0",
@@ -167,7 +167,7 @@ func TestCommitsBetween(t *testing.T) {
 		},
 		{
 			name: "exclude start and end",
-			path: "test-fixtures/repos/tag-range-repo",
+			path: "testdata/repos/tag-range-repo",
 			config: Range{
 				SinceRef:     "v0.1.0",
 				UntilRef:     "v0.2.0",
