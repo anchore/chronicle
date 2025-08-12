@@ -1,11 +1,3 @@
-github.com/anchore/go-make v0.0.0-20250807192552-80aec94c5e38 h1:eIamOD/kLo0Ik9XYAA5fiuJ7qS6qwLiH1SiV8UPdKn4=
-github.com/anchore/go-make v0.0.0-20250807192552-80aec94c5e38/go.mod h1:nH4oUZOqSJWO2TwtJ7XWHV+RCgm7qbokU/eszbW2SRQ=
-github.com/anchore/go-make v0.0.0-20250807214731-c4cb2060df8f h1:yrZ93ur7qeV/i/L5poaz4BQP+15wllMEHuWBEZYxXSI=
-github.com/anchore/go-make v0.0.0-20250807214731-c4cb2060df8f/go.mod h1:nH4oUZOqSJWO2TwtJ7XWHV+RCgm7qbokU/eszbW2SRQ=
-github.com/anchore/go-make v0.0.0-20250808183628-bb938b674e29 h1:saronUWU+ZJh2YXigESKNbpXCIldY7FVlbBxMU5rS7w=
-github.com/anchore/go-make v0.0.0-20250808183628-bb938b674e29/go.mod h1:nH4oUZOqSJWO2TwtJ7XWHV+RCgm7qbokU/eszbW2SRQ=
-github.com/anchore/go-make v0.0.0-20250808184130-92c37ee81aa4 h1:q05g4AEgJq2Ht8LRiJUaLU0nT7MLEAYAAKinIiCPxL4=
-github.com/anchore/go-make v0.0.0-20250808184130-92c37ee81aa4/go.mod h1:nH4oUZOqSJWO2TwtJ7XWHV+RCgm7qbokU/eszbW2SRQ=
 github.com/anchore/go-make v0.0.0-20250812192831-22aff83a842a h1:l97U7V2uuRkxlh/DNwYuzockOqp2gHreJkxlY8kwUIY=
 github.com/anchore/go-make v0.0.0-20250812192831-22aff83a842a/go.mod h1:jsd75YTZwUrbxnOs3ZaN2NGfxqbSuS9jAhyLjb55Nvs=
 github.com/bmatcuk/doublestar/v4 v4.9.1 h1:X8jg9rRZmJd4yRy7ZeNDRnM+T3ZfHv15JiBJ/avrEXE=
