@@ -11,7 +11,7 @@ import (
 func main() {
 	Makefile(
 		golint.Tasks(),
-		release.Tasks(),
+		release.ChangelogTask(),
 		goreleaser.Tasks(),
 		gotest.Tasks(),
 		gotest.FixtureTasks().RunOn("ci-release"),
