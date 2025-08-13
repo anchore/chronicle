@@ -5,7 +5,7 @@ updates:
   - package-ecosystem: gomod
     directories:
       - "/"
-      - "/.make/"
+      - "/.make"
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10
