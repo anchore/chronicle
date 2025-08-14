@@ -1,4 +1,4 @@
-module github.com/anchore/chronicle/make
+module github.com/anchore/chronicle/.make
 
 go 1.24.0
 
