@@ -23,7 +23,7 @@ jobs:
           persist-credentials: false
 
       - name: Bootstrap environment
-        uses: ./.github/actions/bootstrap
+        uses: anchore/go-make/.github/actions/bootstrap@latest
 
       - name: Run static analysis
         run: make static-analysis
@@ -31,27 +31,24 @@ jobs:
   Unit-Test:
     # Note: changing this job name requires making the same update in the .github/workflows/release.yaml pipeline
     name: "Unit tests"
-    runs-on: ubuntu-22.04
+    needs: All-Unit-Tests
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo All Unit Tests passed
+
+  All-Unit-Tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-22.04
+          - windows-2022
+          - macos-14
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
-        with:
-          persist-credentials: false
-
       - name: Bootstrap environment
-        uses: ./.github/actions/bootstrap
-
-
-      - name: Build cache key for test-fixture
-        run: make fixtures-fingerprint
-
-      - name: Restore test-fixture cache
-        id: unit-fixture-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 #v4.2.3
-        with:
-          path: internal/git/test-fixtures/repos
-          key: ${{ runner.os }}-unit-fixture-cache-${{ hashFiles( 'internal/git/test-fixtures/cache.fingerprint' ) }}
+        uses: anchore/go-make/.github/actions/bootstrap@latest
 
       - name: Run unit tests
         run: make unit
@@ -62,19 +59,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
-        with:
-          persist-credentials: false
-
       - name: Bootstrap environment
-        uses: ./.github/actions/bootstrap
+        uses: anchore/go-make/.github/actions/bootstrap@latest
         with:
           # why have another build cache key? We don't want unit/integration/etc test build caches to replace
           # the snapshot build cache, which includes builds for all OSs and architectures. As long as this key is
           # unique from the build-cache-key-prefix in other CI jobs, we should be fine.
           #
           # note: ideally this value should match what is used in release (just to help with build times).
-          build-cache-key-prefix: "snapshot"
+          cache-key-prefix: "snapshot"
 
       - name: Build snapshot artifacts
         run: make snapshot

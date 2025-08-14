@@ -59,7 +59,7 @@ func runNextVersion(cfg *nextVersion) error {
 		return err
 	}
 
-	_, err = os.Stdout.Write([]byte(description.Release.Version))
+	_, err = os.Stdout.Write([]byte(description.Version))
 
 	return err
 }

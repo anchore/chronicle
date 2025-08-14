@@ -3,7 +3,9 @@ version: 2
 updates:
 
   - package-ecosystem: gomod
-    directory: "/"
+    directories:
+      - "/"
+      - "/.make"
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10
@@ -12,14 +14,6 @@ updates:
 
   - package-ecosystem: "github-actions"
     directory: "/"
-    schedule:
-      interval: "daily"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-
-  - package-ecosystem: "github-actions"
-    directory: "/.github/actions/bootstrap"
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10

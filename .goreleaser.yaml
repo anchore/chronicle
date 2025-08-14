@@ -1,3 +1,5 @@
+version: 2
+
 release:
   # If set to auto, will mark the release as not ready for production in case there is an indicator for this in the
   # tag (e.g. v1.0.0-rc1). If set to true, will mark the release as not ready for production.
@@ -5,21 +7,19 @@ release:
   draft: false
 
 builds:
-  - id: chronicle
-    binary: chronicle
+  - id: linux-build
     dir: ./cmd/chronicle
-    env:
-      - CGO_ENABLED=0
+    binary: chronicle
     goos:
-      - windows
       - linux
-      - darwin
     goarch:
       - amd64
       - arm64
-    # Set the modified timestamp on the output binary to the git timestamp (to ensure a reproducible build)
-    mod_timestamp: '{{ .CommitTimestamp }}'
-    ldflags: |
+      - ppc64le
+      - s390x
+    # set the modified timestamp on the output binary to the git timestamp to ensure a reproducible build
+    mod_timestamp: &build-timestamp '{{ .CommitTimestamp }}'
+    ldflags: &build-ldflags |
       -w
       -s
       -extldflags '-static'
@@ -28,22 +28,60 @@ builds:
       -X main.buildDate={{.Date}}
       -X main.gitDescription={{.Summary}}
 
+  - id: darwin-build
+    dir: ./cmd/chronicle
+    binary: chronicle
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    mod_timestamp: *build-timestamp
+    ldflags: *build-ldflags
+    hooks:
+      post:
+        - cmd: .tool/quill sign-and-notarize "{{ .Path }}" --dry-run={{ .IsSnapshot }} --ad-hoc={{ .IsSnapshot }} -vv
+          env:
+            - QUILL_LOG_FILE=/tmp/quill-{{ .Target }}.log
+
+  - id: windows-build
+    dir: ./cmd/chronicle
+    binary: chronicle
+    goos: [windows]
+    goarch: [amd64]
+    mod_timestamp: *build-timestamp
+    ldflags: *build-ldflags
+
+
 nfpms:
-  -
-    formats:
-      - deb
-      - rpm
-    vendor: "anchore"
+  - vendor: "anchore"
     homepage: "https://github.com/anchore/chronicle"
     maintainer: "Alex Goodman <alex.goodman@anchore.com>"
     description: "A fast changelog generator sourced from PRs and Issues"
     license: "Apache-2.0"
-    file_name_template: "{{.ProjectName}}_{{.Version}}_{{.Os}}-{{.Arch}}"
-    replacements:
-      amd64: 64bit
-      arm64: ARM64
-      darwin: macOS
-      linux: Linux
+    formats:
+      - deb
+      - rpm
 
-universal_binaries:
-  - replace: true
+
+archives:
+  - id: linux-archives
+    builds:
+      - linux-build
+
+  # note: the signing process is depending on tar.gz archives. If this format changes then .github/scripts/apple-signing/*.sh will need to be adjusted
+  - id: darwin-archives
+    builds:
+      - darwin-build
+
+sboms:
+  - artifacts: archive
+    # this is relative to the snapshot/dist directory, not the root of the repo
+    cmd: ../.tool/syft
+    documents:
+      - "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.sbom"
+    args:
+      - "scan"
+      - "$artifact"
+      - "--output"
+      - "json=$document"

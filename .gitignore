@@ -1,3 +1,15 @@
+# local development tailoring
+go.work
+go.work.sum
+.tool-versions
+.mise.toml
+
+# tool and bin directories
+.tmp/
+bin/
+/bin
+/.bin
+/build
 CHANGELOG.md
 VERSION
 .mise.toml
@@ -6,16 +18,35 @@ VERSION
 /test/results
 /dist
 /snapshot
-.server/
+/.tool
+/.task
+
+# changelog generation
+CHANGELOG.md
+VERSION
+
+# IDE configuration
 .vscode/
-.history/
-*.fingerprint
-*.tar
-*.zip
 .idea/
-*.log
-.tmp/
+.server/
+.history/
+
+# test related
+*.fingerprint
+/test/results
 coverage.txt
+*.log
+
+# probable archives
+.images
+*.tar
+*.jar
+*.war
+*.ear
+*.jpi
+*.hpi
+*.zip
+*.iml
 
 # Binaries for programs and plugins
 *.exe
@@ -34,3 +65,12 @@ coverage.txt
 .DS_STORE
 
 *.profile
+
+# attestation
+cosign.key
+cosign.pub
+
+# Byte-compiled object files for python
+__pycache__/
+*.py[cod]
+*$py.class

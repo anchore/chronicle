@@ -17,7 +17,6 @@ import (
 )
 
 func Test_extractGithubUserAndRepo(t *testing.T) {
-
 	tests := []struct {
 		url  string
 		user string
@@ -553,12 +552,12 @@ func Test_prFilters_byCommits(t *testing.T) {
 }
 
 func Test_changesFromIssuesExtractedFromPRs(t *testing.T) {
-	//log.Log = logger.NewLogrusLogger(logger.LogrusConfig{
+	// log.Log = logger.NewLogrusLogger(logger.LogrusConfig{
 	//	EnableConsole: true,
 	//	EnableFile:    false,
 	//	Structured:    false,
 	//	Level:         logrus.TraceLevel,
-	//})
+	// })
 	patch := change.NewType("patch", change.SemVerPatch)
 	feature := change.NewType("added-feature", change.SemVerMinor)
 	breaking := change.NewType("breaking-change", change.SemVerMajor)
@@ -1206,7 +1205,7 @@ func TestSummarizer_getChangeScope(t *testing.T) {
 	}{
 		{
 			name:        "tagged start and end state (go case for release)",
-			repoFixture: "test-fixtures/repos/v0.2.0-repo",
+			repoFixture: "testdata/repos/v0.2.0-repo",
 			sinceRef:    "v0.1.0", // the caller infers this and passes it explicitly (tag only)
 			untilRef:    "v0.2.0", // the caller infers this and passes it explicitly (tag only)
 			config: Config{
@@ -1222,13 +1221,13 @@ func TestSummarizer_getChangeScope(t *testing.T) {
 				}, nil
 			},
 			want: &changeScope{
-				Commits: gitLogRange(t, "test-fixtures/repos/v0.2.0-repo", "v0.1.0", "v0.2.0", false),
+				Commits: gitLogRange(t, "testdata/repos/v0.2.0-repo", "v0.1.0", "v0.2.0", false),
 				Start: changePoint{
 					Ref: "v0.1.0",
 					Tag: &git.Tag{
 						Name:      "v0.1.0",
 						Timestamp: testTime,
-						Commit:    gitTagCommit(t, "test-fixtures/repos/v0.2.0-repo", "v0.1.0"),
+						Commit:    gitTagCommit(t, "testdata/repos/v0.2.0-repo", "v0.1.0"),
 					},
 					Inclusive: false,
 					Timestamp: &testTime,
@@ -1238,7 +1237,7 @@ func TestSummarizer_getChangeScope(t *testing.T) {
 					Tag: &git.Tag{
 						Name:      "v0.2.0",
 						Timestamp: testTime,
-						Commit:    gitTagCommit(t, "test-fixtures/repos/v0.2.0-repo", "v0.2.0"),
+						Commit:    gitTagCommit(t, "testdata/repos/v0.2.0-repo", "v0.2.0"),
 					},
 					Inclusive: true,
 					Timestamp: &testTime,
@@ -1247,7 +1246,7 @@ func TestSummarizer_getChangeScope(t *testing.T) {
 		},
 		{
 			name:        "tagged start but not end state",
-			repoFixture: "test-fixtures/repos/v0.3.0-dev-repo",
+			repoFixture: "testdata/repos/v0.3.0-dev-repo",
 			sinceRef:    "v0.2.0", // the caller infers this and passes it explicitly (tag only)
 			untilRef:    "",
 			config: Config{
@@ -1263,19 +1262,19 @@ func TestSummarizer_getChangeScope(t *testing.T) {
 				}, nil
 			},
 			want: &changeScope{
-				Commits: gitLogRange(t, "test-fixtures/repos/v0.3.0-dev-repo", "v0.2.0", "", false),
+				Commits: gitLogRange(t, "testdata/repos/v0.3.0-dev-repo", "v0.2.0", "", false),
 				Start: changePoint{
 					Ref: "v0.2.0",
 					Tag: &git.Tag{
 						Name:      "v0.2.0",
 						Timestamp: testTime,
-						Commit:    gitTagCommit(t, "test-fixtures/repos/v0.3.0-dev-repo", "v0.2.0"),
+						Commit:    gitTagCommit(t, "testdata/repos/v0.3.0-dev-repo", "v0.2.0"),
 					},
 					Inclusive: false,
 					Timestamp: &testTime,
 				},
 				End: changePoint{
-					Ref:       gitHeadCommit(t, "test-fixtures/repos/v0.3.0-dev-repo"),
+					Ref:       gitHeadCommit(t, "testdata/repos/v0.3.0-dev-repo"),
 					Tag:       nil,
 					Inclusive: true,
 					Timestamp: nil,
@@ -1284,7 +1283,7 @@ func TestSummarizer_getChangeScope(t *testing.T) {
 		},
 		{
 			name:        "first release (already has start tag)",
-			repoFixture: "test-fixtures/repos/v0.3.0-dev-repo",
+			repoFixture: "testdata/repos/v0.3.0-dev-repo",
 			sinceRef:    "v0.2.0",
 			untilRef:    "",
 			config: Config{
@@ -1294,19 +1293,19 @@ func TestSummarizer_getChangeScope(t *testing.T) {
 				return nil, nil
 			},
 			want: &changeScope{
-				Commits: gitLogRange(t, "test-fixtures/repos/v0.3.0-dev-repo", "v0.2.0", "", false),
+				Commits: gitLogRange(t, "testdata/repos/v0.3.0-dev-repo", "v0.2.0", "", false),
 				Start: changePoint{
 					Ref: "v0.2.0",
 					Tag: &git.Tag{
 						Name:      "v0.2.0",
 						Timestamp: testTime,
-						Commit:    gitTagCommit(t, "test-fixtures/repos/v0.3.0-dev-repo", "v0.2.0"),
+						Commit:    gitTagCommit(t, "testdata/repos/v0.3.0-dev-repo", "v0.2.0"),
 					},
 					Inclusive: false,
 					Timestamp: nil, // this is the difference between this test and the previous one
 				},
 				End: changePoint{
-					Ref:       gitHeadCommit(t, "test-fixtures/repos/v0.3.0-dev-repo"),
+					Ref:       gitHeadCommit(t, "testdata/repos/v0.3.0-dev-repo"),
 					Tag:       nil,
 					Inclusive: true,
 					Timestamp: nil,
@@ -1315,7 +1314,7 @@ func TestSummarizer_getChangeScope(t *testing.T) {
 		},
 		{
 			name:        "first release (no tag found)",
-			repoFixture: "test-fixtures/repos/v0.1.0-dev-repo",
+			repoFixture: "testdata/repos/v0.1.0-dev-repo",
 			sinceRef:    "",
 			untilRef:    "",
 			config: Config{
@@ -1325,15 +1324,15 @@ func TestSummarizer_getChangeScope(t *testing.T) {
 				return nil, nil
 			},
 			want: &changeScope{
-				Commits: gitLogRange(t, "test-fixtures/repos/v0.1.0-dev-repo", "", "", false),
+				Commits: gitLogRange(t, "testdata/repos/v0.1.0-dev-repo", "", "", false),
 				Start: changePoint{
-					Ref:       gitFirstCommit(t, "test-fixtures/repos/v0.1.0-dev-repo"),
+					Ref:       gitFirstCommit(t, "testdata/repos/v0.1.0-dev-repo"),
 					Tag:       nil,
 					Inclusive: true, // this is the difference between this test and others
 					Timestamp: nil,
 				},
 				End: changePoint{
-					Ref:       gitHeadCommit(t, "test-fixtures/repos/v0.1.0-dev-repo"),
+					Ref:       gitHeadCommit(t, "testdata/repos/v0.1.0-dev-repo"),
 					Tag:       nil,
 					Inclusive: true,
 					Timestamp: nil,

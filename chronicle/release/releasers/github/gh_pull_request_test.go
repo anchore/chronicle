@@ -11,7 +11,6 @@ import (
 )
 
 func Test_prsAtOrAfter(t *testing.T) {
-
 	tests := []struct {
 		name  string
 		pr    ghPullRequest
@@ -51,7 +50,6 @@ func Test_prsAtOrAfter(t *testing.T) {
 }
 
 func Test_prsAfter(t *testing.T) {
-
 	tests := []struct {
 		name  string
 		pr    ghPullRequest
@@ -91,7 +89,6 @@ func Test_prsAfter(t *testing.T) {
 }
 
 func Test_prsAtOrBefore(t *testing.T) {
-
 	tests := []struct {
 		name  string
 		pr    ghPullRequest
@@ -131,7 +128,6 @@ func Test_prsAtOrBefore(t *testing.T) {
 }
 
 func Test_prsBefore(t *testing.T) {
-
 	tests := []struct {
 		name  string
 		pr    ghPullRequest
@@ -171,7 +167,6 @@ func Test_prsBefore(t *testing.T) {
 }
 
 func Test_prsWithLabel(t *testing.T) {
-
 	tests := []struct {
 		name   string
 		pr     ghPullRequest
@@ -207,7 +202,6 @@ func Test_prsWithLabel(t *testing.T) {
 }
 
 func Test_prsWithoutLabel(t *testing.T) {
-
 	tests := []struct {
 		name   string
 		pr     ghPullRequest
@@ -243,7 +237,6 @@ func Test_prsWithoutLabel(t *testing.T) {
 }
 
 func Test_prsWithoutClosedLinkedIssue(t *testing.T) {
-
 	tests := []struct {
 		name string
 		pr   ghPullRequest
@@ -287,7 +280,6 @@ func Test_prsWithoutClosedLinkedIssue(t *testing.T) {
 }
 
 func Test_prsWithoutOpenLinkedIssue(t *testing.T) {
-
 	tests := []struct {
 		name     string
 		pr       ghPullRequest
@@ -332,7 +324,6 @@ func Test_prsWithoutOpenLinkedIssue(t *testing.T) {
 }
 
 func Test_prsWithoutMergeCommit(t *testing.T) {
-
 	tests := []struct {
 		name     string
 		pr       ghPullRequest

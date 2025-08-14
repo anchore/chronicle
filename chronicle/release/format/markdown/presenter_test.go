@@ -192,7 +192,6 @@ func assertPresenterAgainstGoldenSnapshot(t *testing.T, pres presenter.Presenter
 }
 
 func Test_removeConventionalCommitPrefix(t *testing.T) {
-
 	tests := []struct {
 		name string
 		want string

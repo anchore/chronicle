@@ -15,17 +15,17 @@ func TestHeadTagOrCommit(t *testing.T) {
 	}{
 		{
 			name:    "head has tag",
-			path:    "test-fixtures/repos/tagged-repo",
+			path:    "testdata/repos/tagged-repo",
 			expects: "v0.1.0",
 		},
 		{
 			name:    "head has annotated tag",
-			path:    "test-fixtures/repos/annotated-tagged-repo",
+			path:    "testdata/repos/annotated-tagged-repo",
 			expects: "v0.1.0",
 		},
 		{
 			name: "head has no tag",
-			path: "test-fixtures/repos/commit-in-repo",
+			path: "testdata/repos/commit-in-repo",
 			// since we don't commit the exact fixture, we don't know what the value will be (but the length
 			// of a commit string is fixed and is a good proxy here)
 			expectsLength: 40,
@@ -53,12 +53,12 @@ func TestHeadTag(t *testing.T) {
 	}{
 		{
 			name:    "head has tag",
-			path:    "test-fixtures/repos/tagged-repo",
+			path:    "testdata/repos/tagged-repo",
 			expects: "v0.1.0",
 		},
 		{
 			name: "head has no tag",
-			path: "test-fixtures/repos/commit-in-repo",
+			path: "testdata/repos/commit-in-repo",
 		},
 	}
 	for _, test := range tests {
@@ -79,14 +79,14 @@ func TestHeadCommit(t *testing.T) {
 	}{
 		{
 			name: "head has tag",
-			path: "test-fixtures/repos/tagged-repo",
+			path: "testdata/repos/tagged-repo",
 			// since we don't commit the exact fixture, we don't know what the value will be (but the length
 			// of a commit string is fixed and is a good proxy here)
 			expectsLength: 40,
 		},
 		{
 			name: "head has no tag",
-			path: "test-fixtures/repos/commit-in-repo",
+			path: "testdata/repos/commit-in-repo",
 			// since we don't commit the exact fixture, we don't know what the value will be (but the length
 			// of a commit string is fixed and is a good proxy here)
 			expectsLength: 40,

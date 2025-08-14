@@ -11,7 +11,6 @@ import (
 )
 
 func TestFirstCommit(t *testing.T) {
-
 	tests := []struct {
 		name     string
 		repoPath string
@@ -20,8 +19,8 @@ func TestFirstCommit(t *testing.T) {
 	}{
 		{
 			name:     "gocase",
-			repoPath: "test-fixtures/repos/tag-range-repo",
-			want:     gitFirstCommit(t, "test-fixtures/repos/tag-range-repo"),
+			repoPath: "testdata/repos/tag-range-repo",
+			want:     gitFirstCommit(t, "testdata/repos/tag-range-repo"),
 		},
 	}
 	for _, tt := range tests {
