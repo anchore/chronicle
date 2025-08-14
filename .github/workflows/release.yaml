@@ -87,7 +87,7 @@ jobs:
           # for creating the release (requires write access to packages and content)
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: anchore/sbom-action@e11c554f704a0b820cbf8c51673f6945e0731532 #v0.20.0
+      - uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c #v0.20.5
         continue-on-error: true
         with:
           artifact-name: sbom.spdx.json
