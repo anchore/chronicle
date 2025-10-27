@@ -1,0 +1,29 @@
+# Chronicle
+
+Chronicle is a fast changelog generator that sources changes from GitHub PRs and issues, organized by labels. It's a Go-based CLI tool developed by Anchore that helps automate the creation of changelogs for software releases.
+
+## Project Structure
+
+This is a Go project with the main package located in `cmd/chronicle/`. The core functionality is in the `chronicle/` directory with the following key components:
+
+- **Release management**: `chronicle/release/` contains logic for parsing changes, formatting output, and managing releases
+- **GitHub integration**: `chronicle/release/releasers/github/` handles GitHub API interactions for PRs, issues, and releases
+- **Git operations**: `internal/git/` provides Git repository operations
+- **CLI interface**: `cmd/chronicle/cli/` contains the command-line interface and commands
+
+## Key Features
+
+- Generates changelogs from GitHub PRs and issues based on labels
+- Supports multiple output formats (markdown, JSON)
+- Can guess next semantic version based on change types
+- Configurable via YAML files
+- Supports custom label-to-changelog-section mappings
+- Can work with GitHub Enterprise deployments
+
+## Configuration
+
+Chronicle uses `.chronicle.yaml` configuration files and supports various options for customizing changelog generation, GitHub integration, logging, and semantic versioning behavior.
+
+## Usage
+
+The tool can generate changelogs between git tags, guess next versions, and format output in different ways. It's designed to integrate into CI/CD pipelines for automated release management.
