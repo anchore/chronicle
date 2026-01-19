@@ -28,7 +28,7 @@ jobs:
           persist-credentials: false
 
       - name: "Run zizmor"
-        uses: zizmorcore/zizmor-action@5ca5fc7a4779c5263a3ffa0e1f693009994446d1 # v0.1.2
+        uses: zizmorcore/zizmor-action@135698455da5c3b3e55f73f4419e481ab68cdd95 # v0.4.1
         with:
           config-file: .github/zizmor.yml
           sarif-upload: true
