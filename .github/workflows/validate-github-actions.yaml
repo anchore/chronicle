@@ -21,7 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write  # for uploading SARIF results
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -30,6 +29,7 @@ jobs:
       - name: "Run zizmor"
         uses: zizmorcore/zizmor-action@135698455da5c3b3e55f73f4419e481ab68cdd95 # v0.4.1
         with:
-          config-file: .github/zizmor.yml
-          sarif-upload: true
+          config: .github/zizmor.yml
+          # disabled sarif uploading to make the action be a simple pass/fail gate
+          sarif-upload: false
           inputs: .github
