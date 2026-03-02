@@ -31,5 +31,5 @@ jobs:
         with:
           config: .github/zizmor.yml
           # disabled sarif uploading to make the action be a simple pass/fail gate
-          sarif-upload: false
+          advanced-security: false
           inputs: .github
