@@ -1396,6 +1396,43 @@ func gitFirstCommit(t *testing.T, path string) string {
 	return rows[0]
 }
 
+func TestSummarizer_ChangesURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		sinceRef string
+		untilRef string
+		want     string
+	}{
+		{
+			name:     "normal compare URL",
+			sinceRef: "v0.1.0",
+			untilRef: "v0.2.0",
+			want:     "https://github.com/owner/repo/compare/v0.1.0...v0.2.0",
+		},
+		{
+			name:     "empty sinceRef returns commits URL",
+			sinceRef: "",
+			untilRef: "v0.2.0",
+			want:     "https://github.com/owner/repo/commits/v0.2.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Summarizer{
+				userName: "owner",
+				repoName: "repo",
+				config: Config{
+					Host: "github.com",
+				},
+			}
+
+			got := s.ChangesURL(tt.sinceRef, tt.untilRef)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func gitLogRange(t *testing.T, path, since, until string, startInclusive bool) []string {
 	t.Helper()
 

@@ -100,6 +100,10 @@ func (s *Summarizer) ReferenceURL(ref string) string {
 }
 
 func (s *Summarizer) ChangesURL(sinceRef, untilRef string) string {
+	if sinceRef == "" {
+		// no prior release, return commits page instead of invalid compare URL
+		return fmt.Sprintf("https://%s/%s/%s/commits/%s", s.config.Host, s.userName, s.repoName, untilRef)
+	}
 	return fmt.Sprintf("https://%s/%s/%s/compare/%s...%s", s.config.Host, s.userName, s.repoName, sinceRef, untilRef)
 }
 
@@ -115,7 +119,8 @@ func (s *Summarizer) LastRelease() (*release.Release, error) {
 			Date:    latestRelease.Date,
 		}, nil
 	}
-	return nil, fmt.Errorf("unable to find latest release")
+	// no releases found, return nil to signal "since the beginning"
+	return nil, nil
 }
 
 func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error) {
@@ -312,10 +317,13 @@ func logCommits(commits []string) {
 func issuesExtractedFromPRs(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag, includeCommits []string) []ghIssue {
 	// this represents the traits we wish to filter down to (not out).
 	prFilters := []prFilter{
-		prsAfter(sinceTag.Timestamp.UTC()),
 		// PRs with these labels should explicitly be used in the changelog directly (not the corresponding linked issue)
 		prsWithoutLabel(config.ChangeTypesByLabel.Names()...),
 		prsWithClosedLinkedIssue(),
+	}
+
+	if sinceTag != nil {
+		prFilters = append([]prFilter{prsAfter(sinceTag.Timestamp.UTC())}, prFilters...)
 	}
 
 	if untilTag != nil {
@@ -327,9 +335,12 @@ func issuesExtractedFromPRs(config Config, allMergedPRs []ghPullRequest, sinceTa
 
 	// this represents the traits we wish to filter down to (not out).
 	issueFilters := []issueFilter{
-		issuesAfter(sinceTag.Timestamp),
 		issuesWithLabel(config.ChangeTypesByLabel.Names()...),
 		issuesWithoutLabel(config.ExcludeLabels...),
+	}
+
+	if sinceTag != nil {
+		issueFilters = append([]issueFilter{issuesAfter(sinceTag.Timestamp)}, issueFilters...)
 	}
 
 	if untilTag != nil {

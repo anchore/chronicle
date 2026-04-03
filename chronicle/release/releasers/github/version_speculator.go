@@ -44,6 +44,11 @@ func (s VersionSpeculator) NextIdealVersion(currentVersion string, changes chang
 		}
 	}
 
+	// when there's no prior release, default to v0.0.0 as the starting point
+	if currentVersion == "" {
+		currentVersion = "v0.0.0"
+	}
+
 	v, err := semver.NewVersion(strings.TrimLeft(currentVersion, "v"))
 	if err != nil {
 		return "", fmt.Errorf("invalid current version given: %q: %w", currentVersion, err)

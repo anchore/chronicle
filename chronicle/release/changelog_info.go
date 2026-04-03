@@ -28,13 +28,15 @@ func ChangelogInfo(summer Summarizer, config ChangelogInfoConfig) (*Release, *De
 		return nil, nil, err
 	}
 
+	var startReleaseVersion string
 	if startRelease != nil {
 		log.WithFields("tag", startRelease.Version, "release-timestamp", internal.FormatDateTime(startRelease.Date)).Trace("since")
+		startReleaseVersion = startRelease.Version
 	} else {
 		log.Trace("since the beginning of git history")
 	}
 
-	releaseVersion, changes, err := changelogChanges(startRelease.Version, summer, config)
+	releaseVersion, changes, err := changelogChanges(startReleaseVersion, summer, config)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -52,7 +54,7 @@ func ChangelogInfo(summer Summarizer, config ChangelogInfoConfig) (*Release, *De
 			Date:    time.Now(),
 		},
 		VCSReferenceURL:  summer.ReferenceURL(releaseVersion),
-		VCSChangesURL:    summer.ChangesURL(startRelease.Version, releaseVersion),
+		VCSChangesURL:    summer.ChangesURL(startReleaseVersion, releaseVersion),
 		Changes:          changes,
 		SupportedChanges: config.ChangeTypeTitles,
 		Notice:           "", // TODO...
@@ -114,9 +116,11 @@ func getChangelogStartingRelease(summer Summarizer, sinceTag string) (*Release, 
 		lastRelease, err = summer.LastRelease()
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine last release: %w", err)
-		} else if lastRelease == nil {
-			// TODO: support when there hasn't been the first release (use date of first repo commit)
-			return nil, errors.New("unable to determine last release")
+		}
+		if lastRelease == nil {
+			// no prior release found, signal "since the beginning of time"
+			log.Debug("no prior release found, using beginning of git history")
+			return nil, nil
 		}
 	}
 	return lastRelease, nil
