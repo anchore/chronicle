@@ -17,6 +17,12 @@ type nextVersion struct {
 	EnforceV0 options.EnforceV0 `yaml:"enforce-v0" json:"enforce-v0" mapstructure:"enforce-v0"`
 }
 
+var _ clio.FieldDescriber = (*nextVersion)(nil)
+
+func (c *nextVersion) DescribeFields(descriptions clio.FieldDescriptionSet) {
+	descriptions.Add(&c.EnforceV0, "major changes bump minor version for versions < 1.0")
+}
+
 func NextVersion(app clio.Application) *cobra.Command {
 	cfg := &nextVersion{}
 

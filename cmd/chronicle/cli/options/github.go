@@ -33,6 +33,7 @@ func (c *GithubSummarizer) DescribeFields(descriptions clio.FieldDescriptionSet)
 	descriptions.Add(&c.IncludeUnlabeledPRs, "include PRs without labels or linked issues")
 	descriptions.Add(&c.IssuesRequireLinkedPR, "only include issues with linked PRs")
 	descriptions.Add(&c.ConsiderPRMergeCommits, "include merge commits")
+	descriptions.Add(&c.Changes, "configure change types and their associated labels")
 }
 
 var _ clio.FieldDescriber = (*GithubSummarizer)(nil)
@@ -43,6 +44,15 @@ type GithubChange struct {
 	SemVerKind string   `yaml:"semver-field" json:"semver-field" mapstructure:"semver-field"`
 	Labels     []string `yaml:"labels" json:"labels" mapstructure:"labels"`
 }
+
+func (c *GithubChange) DescribeFields(descriptions clio.FieldDescriptionSet) {
+	descriptions.Add(&c.Type, "internal name for the change type")
+	descriptions.Add(&c.Title, "title to display in the changelog for this change type")
+	descriptions.Add(&c.SemVerKind, "semver field affected: major, minor, or patch")
+	descriptions.Add(&c.Labels, "GitHub labels that map to this change type")
+}
+
+var _ clio.FieldDescriber = (*GithubChange)(nil)
 
 func (c GithubSummarizer) ToGithubConfig() github.Config {
 	typeSet := make(change.TypeSet)
