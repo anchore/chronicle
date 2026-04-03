@@ -5,7 +5,7 @@ import (
 
 	"github.com/anchore/chronicle/chronicle/release/format"
 	"github.com/anchore/chronicle/cmd/chronicle/cli/options"
-	"github.com/anchore/fangs"
+	"github.com/anchore/clio"
 )
 
 type createConfig struct {
@@ -20,9 +20,21 @@ type createConfig struct {
 	EnforceV0            options.EnforceV0        `yaml:"enforce-v0" json:"enforce-v0" mapstructure:"enforce-v0"`
 }
 
-var _ fangs.FlagAdder = (*createConfig)(nil)
+var _ clio.FlagAdder = (*createConfig)(nil)
+var _ clio.FieldDescriber = (*createConfig)(nil)
 
-func (c *createConfig) AddFlags(flags fangs.FlagSet) {
+func (c *createConfig) DescribeFields(descriptions clio.FieldDescriptionSet) {
+	descriptions.Add(&c.Output, "output format to use (e.g., md, json)")
+	descriptions.Add(&c.VersionFile, "path to write the resolved version to")
+	descriptions.Add(&c.SinceTag, "git tag to start changelog processing from (inclusive)")
+	descriptions.Add(&c.UntilTag, "git tag to end changelog processing at (inclusive)")
+	descriptions.Add(&c.Title, "title template for the changelog output")
+	descriptions.Add(&c.Github, "GitHub-specific configuration options")
+	descriptions.Add(&c.SpeculateNextVersion, "guess the next version based on issues and PRs")
+	descriptions.Add(&c.EnforceV0, "major changes bump minor version for versions < 1.0")
+}
+
+func (c *createConfig) AddFlags(flags clio.FlagSet) {
 	flags.StringVarP(
 		&c.Output,
 		"output", "o",
