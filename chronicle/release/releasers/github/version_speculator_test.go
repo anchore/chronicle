@@ -132,6 +132,37 @@ func TestFindNextVersion(t *testing.T) {
 			release: "a10",
 			wantErr: require.Error,
 		},
+		{
+			name:    "empty version with minor change",
+			release: "",
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{minorChange},
+				},
+			},
+			want: "v0.1.0",
+		},
+		{
+			name:    "empty version with patch change",
+			release: "",
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{patchChange},
+				},
+			},
+			want: "v0.0.1",
+		},
+		{
+			name:                "empty version with no changes -- bump patch",
+			release:             "",
+			bumpPatchOnNoChange: true,
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{},
+				},
+			},
+			want: "v0.0.1",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

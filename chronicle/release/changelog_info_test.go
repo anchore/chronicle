@@ -26,12 +26,12 @@ func Test_getChangelogStartingRelease(t *testing.T) {
 			},
 		},
 		{
-			name:     "error when fallback to last release does not exist",
+			name:     "nil release when fallback to last release does not exist",
 			sinceTag: "",
 			summer: MockSummarizer{
 				MockLastRelease: "",
 			},
-			wantErr: require.Error,
+			want: nil,
 		},
 		{
 			name:     "use given release (which exists)",
@@ -60,6 +60,32 @@ func Test_getChangelogStartingRelease(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestChangelogInfo_NoRelease(t *testing.T) {
+	// test that ChangelogInfo handles the case when no prior release exists
+	summer := MockSummarizer{
+		MockLastRelease: "",
+		MockChangesURL:  "https://github.com/owner/repo/commits/v0.1.0",
+		MockRefURL:      "https://github.com/owner/repo/tree/v0.1.0",
+	}
+	config := ChangelogInfoConfig{
+		VersionSpeculator: MockVersionSpeculator{
+			MockNextIdealVersion:  "v0.1.0",
+			MockNextUniqueVersion: "v0.1.0",
+		},
+	}
+
+	startRelease, description, err := ChangelogInfo(summer, config)
+	require.NoError(t, err)
+
+	// startRelease should be nil when no prior release exists
+	assert.Nil(t, startRelease)
+
+	// description should still be generated
+	require.NotNil(t, description)
+	assert.Equal(t, "v0.1.0", description.Release.Version)
+	assert.Equal(t, "https://github.com/owner/repo/commits/v0.1.0", description.VCSChangesURL)
 }
 
 func Test_changelogChanges(t *testing.T) {
