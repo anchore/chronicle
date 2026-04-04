@@ -1,3 +1,6 @@
+# only pull in version updates that were released more than a week ago (low-pass filter for quickly-retracted releases)
+cooldown: 7d
+
 tools:
   # we want to use a pinned version of binny to manage the toolchain (so binny manages itself!)
   - name: binny
@@ -10,10 +13,18 @@ tools:
   # used to produce SBOMs during release
   - name: syft
     version:
-      want: latest
+      want: v1.42.3
     method: github-release
     with:
       repo: anchore/syft
+
+  # used at release to generate the changelog
+  - name: chronicle
+    version:
+      want: v0.8.0
+    method: github-release
+    with:
+      repo: anchore/chronicle
 
   # used for signing the checksums file at release
   - name: cosign
@@ -62,14 +73,6 @@ tools:
     method: github-release
     with:
       repo: rinchsan/gosimports
-
-  # used at release to generate the changelog
-  - name: chronicle
-    version:
-      want: v0.8.0
-    method: github-release
-    with:
-      repo: anchore/chronicle
 
   # used during static analysis for license compliance
   - name: bouncer

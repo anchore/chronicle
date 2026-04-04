@@ -63,16 +63,15 @@ nfpms:
       - deb
       - rpm
 
-
 archives:
   - id: linux-archives
-    builds:
-      - linux-build
-
-  # note: the signing process is depending on tar.gz archives. If this format changes then .github/scripts/apple-signing/*.sh will need to be adjusted
+    ids: [linux-build]
   - id: darwin-archives
-    builds:
-      - darwin-build
+    ids: [darwin-build]
+  - id: windows-archives
+    formats:
+      - zip
+    ids: [windows-build]
 
 sboms:
   - artifacts: archive
@@ -85,3 +84,17 @@ sboms:
       - "$artifact"
       - "--output"
       - "json=$document"
+
+signs:
+  - cmd: .tool/cosign
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    args:
+      - "sign-blob"
+      - "--use-signing-config=false"
+      - "--oidc-issuer=https://token.actions.githubusercontent.com"
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
