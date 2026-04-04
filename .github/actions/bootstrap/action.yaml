@@ -16,5 +16,5 @@ runs:
       run: go mod download
 
     - name: Install tools
-      uses: anchore/workflows/.github/actions/binny@91139bea23527e94db5a1e9e9b77ad2975417930 # v0.2.0
+      uses: anchore/workflows/.github/actions/binny@4f25313f96311410cad4173f74617654a3e46d48 # v0.3.0
 
