@@ -54,6 +54,7 @@ jobs:
         run: make unit
 
   Build-Snapshot-Artifacts:
+    # Note: changing this job name requires making the same update in the .github/workflows/release.yaml pipeline
     name: "Build snapshot artifacts"
     runs-on: ubuntu-22.04
     permissions:

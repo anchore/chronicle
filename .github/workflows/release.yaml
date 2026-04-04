@@ -1,5 +1,12 @@
+name: "Release"
+
 permissions:
   contents: read
+  checks: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 on:
   workflow_dispatch:
@@ -9,56 +16,25 @@ on:
         required: true
 
 jobs:
-  quality-gate:
-    environment: release
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
-        with:
-          persist-credentials: false
 
-      - name: Check if tag already exists
-        # note: this will fail if the tag already exists
-        env:
-          VERSION: ${{ github.event.inputs.version }}
-        run: |
-          [[ "$VERSION" == v* ]] || (echo "version '$VERSION' does not have a 'v' prefix" && exit 1)
-          git tag "$VERSION"
+  version-available:
+    uses: anchore/workflows/.github/workflows/check-version-available.yaml@91139bea23527e94db5a1e9e9b77ad2975417930 # v0.2.0
+    with:
+      version: ${{ github.event.inputs.version }}
 
-      - name: Check static analysis results
-        uses: fountainhead/action-wait-for-check@5a908a24814494009c4bb27c242ea38c93c593be #v1.2.0
-        id: static-analysis
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # This check name is defined as the github action job name (in .github/workflows/testing.yaml)
-          checkName: "Static analysis"
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Check unit test results
-        uses: fountainhead/action-wait-for-check@5a908a24814494009c4bb27c242ea38c93c593be #v1.2.0
-        id: unit
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # This check name is defined as the github action job name (in .github/workflows/testing.yaml)
-          checkName: "Unit tests"
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Quality gate
-        if: steps.static-analysis.outputs.conclusion != 'success' || steps.unit.outputs.conclusion != 'success'
-        env:
-          STATIC_ANALYSIS_STATUS: ${{ steps.static-analysis.outputs.conclusion }}
-          UNIT_TEST_STATUS: ${{ steps.unit.outputs.conclusion }}
-        run: |
-          echo "Static Analysis Status: $STATIC_ANALYSIS_STATUS"
-          echo "Unit Test Status: $UNIT_TEST_STATUS"
-          false
+  check-gate:
+    uses: anchore/workflows/.github/workflows/check-gate.yaml@91139bea23527e94db5a1e9e9b77ad2975417930 # v0.2.0
+    with:
+      checks: '["Static analysis", "Unit tests", "Build snapshot artifacts"]'
 
   release:
-    needs: [quality-gate]
-    runs-on: ubuntu-22.04
+    needs: [check-gate, version-available]
+    environment: release
+    runs-on: ubuntu-24.04
     permissions:
-      packages: write
       contents: write
+      packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
@@ -66,31 +42,25 @@ jobs:
           persist-credentials: true
 
       - name: Bootstrap environment
-        uses: anchore/go-make/.github/actions/bootstrap@latest
-        with:
-          # use the same cache we used for building snapshots
-          cache-key-prefix: "snapshot"
+        uses: ./.github/actions/bootstrap
 
-      - name: Tag release
-        env:
-          VERSION: ${{ github.event.inputs.version }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config --global user.name "anchoreci"
-          git config --global user.email "anchoreci@users.noreply.github.com"
-          git tag -a "$VERSION" -m "Release $VERSION"
-          git push origin --tags
+      - name: Create tag
+        uses: anchore/workflows/.github/actions/create-tag-via-deploy-key@91139bea23527e94db5a1e9e9b77ad2975417930 # v0.2.0
+        with:
+          tag: ${{ github.event.inputs.version }}
+          deploy-key: ${{ secrets.DEPLOY_KEY }}
 
       - name: Build & publish release artifacts
         run: make ci-release
         env:
+          # for mac signing and notarization...
+          QUILL_SIGN_P12: ${{ secrets.ANCHORE_APPLE_DEVELOPER_ID_CERT_CHAIN }}
+          QUILL_SIGN_PASSWORD: ${{ secrets.ANCHORE_APPLE_DEVELOPER_ID_CERT_PASS }}
+          QUILL_NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER }}
+          QUILL_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          QUILL_NOTARY_KEY: ${{ secrets.APPLE_NOTARY_KEY }}
           # for creating the release (requires write access to packages and content)
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 #v0.24.0
-        continue-on-error: true
-        with:
-          artifact-name: sbom.spdx.json
 
       - name: Notify Slack of new release
         uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 #v3.0.1
@@ -107,7 +77,6 @@ jobs:
                   text: |
                     *A new Chronicle release has been published* :rocket:
                     • Release: <https://github.com/anchore/chronicle/releases/tag/${{ github.event.inputs.version }}|${{ github.event.inputs.version }}>
-                    • Repo: `${{ github.repository }}`
                     • Workflow: `${{ github.workflow }}`
                     • Event: `${{ github.event_name }}`
         if: ${{ success() }}
