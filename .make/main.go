@@ -14,6 +14,6 @@ func main() {
 		release.ChangelogTask(),
 		goreleaser.Tasks(),
 		gotest.Tasks(),
-		gotest.FixtureTasks().RunOn("ci-release"),
+		gotest.FixtureTasks().RunOn("unit"),
 	)
 }
