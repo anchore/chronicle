@@ -14,6 +14,6 @@ permissions:
 jobs:
 
   run:
-    uses: "anchore/workflows/.github/workflows/oss-project-board-add.yaml@main"
+    uses: "anchore/workflows/.github/workflows/oss-project-board-add.yaml@4f25313f96311410cad4173f74617654a3e46d48 # v0.3.0"
     secrets:
       token: ${{ secrets.OSS_PROJECT_GH_TOKEN }}
