@@ -8,7 +8,7 @@ import (
 )
 
 func FirstCommit(repoPath string) (string, error) {
-	r, err := git.PlainOpen(repoPath)
+	r, err := openRepo(repoPath)
 	if err != nil {
 		return "", fmt.Errorf("unable to open repo: %w", err)
 	}

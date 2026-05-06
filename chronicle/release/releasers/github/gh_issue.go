@@ -229,7 +229,7 @@ func fetchClosedIssues(user, repo string, since *time.Time) ([]ghIssue, error) {
 
 			err := client.Query(context.Background(), &query, variables)
 			if err != nil {
-				return nil, err
+				return nil, explainGithubAPIError("query GitHub closed issues", user, repo, err)
 			}
 
 			// limit = query.RateLimit

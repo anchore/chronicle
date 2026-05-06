@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sort"
 	"time"
@@ -79,7 +80,7 @@ func fetchAllReleases(user, repo string) ([]ghRelease, error) {
 		for {
 			err := client.Query(context.Background(), &query, variables)
 			if err != nil {
-				return nil, err
+				return nil, explainGithubAPIError("query GitHub releases", user, repo, err)
 			}
 			// limit = query.RateLimit
 
@@ -149,7 +150,7 @@ func fetchRelease(user, repo, tag string) (*ghRelease, error) {
 
 	err := client.Query(context.Background(), &query, variables)
 	if err != nil {
-		return nil, err
+		return nil, explainGithubAPIError(fmt.Sprintf("query GitHub release tag=%q", tag), user, repo, err)
 	}
 
 	return &ghRelease{

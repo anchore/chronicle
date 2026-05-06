@@ -14,17 +14,23 @@ var remotePattern = regexp.MustCompile(`\[remote\s*"origin"]\s*\n\s*url\s*=\s*(?
 
 // TODO: can't use r.Config for same validation reasons
 func RemoteURL(p string) (string, error) {
-	f, err := os.Open(path.Join(p, ".git", "config"))
+	cfgPath := path.Join(p, ".git", "config")
+	f, err := os.Open(cfgPath)
 	if err != nil {
-		return "", fmt.Errorf("unable to open git config: %w", err)
+		return "", fmt.Errorf("unable to open git config %q: %w", cfgPath, err)
 	}
 	contents, err := io.ReadAll(f)
 	if err != nil {
-		return "", fmt.Errorf("unable to read git config: %w", err)
+		return "", fmt.Errorf("unable to read git config %q: %w", cfgPath, err)
 	}
 	matches := internal.MatchNamedCaptureGroups(remotePattern, string(contents))
 
-	return matches["url"], nil
+	url := matches["url"]
+	if url == "" {
+		return "", fmt.Errorf("no 'origin' remote URL found in %q (chronicle requires an 'origin' remote pointing to GitHub)", cfgPath)
+	}
+
+	return url, nil
 }
 
 // TODO: can't use r.Config for same validation reasons

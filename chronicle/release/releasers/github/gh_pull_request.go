@@ -29,18 +29,25 @@ type prFilter func(issue ghPullRequest) bool
 
 func applyPRFilters(allMergedPRs []ghPullRequest, config Config, sinceTag, untilTag *git.Tag, includeCommits []string, filters ...prFilter) []ghPullRequest {
 	// first pass: exclude PRs which are not within the date range derived from the tags
-	log.Trace("filtering PRs by chronology")
+	log.WithFields("input", len(allMergedPRs)).Trace("filtering PRs by chronology")
 	includedPRs, excludedPRs := filterPRs(allMergedPRs, standardChronologicalPrFilters(config, sinceTag, untilTag, includeCommits)...)
+	log.WithFields("kept", len(includedPRs), "dropped", len(excludedPRs)).Trace("PR chronology filter")
 
 	if config.ConsiderPRMergeCommits {
 		// second pass: include PRs that are outside of the date range but have commits within what is considered for release explicitly
 		log.Trace("considering re-inclusion of PRs based on merge commits")
-		includedPRs = append(includedPRs, keepPRsWithCommits(excludedPRs, includeCommits)...)
+		reincluded := keepPRsWithCommits(excludedPRs, includeCommits)
+		if len(reincluded) > 0 {
+			log.WithFields("count", len(reincluded)).Trace("PRs re-included by merge commit")
+		}
+		includedPRs = append(includedPRs, reincluded...)
 	}
 
 	// third pass: now that we have a list of PRs considered for release, we can filter down to those which have the correct traits (e.g. labels)
-	log.Trace("filtering remaining PRs by qualitative traits")
-	includedPRs, _ = filterPRs(includedPRs, filters...)
+	beforeQual := len(includedPRs)
+	var droppedQual []ghPullRequest
+	includedPRs, droppedQual = filterPRs(includedPRs, filters...)
+	log.WithFields("kept", len(includedPRs), "dropped", len(droppedQual), "input", beforeQual).Trace("PR qualitative filter")
 
 	return includedPRs
 }
@@ -332,7 +339,7 @@ func fetchMergedPRs(user, repo string, since *time.Time) ([]ghPullRequest, error
 
 			err := client.Query(context.Background(), &query, variables)
 			if err != nil {
-				return nil, err
+				return nil, explainGithubAPIError("query GitHub merged PRs", user, repo, err)
 			}
 
 			// limit = query.RateLimit

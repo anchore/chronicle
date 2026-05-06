@@ -46,7 +46,9 @@ func NextVersion(app clio.Application) *cobra.Command {
 			cfg.RepoPath = repo
 			return nil
 		},
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			// ensure errors are printed to stderr since most output is redirected to CHANGELOG.md more often than not
+			cmd.SetErr(os.Stderr)
 			return runNextVersion(cfg)
 		},
 	}, cfg)

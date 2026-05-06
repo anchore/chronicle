@@ -30,27 +30,40 @@ Create a changelog representing the changes from tag v0.14.0 until v0.18.0 (for 
 	chronicle --since-tag v0.14.0 --until-tag v0.18.0 ../path/to/repo
 
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if err := cobra.MaximumNArgs(1)(cmd, args); err != nil {
-				_ = cmd.Help()
-				return err
-			}
-			var repo = "./"
-			if len(args) == 1 {
-				if !git.IsRepository(args[0]) {
-					return fmt.Errorf("given path is not a git repository: %s", args[0])
-				}
-				repo = args[0]
-			} else {
-				log.Infof("no repository path given, assuming %q", repo)
-			}
-			appConfig.RepoPath = repo
-			return nil
-		},
-		RunE: func(_ *cobra.Command, _ []string) error {
+		Args: repoPathArgs(appConfig),
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			// ensure errors are printed to stderr since most output is redirected to CHANGELOG.md more often than not
+			cmd.SetErr(os.Stderr)
 			return runCreate(appConfig)
 		},
 	}, appConfig)
+}
+
+// repoPathArgs returns a cobra Args validator that resolves an optional [PATH] argument and writes
+// it onto the given config. It must be a factory (rather than a method on createConfig or a free
+// function that takes config from a closure of a different command) so that root and create each
+// pin the validator to their own config — sharing one validator across both commands previously
+// caused root invocations to leave RepoPath empty.
+func repoPathArgs(cfg *createConfig) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if err := cobra.MaximumNArgs(1)(cmd, args); err != nil {
+			_ = cmd.Help()
+			return err
+		}
+		var repo = "./"
+		if len(args) == 1 {
+			repo = args[0]
+		} else {
+			log.Infof("no repository path given, assuming %q", repo)
+		}
+		// validate now (rather than deferring to git.New deep in the worker) so the user gets a
+		// clear, early failure with the underlying go-git reason, including for the implicit "./".
+		if _, err := git.New(repo); err != nil {
+			return err
+		}
+		cfg.RepoPath = repo
+		return nil
+	}
 }
 
 func runCreate(appConfig *createConfig) error {

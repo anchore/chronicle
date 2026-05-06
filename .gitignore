@@ -20,6 +20,9 @@ VERSION
 /snapshot
 /.tool
 /.task
+/specs
+/docs
+/doc
 
 # changelog generation
 CHANGELOG.md

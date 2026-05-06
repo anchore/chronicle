@@ -28,7 +28,7 @@ type Range struct {
 }
 
 func CommitsBetween(repoPath string, cfg Range) ([]string, error) {
-	r, err := git.PlainOpen(repoPath)
+	r, err := openRepo(repoPath)
 	if err != nil {
 		return nil, err
 	}
@@ -73,12 +73,15 @@ func CommitsBetween(repoPath string, cfg Range) ([]string, error) {
 
 		return
 	})
+	if err != nil {
+		return nil, fmt.Errorf("error walking commits between %q..%q: %w", cfg.SinceRef, cfg.UntilRef, err)
+	}
 
-	return commits, err
+	return commits, nil
 }
 
 func SearchForTag(repoPath, tagRef string) (*Tag, error) {
-	r, err := git.PlainOpen(repoPath)
+	r, err := openRepo(repoPath)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +99,7 @@ func SearchForTag(repoPath, tagRef string) (*Tag, error) {
 }
 
 func TagsFromLocal(repoPath string) ([]Tag, error) {
-	r, err := git.PlainOpen(repoPath)
+	r, err := openRepo(repoPath)
 	if err != nil {
 		return nil, err
 	}

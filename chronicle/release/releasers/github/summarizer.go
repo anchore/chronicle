@@ -1,8 +1,10 @@
 package github
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -67,10 +69,16 @@ func NewSummarizer(gitter git.Interface, config Config) (*Summarizer, error) {
 
 	user, repo := extractGithubUserAndRepo(repoURL)
 	if user == "" || repo == "" {
-		return nil, fmt.Errorf("failed to extract owner and repo from %q", repoURL)
+		return nil, fmt.Errorf("could not extract GitHub owner/repo from remote URL %q (expected formats: git@github.com:owner/repo.git or https://github.com/owner/repo.git)", repoURL)
 	}
 
-	log.WithFields("owner", user, "repo", repo).Debug("github summarizer")
+	log.WithFields("owner", user, "repo", repo).Info("🎯 targeting GitHub repository")
+
+	if os.Getenv("GITHUB_TOKEN") == "" {
+		log.Warn("GITHUB_TOKEN environment variable is not set; GitHub API requests will be unauthenticated and likely fail or be rate-limited (set a token with 'repo' scope, or 'public_repo' for public repositories)")
+	} else {
+		log.Info("GitHub API authentication: using GITHUB_TOKEN")
+	}
 
 	return &Summarizer{
 		git:            gitter,
@@ -110,7 +118,7 @@ func (s *Summarizer) ChangesURL(sinceRef, untilRef string) string {
 func (s *Summarizer) LastRelease() (*release.Release, error) {
 	releases, err := fetchAllReleases(s.userName, s.repoName)
 	if err != nil {
-		return nil, fmt.Errorf("unable to fetch all releases: %v", err)
+		return nil, fmt.Errorf("unable to fetch releases for %s/%s: %w", s.userName, s.repoName, err)
 	}
 	latestRelease := latestNonDraftRelease(releases)
 	if latestRelease != nil {
@@ -130,7 +138,7 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 	}
 
 	if scope == nil {
-		return nil, fmt.Errorf("unable to find start and end of changes: %w", err)
+		return nil, errors.New("could not determine start/end of change range (no scope produced)")
 	}
 
 	logChangeScope(*scope, s.config.ConsiderPRMergeCommits)
@@ -168,7 +176,7 @@ func (s *Summarizer) getChangeScope(sinceRef, untilRef string) (*changeScope, er
 			IncludeEnd:   true,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("unable to fetch commit range: %v", err)
+			return nil, fmt.Errorf("unable to fetch commit range %q..%q: %w", sinceRef, untilRef, err)
 		}
 	}
 
@@ -231,7 +239,7 @@ func (s *Summarizer) changes(scope changeScope) ([]change.Change, error) {
 		return nil, err
 	}
 
-	log.WithFields("since", scope.Start.Timestamp).Debugf("total merged PRs discovered: %d", len(allMergedPRs))
+	log.WithFields("count", len(allMergedPRs), "since", scope.Start.Timestamp).Info("merged PRs discovered")
 
 	if s.config.IncludePRs {
 		changes = append(changes, changesFromStandardPRFilters(s.config, allMergedPRs, scope.Start.Tag, scope.End.Tag, scope.Commits)...)
@@ -246,7 +254,7 @@ func (s *Summarizer) changes(scope changeScope) ([]change.Change, error) {
 		allClosedIssues = filterIssues(allClosedIssues, excludeIssuesNotPlanned(allMergedPRs))
 	}
 
-	log.WithFields("since", scope.Start.Timestamp).Debugf("total closed issues discovered: %d", len(allClosedIssues))
+	log.WithFields("count", len(allClosedIssues), "since", scope.Start.Timestamp).Info("closed issues discovered")
 
 	if s.config.IncludeIssues {
 		if s.config.IssuesRequireLinkedPR {
@@ -269,11 +277,11 @@ func (s *Summarizer) changes(scope changeScope) ([]change.Change, error) {
 
 func logChangeScope(c changeScope, considerCommits bool) {
 	log.WithFields("since", c.Start.Ref, "until", c.End.Ref).Info("searching for changes")
-	log.WithFields(changePointFields(c.Start)).Debug("  ├── since")
-	log.WithFields(changePointFields(c.End)).Debug("  └── until")
+	log.WithFields(changePointFields(c.Start)).Info("  ├── since")
+	log.WithFields(changePointFields(c.End)).Info("  └── until")
 
 	if considerCommits {
-		log.Debugf("release comprises %d commits", len(c.Commits))
+		log.WithFields("count", len(c.Commits)).Info("release comprises commits")
 		logCommits(c.Commits)
 	}
 
@@ -368,9 +376,12 @@ func uniqueIssuesFromPRs(prs []ghPullRequest) []ghIssue {
 func changesFromStandardPRFilters(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag, includeCommits []string) []change.Change {
 	includedPRs := applyStandardPRFilters(allMergedPRs, config, sinceTag, untilTag, includeCommits)
 
-	includedPRs, _ = filterPRs(includedPRs, prsWithChangeTypes(config))
+	beforeChangeTypeFilter := len(includedPRs)
+	var droppedNoChangeType []ghPullRequest
+	includedPRs, droppedNoChangeType = filterPRs(includedPRs, prsWithChangeTypes(config))
+	log.WithFields("kept", len(includedPRs), "dropped", len(droppedNoChangeType), "input", beforeChangeTypeFilter).Trace("PR change-type filter")
 
-	log.Debugf("PRs contributing to changelog: %d", len(includedPRs))
+	log.WithFields("count", len(includedPRs)).Info("PRs contributing to changelog")
 	logPRs(includedPRs)
 
 	return createChangesFromPRs(config, includedPRs)
@@ -412,7 +423,7 @@ func logPRs(prs []ghPullRequest) {
 		if idx == len(prs)-1 {
 			branch = treeLeaf
 		}
-		log.Tracef("  %s #%d: merged %s", branch, pr.Number, internal.FormatDateTime(pr.MergedAt))
+		log.Debugf("  %s #%d: merged %s", branch, pr.Number, internal.FormatDateTime(pr.MergedAt))
 	}
 }
 
@@ -423,7 +434,7 @@ func changesFromIssuesLinkedToPrs(config Config, allMergedPRs []ghPullRequest, s
 	issues := issuesExtractedFromPRs(config, allMergedPRs, sinceTag, untilTag, includeCommits)
 	issues = filterIssues(issues, issuesWithChangeTypes(config))
 
-	log.Debugf("linked issues contributing to changelog: %d", len(issues))
+	log.WithFields("count", len(issues)).Info("linked issues contributing to changelog")
 	logIssues(issues)
 
 	return createChangesFromIssues(config, allMergedPRs, issues)
@@ -434,7 +445,7 @@ func changesFromIssues(config Config, allMergedPRs []ghPullRequest, allClosedIss
 
 	filteredIssues = filterIssues(filteredIssues, issuesWithChangeTypes(config))
 
-	log.Debugf("issues contributing to changelog: %d", len(filteredIssues))
+	log.WithFields("count", len(filteredIssues)).Info("issues contributing to changelog")
 	logIssues(filteredIssues)
 
 	return createChangesFromIssues(config, allMergedPRs, filteredIssues)
@@ -446,7 +457,7 @@ func logIssues(issues []ghIssue) {
 		if idx == len(issues)-1 {
 			branch = treeLeaf
 		}
-		log.Tracef("  %s #%d: closed %s", branch, issue.Number, internal.FormatDateTime(issue.ClosedAt))
+		log.Debugf("  %s #%d: closed %s", branch, issue.Number, internal.FormatDateTime(issue.ClosedAt))
 	}
 }
 
@@ -461,7 +472,8 @@ func changesFromUnlabeledPRs(config Config, allMergedPRs []ghPullRequest, sinceT
 
 	filteredIssues, _ := filterPRs(allMergedPRs, filters...)
 
-	log.Debugf("unlabeled PRs contributing to changelog: %d", len(filteredIssues))
+	log.WithFields("count", len(filteredIssues)).Info("unlabeled PRs contributing to changelog")
+	logPRs(filteredIssues)
 
 	return createChangesFromPRs(config, filteredIssues)
 }
@@ -474,7 +486,8 @@ func changesFromUnlabeledIssues(config Config, allMergedPRs []ghPullRequest, all
 
 	filteredIssues := filterIssues(allIssues, filters...)
 
-	log.Debugf("unlabeled issues contributing to changelog: %d", len(filteredIssues))
+	log.WithFields("count", len(filteredIssues)).Info("unlabeled issues contributing to changelog")
+	logIssues(filteredIssues)
 
 	return createChangesFromIssues(config, allMergedPRs, filteredIssues)
 }

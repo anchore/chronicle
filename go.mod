@@ -7,6 +7,7 @@ require (
 	github.com/anchore/go-logger v0.0.0-20250318195838-07ae343dd722
 	github.com/coreos/go-semver v0.3.1
 	github.com/gkampitakis/go-snaps v0.5.21
+	github.com/go-git/go-billy/v5 v5.8.0
 	github.com/go-git/go-git/v5 v5.17.1
 	github.com/google/go-cmp v0.7.0
 	github.com/leodido/go-conventionalcommits v0.12.0
@@ -34,7 +35,6 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/gkampitakis/ciinfo v0.3.2 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
-	github.com/go-git/go-billy/v5 v5.8.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/goccy/go-yaml v1.18.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect

@@ -1,6 +1,9 @@
 package git
 
-import "fmt"
+import (
+	"fmt"
+	"path/filepath"
+)
 
 var _ Interface = (*gitter)(nil)
 
@@ -19,8 +22,12 @@ type gitter struct {
 }
 
 func New(repoPath string) (Interface, error) {
-	if !IsRepository(repoPath) {
-		return nil, fmt.Errorf("not a git repository: %q", repoPath)
+	if _, err := openRepo(repoPath); err != nil {
+		abs, absErr := filepath.Abs(repoPath)
+		if absErr != nil {
+			abs = repoPath
+		}
+		return nil, fmt.Errorf("could not open git repository at %q (resolved to %q): %w", repoPath, abs, err)
 	}
 	return gitter{
 		repoPath: repoPath,
