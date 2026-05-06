@@ -10,8 +10,6 @@ bin/
 /bin
 /.bin
 /build
-CHANGELOG.md
-VERSION
 .mise.toml
 .tool/
 /bin
@@ -25,8 +23,8 @@ VERSION
 /doc
 
 # changelog generation
-CHANGELOG.md
-VERSION
+/CHANGELOG.md
+/VERSION
 
 # IDE configuration
 .vscode/

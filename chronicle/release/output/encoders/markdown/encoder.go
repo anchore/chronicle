@@ -9,76 +9,66 @@ import (
 
 	"github.com/leodido/go-conventionalcommits"
 	cc "github.com/leodido/go-conventionalcommits/parser"
-	"github.com/wagoodman/go-presenter"
 
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 )
 
-const (
-	markdownHeaderTemplate = `{{if .Title }}# {{.Title}}
+// ID is the registered name for this encoder.
+const ID = "md"
+
+const headerTemplate = `{{if .Title }}# {{.Title}}
 
 {{ end }}{{if .Changes }}{{ formatChangeSections .Changes }}
 
 {{ end }}**[(Full Changelog)]({{.VCSChangesURL}})**
 `
-)
 
-var _ presenter.Presenter = (*Presenter)(nil)
+type Encoder struct{}
 
-type Presenter struct {
-	config    Config
-	templater *template.Template
-}
+func (e *Encoder) ID() string { return ID }
 
-type ChangeSection struct {
-	ChangeType change.Type
-	Title      string
-}
-
-type Sections []ChangeSection
-
-type Config struct {
-	release.Description
-	Title string
-}
-
-func NewMarkdownPresenter(config Config) (*Presenter, error) {
-	p := Presenter{
-		config: config,
+func (e *Encoder) Encode(w io.Writer, title string, d release.Description) error {
+	// title supports templating against the description (e.g. `{{ .Version }}`),
+	// so it must be rendered before the body template runs.
+	resolvedTitle, err := renderTitle(title, d)
+	if err != nil {
+		return err
 	}
+
+	view := struct {
+		release.Description
+		Title string
+	}{Description: d, Title: resolvedTitle}
 
 	funcMap := template.FuncMap{
-		"formatChangeSections": p.formatChangeSections,
+		"formatChangeSections": func(changes change.Changes) string {
+			return formatChangeSections(d.SupportedChanges, changes)
+		},
 	}
-	templater, err := template.New("markdown").Funcs(funcMap).Parse(markdownHeaderTemplate)
+
+	tmpl, err := template.New("markdown").Funcs(funcMap).Parse(headerTemplate)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse markdown presenter template: %w", err)
+		return fmt.Errorf("parsing markdown template: %w", err)
 	}
-
-	titleTemplater, err := template.New("title").Funcs(funcMap).Parse(config.Title)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse markdown presenter title template: %w", err)
-	}
-
-	buf := bytes.Buffer{}
-	if err := titleTemplater.Execute(&buf, config); err != nil {
-		return nil, fmt.Errorf("unable to template title: %w", err)
-	}
-	p.config.Title = buf.String()
-
-	p.templater = templater
-
-	return &p, nil
+	return tmpl.Execute(w, view)
 }
 
-func (m Presenter) Present(writer io.Writer) error {
-	return m.templater.Execute(writer, m.config)
+func renderTitle(raw string, d release.Description) (string, error) {
+	t, err := template.New("title").Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("parsing title template: %w", err)
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, d); err != nil {
+		return "", fmt.Errorf("executing title template: %w", err)
+	}
+	return buf.String(), nil
 }
 
-func (m Presenter) formatChangeSections(changes change.Changes) string {
+func formatChangeSections(sections []change.TypeTitle, changes change.Changes) string {
 	var result string
-	for _, section := range m.config.SupportedChanges {
+	for _, section := range sections {
 		summaries := changes.ByChangeType(section.ChangeType)
 		if len(summaries) > 0 {
 			result += formatChangeSection(section.Title, summaries) + "\n"
@@ -108,8 +98,8 @@ func formatSummary(summary change.Change) string {
 		case ref.URL == "":
 			refs += fmt.Sprintf(" %s", ref.Text)
 		case strings.HasPrefix(ref.Text, "@") && strings.HasPrefix(ref.URL, "https://github.com/"):
-			// the github release page will automatically show all contributors as a footer. However, if you
-			// embed the contributor's github handle in a link, then this feature will not work.
+			// the github release page automatically credits contributors as a footer; embedding the
+			// handle in a link suppresses that, so we leave bare @-handles alone.
 			refs += fmt.Sprintf(" %s", ref.Text)
 		default:
 			refs += fmt.Sprintf(" [%s](%s)", ref.Text, ref.URL)

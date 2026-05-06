@@ -31,9 +31,14 @@ Create a changelog and guess the release version from the set of changes in the 
 chronicle -n
 ```
 
-Just guess the next release version based on the set of changes (don't create a changelog)
+Just print the next release version based on the set of changes (don't create a changelog)
 ```bash
-chronicle next-version
+chronicle -o version
+```
+
+Write a changelog to a file and the resolved version to another file in one run (nothing on stdout)
+```bash
+chronicle -o md=CHANGELOG.md -o version=VERSION
 ```
 
 ## Installation
@@ -61,9 +66,16 @@ Configuration search paths:
 Configuration options (example values are the default):
 
 ```yaml
-# the output format of the changelog
+# output format(s); each entry is NAME or NAME=PATH. Repeat to write more
+# than one format/destination in a single run. Available NAMEs: md, json,
+# version. An entry with no path writes to stdout (at most one entry may
+# write to stdout).
 # same as -o, --output, and CHRONICLE_OUTPUT env var
-output: md
+output:
+  - md
+  # - md=CHANGELOG.md
+  # - version=VERSION
+  # - json
 
 # suppress all logging output
 # same as -q ; CHRONICLE_QUIET env var

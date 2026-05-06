@@ -6,6 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/anchore/chronicle/chronicle/release/output"
+	versionenc "github.com/anchore/chronicle/chronicle/release/output/encoders/version"
 	"github.com/anchore/chronicle/cmd/chronicle/cli/options"
 	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
@@ -27,8 +29,9 @@ func NextVersion(app clio.Application) *cobra.Command {
 	cfg := &nextVersion{}
 
 	return app.SetupCommand(&cobra.Command{
-		Use:   "next-version [PATH]",
-		Short: "Guess the next version based on the changelog diff from the last release",
+		Use:        "next-version [PATH]",
+		Short:      "Guess the next version based on the changelog diff from the last release",
+		Deprecated: "use 'chronicle -o version' instead",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if err := cobra.MaximumNArgs(1)(cmd, args); err != nil {
 				return err
@@ -55,19 +58,31 @@ func NextVersion(app clio.Application) *cobra.Command {
 }
 
 func runNextVersion(cfg *nextVersion) error {
-	appConfig := &createConfig{
-		EnforceV0: cfg.EnforceV0,
-		RepoPath:  cfg.RepoPath,
-	}
-	appConfig.SpeculateNextVersion = true
-	worker := selectWorker(cfg.RepoPath)
+	// cobra prints its own one-line deprecation header on stderr; we additionally
+	// log a warning with a concrete replacement command so it shows up alongside
+	// other chronicle log lines and points at the exact migration.
+	log.Warn("the 'next-version' command is deprecated; use 'chronicle -o version' instead (e.g. 'chronicle -o version=VERSION' to write to a file)")
 
-	_, description, err := worker(appConfig)
+	appConfig := &createConfig{
+		EnforceV0:            cfg.EnforceV0,
+		RepoPath:             cfg.RepoPath,
+		SpeculateNextVersion: true,
+	}
+	_, description, err := selectWorker(cfg.RepoPath)(appConfig)
 	if err != nil {
 		return err
 	}
 
-	_, err = os.Stdout.Write([]byte(description.Version))
-
-	return err
+	// build a one-encoder set inline rather than reusing options.DefaultOutput;
+	// next-version intentionally exposes only the version output.
+	encs := output.NewEncoders(&versionenc.Encoder{})
+	w, err := output.New([]output.Spec{{Name: versionenc.ID}}, encs)
+	if err != nil {
+		return err
+	}
+	if err := w.Write("", *description); err != nil {
+		_ = w.Close()
+		return err
+	}
+	return w.Close()
 }

@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/anchore/clio v0.1.0
+	github.com/anchore/fangs v0.0.0-20250319155437-a26984174d7d
 	github.com/anchore/go-logger v0.1.0
 	github.com/coreos/go-semver v0.3.1
 	github.com/gkampitakis/go-snaps v0.5.21
@@ -16,7 +17,6 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/wagoodman/go-partybus v0.0.0-20230516145632-8ccac152c651
-	github.com/wagoodman/go-presenter v0.0.0-20211015174752-f9c01afc824b
 	golang.org/x/oauth2 v0.36.0
 )
 
@@ -25,7 +25,6 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.1.6 // indirect
 	github.com/adrg/xdg v0.5.3 // indirect
-	github.com/anchore/fangs v0.0.0-20250319155437-a26984174d7d // indirect
 	github.com/anchore/go-homedir v0.0.0-20250319154043-c29668562e4d // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect

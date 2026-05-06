@@ -1,13 +1,11 @@
 package commands
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 
 	"github.com/anchore/chronicle/chronicle/release"
-	"github.com/anchore/chronicle/chronicle/release/format"
 	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
 	"github.com/anchore/clio"
@@ -67,39 +65,26 @@ func repoPathArgs(cfg *createConfig) cobra.PositionalArgs {
 }
 
 func runCreate(appConfig *createConfig) error {
-	worker := selectWorker(appConfig.RepoPath)
-
-	_, description, err := worker(appConfig)
+	// run the worker before constructing the writer so that file sinks are
+	// only opened (and temp files created) once we know the description is
+	// available; this avoids leaving orphaned temp files behind on failure.
+	_, description, err := selectWorker(appConfig.RepoPath)(appConfig)
 	if err != nil {
 		return err
 	}
 
-	if appConfig.VersionFile != "" {
-		f, err := os.OpenFile(appConfig.VersionFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-		if err != nil {
-			return fmt.Errorf("unable to open version file %q: %w", appConfig.VersionFile, err)
-		}
-		if _, err := f.WriteString(description.Version); err != nil {
-			return fmt.Errorf("unable to write version to file %q: %w", appConfig.VersionFile, err)
-		}
-	}
-
-	f := format.FromString(appConfig.Output)
-	if f == nil {
-		return fmt.Errorf("unable to parse output format: %q", appConfig.Output)
-	}
-
-	presenterTask, err := selectPresenter(*f)
+	w, err := appConfig.Writer()
 	if err != nil {
 		return err
 	}
 
-	p, err := presenterTask(appConfig.Title, *description)
-	if err != nil {
+	// don't `defer w.Close()` — Close performs the atomic rename for file
+	// sinks, and a deferred call would swallow that error.
+	if err := w.Write(appConfig.Title, *description); err != nil {
+		_ = w.Close()
 		return err
 	}
-
-	return p.Present(os.Stdout)
+	return w.Close()
 }
 
 //nolint:revive
