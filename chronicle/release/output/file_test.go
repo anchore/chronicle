@@ -3,6 +3,7 @@ package output
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -79,5 +80,18 @@ func TestFileSink_CommitPermissions(t *testing.T) {
 
 	info, err := os.Stat(target)
 	require.NoError(t, err)
+
+	if runtime.GOOS == "windows" {
+		// Go's os.Chmod on Windows only manages the readonly attribute. 0o644 has
+		// the owner-write bit set, so the file must NOT be readonly; os.Stat
+		// reports a writable file as 0o666 (readonly would be 0o444). Also
+		// verify we can actually open it for writing.
+		require.Equal(t, os.FileMode(0o666), info.Mode().Perm(), "expected writable file on Windows, got %o", info.Mode().Perm())
+		f, err := os.OpenFile(target, os.O_WRONLY, 0)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+		return
+	}
+
 	require.Equal(t, os.FileMode(filePerm), info.Mode().Perm())
 }
