@@ -80,6 +80,42 @@ func TestWriter_AbortsTempFilesOnEncodeError(t *testing.T) {
 	require.Empty(t, entries)
 }
 
+func TestWriter_AbortsAllSinksWhenLaterEncoderFails(t *testing.T) {
+	// the first encoder succeeds and writes bytes to its temp file; the
+	// second encoder fails. Close must abort *both* sinks so neither final
+	// file appears and no temp files leak.
+	encs := NewEncoders(&recordingEncoder{id: "ok"}, &erroringEncoder{id: "bad"})
+
+	dir := t.TempDir()
+	okPath := filepath.Join(dir, "ok.txt")
+	badPath := filepath.Join(dir, "bad.txt")
+
+	specs := []Spec{
+		{Name: "ok", Path: okPath},
+		{Name: "bad", Path: badPath},
+	}
+	w, err := newWithStdout(specs, encs, io.Discard)
+	require.NoError(t, err)
+
+	require.Error(t, w.Write("t", release.Description{Release: release.Release{Version: "v1"}}))
+	require.NoError(t, w.Close())
+
+	for _, p := range []string{okPath, badPath} {
+		_, statErr := os.Stat(p)
+		require.True(t, os.IsNotExist(statErr), "expected %q to not exist, got err=%v", p, statErr)
+	}
+
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	require.Empty(t, entries, "expected no leftover temp files")
+}
+
+func TestNewEncoders_PanicsOnDuplicateID(t *testing.T) {
+	require.Panics(t, func() {
+		NewEncoders(&recordingEncoder{id: "dup"}, &recordingEncoder{id: "dup"})
+	})
+}
+
 func TestWriter_RejectsTwoStdouts(t *testing.T) {
 	encs := NewEncoders(&recordingEncoder{id: "rec-a"}, &recordingEncoder{id: "rec-b"})
 	_, err := newWithStdout([]Spec{{Name: "rec-a"}, {Name: "rec-b"}}, encs, io.Discard)
