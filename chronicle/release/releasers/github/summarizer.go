@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/anchore/chronicle/chronicle/event"
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/internal"
@@ -45,12 +46,101 @@ type Summarizer struct {
 	repoName       string
 	config         Config
 	releaseFetcher releaseFetcher
+
 	// releaseCache memoizes per-tag release lookups so that the start-release
 	// metadata fetched for the changelog header is not re-fetched again when
 	// computing the change scope. Map presence (rather than non-nil value) is
 	// the signal that a tag has been queried, so "no release for this tag"
 	// results are cached too.
 	releaseCache map[string]*ghRelease
+
+	// raw evidence totals captured during the most recent Changes() call; read
+	// by the worker for the summary report. Concurrent access is gated by mu,
+	// which also guards the leaf fields below.
+	mu          sync.Mutex
+	prTotal     int
+	issueTotal  int
+	commitTotal int
+
+	// kept-union counts captured at the end of the most recent Changes()
+	// call: PRs (direct + indirect via linked issues), issues (direct), and
+	// merge commits intersected with scope.Commits.
+	prsKept           int
+	issuesKept        int
+	associatedCommits int
+
+	// optional UI leaves plumbed in by SetEvidenceLeaves. P3 stores them for
+	// P4 to use; this code does not yet update them.
+	commitsLeaf *event.Leaf
+	issuesLeaf  *event.Leaf
+	prsLeaf     *event.Leaf
+}
+
+// SetEvidenceLeaves attaches UI evidence leaves to the summarizer. Any of the
+// arguments may be nil. P4 will use these to publish live page-fetch progress;
+// for now they are stored without being touched.
+func (s *Summarizer) SetEvidenceLeaves(commits, issues, prs *event.Leaf) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.commitsLeaf = commits
+	s.issuesLeaf = issues
+	s.prsLeaf = prs
+}
+
+// Repo returns the GitHub owner/repo this summarizer is targeting, derived
+// from the git remote URL at construction time.
+func (s *Summarizer) Repo() (user, repo string) {
+	if s == nil {
+		return "", ""
+	}
+	return s.userName, s.repoName
+}
+
+// EvidenceTotals returns the raw fetched counts captured during the most
+// recent Changes() call: total PRs, total issues, total commits in scope.
+func (s *Summarizer) EvidenceTotals() (prs, issues, commits int) {
+	if s == nil {
+		return 0, 0, 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.prTotal, s.issueTotal, s.commitTotal
+}
+
+// PRsKept returns the number of PRs that contributed to the changelog —
+// directly (a PR-typed change) or indirectly via a linked issue that itself
+// was kept. Captured at the end of the most recent Changes() call.
+func (s *Summarizer) PRsKept() int {
+	if s == nil {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.prsKept
+}
+
+// IssuesKept returns the number of issues directly kept in the changelog.
+func (s *Summarizer) IssuesKept() int {
+	if s == nil {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.issuesKept
+}
+
+// AssociatedCommits returns the number of in-window merge commits whose PR
+// (direct or indirectly via a linked issue) ended up in the changelog.
+func (s *Summarizer) AssociatedCommits() int {
+	if s == nil {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.associatedCommits
 }
 
 // changeScope is used to describe the start and end of a changes made in a repo.
@@ -163,6 +253,14 @@ func (s *Summarizer) LastRelease() (*release.Release, error) {
 }
 
 func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error) {
+	// surface commit-walk activity to the UI: the underlying git operation is
+	// a single (fast) call so we can't tick per-commit, but at least flagging
+	// "walking history" gives the leaf row a non-empty stage during work.
+	s.mu.Lock()
+	commitsLeaf := s.commitsLeaf
+	s.mu.Unlock()
+	commitsLeaf.SetStage("walking history")
+
 	scope, err := s.getChangeScope(sinceRef, untilRef)
 	if err != nil {
 		return nil, err
@@ -171,6 +269,10 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 	if scope == nil {
 		return nil, errors.New("could not determine start/end of change range (no scope produced)")
 	}
+
+	// scope is known; surface the commit count so the row stays informative
+	// while the parallel PR/issue fetches in changes() run.
+	commitsLeaf.SetStage(fmt.Sprintf("%d in scope", len(scope.Commits)))
 
 	logChangeScope(*scope, s.config.ConsiderPRMergeCommits)
 
@@ -265,6 +367,15 @@ func (s *Summarizer) getSince(sinceRef string) (*git.Tag, string, bool, *time.Ti
 func (s *Summarizer) changes(scope changeScope) ([]change.Change, error) {
 	var changes []change.Change
 
+	// capture commit total + UI leaves up front so the worker has a value to
+	// report even if a later fetch fails, and so the leaves are read once
+	// under the lock rather than repeatedly inside the goroutines below.
+	s.mu.Lock()
+	s.commitTotal = len(scope.Commits)
+	prsLeaf := s.prsLeaf
+	issuesLeaf := s.issuesLeaf
+	s.mu.Unlock()
+
 	// the merged-PR and closed-issue queries are independent paginated GraphQL
 	// calls — they dominate runtime, so run them concurrently and join after.
 	var (
@@ -276,11 +387,11 @@ func (s *Summarizer) changes(scope changeScope) ([]change.Change, error) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		allMergedPRs, prErr = fetchMergedPRs(s.userName, s.repoName, scope.Start.Timestamp)
+		allMergedPRs, prErr = fetchMergedPRs(s.userName, s.repoName, scope.Start.Timestamp, prsLeaf)
 	}()
 	go func() {
 		defer wg.Done()
-		allClosedIssues, issueErr = fetchClosedIssues(s.userName, s.repoName, scope.Start.Timestamp)
+		allClosedIssues, issueErr = fetchClosedIssues(s.userName, s.repoName, scope.Start.Timestamp, issuesLeaf)
 	}()
 	wg.Wait()
 
@@ -290,6 +401,11 @@ func (s *Summarizer) changes(scope changeScope) ([]change.Change, error) {
 	if issueErr != nil {
 		return nil, issueErr
 	}
+
+	s.mu.Lock()
+	s.prTotal = len(allMergedPRs)
+	s.issueTotal = len(allClosedIssues)
+	s.mu.Unlock()
 
 	log.WithFields("count", len(allMergedPRs), "since", scope.Start.Timestamp).Info("merged PRs discovered")
 
@@ -319,7 +435,65 @@ func (s *Summarizer) changes(scope changeScope) ([]change.Change, error) {
 		changes = append(changes, changesFromUnlabeledPRs(s.config, allMergedPRs, scope.Start.Tag, scope.End.Tag, scope.Commits)...)
 	}
 
+	s.captureEvidenceUnion(changes, allMergedPRs, scope.Commits)
+
 	return changes, nil
+}
+
+// captureEvidenceUnion walks the assembled changes once and records the set
+// of PRs and merge commits that contributed — directly (PR-typed change) OR
+// indirectly via a kept linked-issue. The resulting counts are used by the
+// post-teardown summary's evidence section. The mutex guards the same fields
+// the worker reads via PRsKept / IssuesKept / AssociatedCommits accessors.
+func (s *Summarizer) captureEvidenceUnion(changes []change.Change, allMergedPRs []ghPullRequest, scopeCommits []string) {
+	scope := make(map[string]struct{}, len(scopeCommits))
+	for _, sha := range scopeCommits {
+		scope[sha] = struct{}{}
+	}
+
+	keptPRs := map[int]struct{}{}
+	keptIssues := map[int]struct{}{}
+	keptMergeCommits := map[string]struct{}{}
+
+	addPR := func(pr ghPullRequest) {
+		keptPRs[pr.Number] = struct{}{}
+		if pr.MergeCommit != "" {
+			keptMergeCommits[pr.MergeCommit] = struct{}{}
+		}
+	}
+
+	for _, c := range changes {
+		switch c.EntryType {
+		case "githubPR":
+			if pr, ok := c.Entry.(ghPullRequest); ok {
+				addPR(pr)
+			}
+		case "githubIssue":
+			is, ok := c.Entry.(ghIssue)
+			if !ok {
+				continue
+			}
+			keptIssues[is.Number] = struct{}{}
+			// fold in PRs that linked this issue — they "indirectly contributed"
+			// even if they aren't carried as their own change row.
+			for _, lp := range getLinkedPRs(allMergedPRs, is) {
+				addPR(lp)
+			}
+		}
+	}
+
+	associated := 0
+	for sha := range keptMergeCommits {
+		if _, ok := scope[sha]; ok {
+			associated++
+		}
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.prsKept = len(keptPRs)
+	s.issuesKept = len(keptIssues)
+	s.associatedCommits = associated
 }
 
 func logChangeScope(c changeScope, considerCommits bool) {

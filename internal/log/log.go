@@ -12,6 +12,12 @@ func Set(logger logger.Logger) {
 	log = logger
 }
 
+// Get returns the package-level logger singleton. Used by the TUI to redirect
+// log output into the bubbletea frame footer via logger.Controller.SetOutput.
+func Get() logger.Logger {
+	return log
+}
+
 // Errorf takes a formatted template string and template arguments for the error logging level.
 func Errorf(format string, args ...interface{}) {
 	log.Errorf(format, args...)

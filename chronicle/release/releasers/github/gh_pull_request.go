@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 
+	"github.com/anchore/chronicle/chronicle/event"
 	"github.com/anchore/chronicle/internal"
 	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
@@ -286,7 +288,7 @@ func setReason(ctx []*string, reason string) {
 }
 
 //nolint:funlen
-func fetchMergedPRs(user, repo string, since *time.Time) ([]ghPullRequest, error) {
+func fetchMergedPRs(user, repo string, since *time.Time, leaf *event.Leaf) ([]ghPullRequest, error) {
 	src := oauth2.StaticTokenSource(
 		// TODO: DI this
 		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
@@ -422,6 +424,10 @@ func fetchMergedPRs(user, repo string, since *time.Time) ([]ghPullRequest, error
 					MergeCommit:  string(prEdge.Node.MergeCommit.OID),
 				})
 			}
+
+			// emit a stage update after each successfully fetched page so the UI
+			// can show live progress on long fetches against big repos.
+			leaf.SetStage(fmt.Sprintf("page %d — %d received", pages, saw))
 
 			if !query.Repository.PullRequests.PageInfo.HasNextPage {
 				break

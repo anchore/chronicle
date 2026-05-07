@@ -1,0 +1,28 @@
+
+[TestBracketGroup_Snapshot_Resolving - 1]
+├── ⠋ since   latest release …looking up tag
+└── · until   HEAD
+
+---
+
+[TestBracketGroup_Snapshot_Resolved - 1]
+├── ✔ since   latest release → v0.14.0  a3b4c5d  Jan 15 2026
+└── ✔ until   HEAD → v0.18.0  f1e2d3c  May 4 2026
+
+---
+
+[TestTreeGroup_Snapshot_Resolving - 1]
+Evidence
+├── · commits         waiting
+├── ⠋ issues          page 2 — 73 received
+└── ⠋ pull requests   page 4 — 164 received
+
+---
+
+[TestTreeGroup_Snapshot_Resolved - 1]
+Evidence
+├── ✔ commits         47   (32 associated)
+├── ✔ issues          73   (42 kept)
+└── ✔ pull requests   164   (87 kept)
+
+---

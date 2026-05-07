@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/anchore/chronicle/chronicle/release"
 )
@@ -25,7 +24,7 @@ type Writer interface {
 // the first encode error joined with any close errors. On success, Close
 // renames each temp file into place.
 func New(specs []Spec, encs Encoders) (Writer, error) {
-	return newWithStdout(specs, encs, os.Stdout)
+	return newWithSink(specs, encs, func() sink { return &publisherSink{} })
 }
 
 // Check runs all validation that does not require opening sinks: structural
@@ -49,8 +48,9 @@ func Check(specs []Spec, encs Encoders) error {
 	return nil
 }
 
-// newWithStdout exists for tests; production code calls New.
-func newWithStdout(specs []Spec, encs Encoders, stdout io.Writer) (Writer, error) {
+// newWithSink is the shared construction path: the stdoutMaker is invoked once
+// per stdout-bound spec, freshly producing the sink to use for that spec.
+func newWithSink(specs []Spec, encs Encoders, stdoutMaker func() sink) (Writer, error) {
 	if err := Check(specs, encs); err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func newWithStdout(specs []Spec, encs Encoders, stdout io.Writer) (Writer, error
 		enc, _ := encs.Lookup(s.Name) // checked above
 		var sk sink
 		if s.IsStdout() {
-			sk = &stdoutSink{w: stdout}
+			sk = stdoutMaker()
 		} else {
 			fs, err := newFileSink(s.Path)
 			if err != nil {

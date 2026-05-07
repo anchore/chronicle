@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anchore/chronicle/chronicle/event"
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/internal"
 	"github.com/anchore/chronicle/internal/log"
@@ -18,10 +19,28 @@ type ChangelogInfoConfig struct {
 	SinceTag         string
 	UntilTag         string
 	ChangeTypeTitles []change.TypeTitle
+
+	// optional UI evidence leaves. When set, summarizers may update them with
+	// live page-fetch progress (P4) and resolve them once each fetch completes.
+	// Nil-safe — leaf method calls are no-ops when nil.
+	CommitsLeaf *event.Leaf
+	IssuesLeaf  *event.Leaf
+	PRsLeaf     *event.Leaf
+}
+
+// EvidenceLeafReceiver is implemented by summarizers that accept UI evidence
+// leaves for live progress reporting. P3 plumbs the leaves through; P4 uses
+// them to publish per-page fetch progress.
+type EvidenceLeafReceiver interface {
+	SetEvidenceLeaves(commits, issues, prs *event.Leaf)
 }
 
 // ChangelogInfo identifies the last release (the start of the changelog) and returns a description of the current (potentially speculative) release.
 func ChangelogInfo(summer Summarizer, config ChangelogInfoConfig) (*Release, *Description, error) {
+	if r, ok := summer.(EvidenceLeafReceiver); ok {
+		r.SetEvidenceLeaves(config.CommitsLeaf, config.IssuesLeaf, config.PRsLeaf)
+	}
+
 	startRelease, err := getChangelogStartingRelease(summer, config.SinceTag)
 	if err != nil {
 		return nil, nil, err

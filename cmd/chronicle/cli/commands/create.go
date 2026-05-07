@@ -1,11 +1,14 @@
 package commands
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 
 	"github.com/anchore/chronicle/chronicle/release"
+	"github.com/anchore/chronicle/chronicle/release/change"
+	"github.com/anchore/chronicle/internal/bus"
 	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
 	"github.com/anchore/clio"
@@ -72,7 +75,7 @@ func runCreate(appConfig *createConfig) error {
 		return err
 	}
 
-	_, description, err := selectWorker(appConfig.RepoPath)(appConfig)
+	startRelease, description, err := selectWorker(appConfig.RepoPath)(appConfig)
 	if err != nil {
 		return err
 	}
@@ -88,7 +91,61 @@ func runCreate(appConfig *createConfig) error {
 		_ = w.Close()
 		return err
 	}
-	return w.Close()
+	if err := w.Close(); err != nil {
+		return err
+	}
+
+	// notify for any non-stdout file sinks the user requested. Specs() is
+	// re-parsed (rather than tracked through the writer) because the writer
+	// abstraction does not surface its specs and we don't want to break that
+	// boundary just for a status line.
+	notifyFileSinks(appConfig, description)
+
+	// emit the post-teardown summary block. PreviousVersion / NextVersion are
+	// derived from what the worker resolved; ReportSummary skips the version
+	// transition line when NextVersion is empty (speculation off).
+	bus.ReportSummary(summaryOpts(startRelease, description, appConfig.SpeculateNextVersion))
+
+	return nil
+}
+
+// notifyFileSinks emits a Notify per non-stdout output sink. The version
+// encoder gets a tailored phrasing ("wrote version ..."); other formats use a
+// generic "wrote <name> ..." phrasing.
+func notifyFileSinks(appConfig *createConfig, description *release.Description) {
+	if description == nil {
+		return
+	}
+	specs, err := appConfig.Specs()
+	if err != nil {
+		return
+	}
+	for _, s := range specs {
+		if s.IsStdout() {
+			continue
+		}
+		if s.Name == "version" {
+			bus.Notify(fmt.Sprintf("wrote version %q to %s", description.Version, s.Path))
+		} else {
+			bus.Notify(fmt.Sprintf("wrote %s to %s", s.Name, s.Path))
+		}
+	}
+}
+
+// summaryOpts builds the SummaryOpts for the final report. NextVersion is
+// only set when speculation produced a version distinct from the previous
+// release; that gate ensures the version transition line is omitted in
+// modes where it would be misleading.
+func summaryOpts(startRelease *release.Release, desc *release.Description, speculate bool) bus.SummaryOpts {
+	opts := bus.SummaryOpts{Description: desc}
+	if startRelease != nil {
+		opts.PreviousVersion = startRelease.Version
+	}
+	if speculate && desc != nil && desc.Speculated {
+		opts.NextVersion = desc.Version
+		opts.BumpKind = change.Significance(desc.Changes)
+	}
+	return opts
 }
 
 //nolint:revive

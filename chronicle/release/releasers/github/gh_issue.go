@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 
+	"github.com/anchore/chronicle/chronicle/event"
 	"github.com/anchore/chronicle/internal"
 	"github.com/anchore/chronicle/internal/log"
 )
@@ -174,7 +176,7 @@ func setIssueReason(ctx []*string, reason string) {
 }
 
 //nolint:funlen
-func fetchClosedIssues(user, repo string, since *time.Time) ([]ghIssue, error) {
+func fetchClosedIssues(user, repo string, since *time.Time, leaf *event.Leaf) ([]ghIssue, error) {
 	src := oauth2.StaticTokenSource(
 		// TODO: DI this
 		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
@@ -276,6 +278,10 @@ func fetchClosedIssues(user, repo string, since *time.Time) ([]ghIssue, error) {
 					NotPlanned: strings.EqualFold("NOT_PLANNED", string(iEdge.Node.StateReason)),
 				})
 			}
+
+			// emit a stage update after each successfully fetched page so the UI
+			// can show live progress on long fetches against big repos.
+			leaf.SetStage(fmt.Sprintf("page %d — %d received", pages, saw))
 
 			if !query.Repository.Issues.PageInfo.HasNextPage {
 				break

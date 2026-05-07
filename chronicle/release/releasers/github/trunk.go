@@ -54,7 +54,7 @@ func (s *Summarizer) Trunk(sinceRef, untilRef string) (*release.TrunkData, error
 		return nil, err
 	}
 
-	allMergedPRs, err := fetchMergedPRs(s.userName, s.repoName, scope.Start.Timestamp)
+	allMergedPRs, err := fetchMergedPRs(s.userName, s.repoName, scope.Start.Timestamp, nil)
 	if err != nil {
 		return nil, err
 	}

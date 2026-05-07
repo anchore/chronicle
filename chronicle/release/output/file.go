@@ -1,10 +1,13 @@
 package output
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/anchore/chronicle/internal/bus"
 )
 
 // fileSink writes to a temp file in the destination's parent directory and
@@ -81,15 +84,27 @@ func (s *fileSink) Abort() error {
 	return nil
 }
 
-// stdoutSink wraps os.Stdout so it can sit alongside fileSinks behind the
-// same interface. Stdout is never committed/aborted in any meaningful way.
-type stdoutSink struct {
-	w io.Writer
+// publisherSink buffers all encoder output until Commit, then emits it as a
+// CLIReportType event via the bus. This keeps stdout sacred while a TUI is
+// running on stderr — bytes only land on os.Stdout post-teardown via the UI's
+// finalize path, where they cannot interleave with bubbletea repaints.
+type publisherSink struct {
+	buf bytes.Buffer
 }
 
-func (s *stdoutSink) Write(p []byte) (int, error) { return s.w.Write(p) }
-func (s *stdoutSink) Commit() error               { return nil }
-func (s *stdoutSink) Abort() error                { return nil }
+func (s *publisherSink) Write(p []byte) (int, error) { return s.buf.Write(p) }
+
+// Commit publishes the buffered content. Idempotent — subsequent calls are no-ops.
+func (s *publisherSink) Commit() error {
+	if s.buf.Len() == 0 {
+		return nil
+	}
+	bus.Report(s.buf.String())
+	s.buf.Reset()
+	return nil
+}
+
+func (s *publisherSink) Abort() error { return nil }
 
 // sink is the destination side of an (encoder, destination) pair.
 type sink interface {
