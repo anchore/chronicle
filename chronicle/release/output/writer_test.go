@@ -127,3 +127,25 @@ func TestWriter_RejectsUnknownEncoder(t *testing.T) {
 	_, err := newWithStdout([]Spec{{Name: "rec-a"}, {Name: "rec-missing"}}, encs, io.Discard)
 	require.Error(t, err)
 }
+
+// stdoutOnlyEncoder is a recordingEncoder that declares StdoutOnly() true,
+// so the writer should reject any spec that gives it a file path.
+type stdoutOnlyEncoder struct{ recordingEncoder }
+
+func (s *stdoutOnlyEncoder) StdoutOnly() bool { return true }
+
+func TestWriter_RejectsStdoutOnlyEncoderToFile(t *testing.T) {
+	encs := NewEncoders(&stdoutOnlyEncoder{recordingEncoder{id: "rec-tty"}})
+
+	dir := t.TempDir()
+	_, err := newWithStdout([]Spec{{Name: "rec-tty", Path: filepath.Join(dir, "out.txt")}}, encs, io.Discard)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "stdout")
+}
+
+func TestWriter_AllowsStdoutOnlyEncoderToStdout(t *testing.T) {
+	encs := NewEncoders(&stdoutOnlyEncoder{recordingEncoder{id: "rec-tty"}})
+	w, err := newWithStdout([]Spec{{Name: "rec-tty"}}, encs, io.Discard)
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+}

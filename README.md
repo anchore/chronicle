@@ -41,6 +41,11 @@ Write a changelog to a file and the resolved version to another file in one run 
 chronicle -o md=CHANGELOG.md -o version=VERSION
 ```
 
+Render the changelog with ANSI styling for the terminal (falls back to plain markdown if stdout isn't a TTY)
+```bash
+chronicle -o md-pretty
+```
+
 ## Installation
 
 ```bash
@@ -67,15 +72,20 @@ Configuration options (example values are the default):
 
 ```yaml
 # output format(s); each entry is NAME or NAME=PATH. Repeat to write more
-# than one format/destination in a single run. Available NAMEs: md, json,
-# version. An entry with no path writes to stdout (at most one entry may
-# write to stdout).
+# than one format/destination in a single run. Available NAMEs:
+#   md         — plain markdown
+#   md-pretty  — ANSI-styled markdown (stdout only; falls back to md if not a TTY)
+#   json       — release description as JSON
+#   version    — just the resolved version string with a trailing newline
+# An entry with no path writes to stdout (at most one entry may write to
+# stdout).
 # same as -o, --output, and CHRONICLE_OUTPUT env var
 output:
   - md
   # - md=CHANGELOG.md
   # - version=VERSION
   # - json
+  # - md-pretty
 
 # suppress all logging output
 # same as -q ; CHRONICLE_QUIET env var

@@ -65,9 +65,13 @@ func repoPathArgs(cfg *createConfig) cobra.PositionalArgs {
 }
 
 func runCreate(appConfig *createConfig) error {
-	// run the worker before constructing the writer so that file sinks are
-	// only opened (and temp files created) once we know the description is
-	// available; this avoids leaving orphaned temp files behind on failure.
+	// fast-fail on misconfigured -o values before the worker hits the
+	// network; sink construction (which creates temp files) is still deferred
+	// until after the worker succeeds so failures don't leak temp files.
+	if err := appConfig.Check(); err != nil {
+		return err
+	}
+
 	_, description, err := selectWorker(appConfig.RepoPath)(appConfig)
 	if err != nil {
 		return err

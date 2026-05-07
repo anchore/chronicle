@@ -2,10 +2,14 @@ package options
 
 import (
 	"fmt"
+	"os"
+
+	"golang.org/x/term"
 
 	"github.com/anchore/chronicle/chronicle/release/output"
 	jsonenc "github.com/anchore/chronicle/chronicle/release/output/encoders/json"
 	mdenc "github.com/anchore/chronicle/chronicle/release/output/encoders/markdown"
+	mdpretty "github.com/anchore/chronicle/chronicle/release/output/encoders/markdownpretty"
 	versionenc "github.com/anchore/chronicle/chronicle/release/output/encoders/version"
 	"github.com/anchore/chronicle/internal/log"
 	"github.com/anchore/clio"
@@ -31,16 +35,23 @@ type Output struct {
 var _ clio.FlagAdder = (*Output)(nil)
 
 // DefaultOutput returns an Output with the standard chronicle encoder set
-// (md, json, version) wired up and a default of markdown-on-stdout.
+// (md, json, version, md-pretty) wired up and a default of markdown-on-stdout.
+// TTY detection for md-pretty happens once at construction time; if stdout
+// later turns out to be piped, md-pretty falls back to plain markdown.
 func DefaultOutput() Output {
 	return Output{
 		Available: output.NewEncoders(
 			&mdenc.Encoder{},
 			&jsonenc.Encoder{},
 			&versionenc.Encoder{},
+			&mdpretty.Encoder{IsTTY: isStdoutTTY()},
 		),
 		Outputs: []string{mdenc.ID},
 	}
+}
+
+func isStdoutTTY() bool {
+	return term.IsTerminal(int(os.Stdout.Fd()))
 }
 
 func (o *Output) AddFlags(flags clio.FlagSet) {
@@ -77,6 +88,17 @@ func (o *Output) Specs() ([]output.Spec, error) {
 		specs = append(specs, output.Spec{Name: versionenc.ID, Path: o.VersionFile})
 	}
 	return specs, nil
+}
+
+// Check runs validation against the available encoder set without opening
+// any file sinks. Use it to fail fast on misconfigured -o values before
+// kicking off expensive upstream work.
+func (o *Output) Check() error {
+	specs, err := o.Specs()
+	if err != nil {
+		return err
+	}
+	return output.Check(specs, o.Available)
 }
 
 // Writer constructs the output writer for the configured specs, validated

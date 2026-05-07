@@ -28,15 +28,31 @@ func New(specs []Spec, encs Encoders) (Writer, error) {
 	return newWithStdout(specs, encs, os.Stdout)
 }
 
-// newWithStdout exists for tests; production code calls New.
-func newWithStdout(specs []Spec, encs Encoders, stdout io.Writer) (Writer, error) {
+// Check runs all validation that does not require opening sinks: structural
+// rules, unknown-name detection, and the StdoutOnly contract. Callers that
+// need to fail fast on misconfiguration before doing expensive upstream work
+// (e.g. before a worker hits the network) can call Check separately and then
+// New later.
+func Check(specs []Spec, encs Encoders) error {
 	if err := Validate(specs); err != nil {
-		return nil, err
+		return err
 	}
 	for _, s := range specs {
-		if _, ok := encs.Lookup(s.Name); !ok {
-			return nil, fmt.Errorf("unknown output format %q (known: %v)", s.Name, encs.Names())
+		enc, ok := encs.Lookup(s.Name)
+		if !ok {
+			return fmt.Errorf("unknown output format %q (known: %v)", s.Name, encs.Names())
 		}
+		if so, ok := enc.(StdoutOnlyEncoder); ok && so.StdoutOnly() && !s.IsStdout() {
+			return fmt.Errorf("output %q can only write to stdout (got path %q)", s.Name, s.Path)
+		}
+	}
+	return nil
+}
+
+// newWithStdout exists for tests; production code calls New.
+func newWithStdout(specs []Spec, encs Encoders, stdout io.Writer) (Writer, error) {
+	if err := Check(specs, encs); err != nil {
+		return nil, err
 	}
 	w := &multiWriter{}
 	for _, s := range specs {

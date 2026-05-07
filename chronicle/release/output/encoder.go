@@ -15,6 +15,14 @@ type Encoder interface {
 	Encode(w io.Writer, title string, d release.Description) error
 }
 
+// StdoutOnlyEncoder is an optional interface for encoders whose output is
+// only sensible when written to a terminal (e.g. ANSI-styled markdown).
+// New rejects specs that bind such an encoder to a file path.
+type StdoutOnlyEncoder interface {
+	Encoder
+	StdoutOnly() bool
+}
+
 // Encoders is a name-keyed set of available encoders. Callers (typically the
 // cmd layer) construct this once with the encoders the command supports and
 // pass it into New.

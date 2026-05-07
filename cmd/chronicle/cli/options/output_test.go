@@ -78,7 +78,7 @@ func TestOutput_Specs(t *testing.T) {
 
 func TestDefaultOutput_Encoders(t *testing.T) {
 	o := DefaultOutput()
-	require.ElementsMatch(t, []string{"md", "json", "version"}, o.Available.Names())
+	require.ElementsMatch(t, []string{"md", "json", "version", "md-pretty"}, o.Available.Names())
 }
 
 // TestOutput_Writer_EndToEnd is the seam between the cmd layer and the output
