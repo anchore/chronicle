@@ -116,11 +116,10 @@ func (s *Summarizer) ChangesURL(sinceRef, untilRef string) string {
 }
 
 func (s *Summarizer) LastRelease() (*release.Release, error) {
-	releases, err := fetchAllReleases(s.userName, s.repoName)
+	latestRelease, err := fetchLatestNonDraftRelease(s.userName, s.repoName)
 	if err != nil {
 		return nil, fmt.Errorf("unable to fetch releases for %s/%s: %w", s.userName, s.repoName, err)
 	}
-	latestRelease := latestNonDraftRelease(releases)
 	if latestRelease != nil {
 		return &release.Release{
 			Version: latestRelease.Tag,
