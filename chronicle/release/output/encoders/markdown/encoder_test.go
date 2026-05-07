@@ -111,6 +111,90 @@ func assertEncoderAgainstGoldenSnapshot(t *testing.T, title string, d release.De
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func Test_formatReferences(t *testing.T) {
+	pr1 := change.Reference{Text: "#1", URL: "https://github.com/o/r/pull/1"}
+	pr2 := change.Reference{Text: "#2", URL: "https://github.com/o/r/pull/2"}
+	iss1 := change.Reference{Text: "#10", URL: "https://github.com/o/r/issues/10"}
+	iss2 := change.Reference{Text: "#11", URL: "https://github.com/o/r/issues/11"}
+	handleGH := change.Reference{Text: "@alice", URL: "https://github.com/alice"}
+	handleOther := change.Reference{Text: "@bob", URL: "https://example.com/bob"}
+	noURL := change.Reference{Text: "CVE-2024-0001", URL: ""}
+	weird := change.Reference{Text: "release-notes", URL: "https://example.com/notes"}
+
+	tests := []struct {
+		name string
+		refs []change.Reference
+		want string
+	}{
+		{
+			name: "empty refs",
+			refs: nil,
+			want: "",
+		},
+		{
+			name: "single PR",
+			refs: []change.Reference{pr1},
+			want: " [PR [#1](https://github.com/o/r/pull/1)]",
+		},
+		{
+			name: "single issue",
+			refs: []change.Reference{iss1},
+			want: " [Issue [#10](https://github.com/o/r/issues/10)]",
+		},
+		{
+			name: "handle alone (no issue, no PR) renders standalone",
+			refs: []change.Reference{handleGH},
+			want: " [@alice]",
+		},
+		{
+			name: "handle bundles into PR group when both present",
+			refs: []change.Reference{pr1, handleGH},
+			want: " [PR [#1](https://github.com/o/r/pull/1) @alice]",
+		},
+		{
+			name: "handle bundles into issue group when no PR present",
+			refs: []change.Reference{iss1, handleGH},
+			want: " [Issue [#10](https://github.com/o/r/issues/10) @alice]",
+		},
+		{
+			name: "handle bundles into PR when both issue and PR present, issue stays alone",
+			refs: []change.Reference{iss1, pr1, handleGH},
+			want: " [Issue [#10](https://github.com/o/r/issues/10)] [PR [#1](https://github.com/o/r/pull/1) @alice]",
+		},
+		{
+			name: "ref with empty URL goes to trailing other bracket",
+			refs: []change.Reference{pr1, noURL},
+			want: " [PR [#1](https://github.com/o/r/pull/1)] [CVE-2024-0001]",
+		},
+		{
+			name: "multiple of each kind preserves input order, label stays singular",
+			refs: []change.Reference{pr1, iss1, pr2, iss2, handleGH},
+			want: " [Issue [#10](https://github.com/o/r/issues/10) [#11](https://github.com/o/r/issues/11)] [PR [#1](https://github.com/o/r/pull/1) [#2](https://github.com/o/r/pull/2) @alice]",
+		},
+		{
+			name: "github @-handle renders bare without markdown link inside host group",
+			refs: []change.Reference{pr1, handleGH},
+			want: " [PR [#1](https://github.com/o/r/pull/1) @alice]",
+		},
+		{
+			name: "non-github @-handle still renders as markdown link",
+			refs: []change.Reference{pr1, handleOther},
+			want: " [PR [#1](https://github.com/o/r/pull/1) [@bob](https://example.com/bob)]",
+		},
+		{
+			name: "all four buckets render in fixed order: issue, PR, other (handles bundled into PR)",
+			refs: []change.Reference{handleGH, weird, pr1, iss1},
+			want: " [Issue [#10](https://github.com/o/r/issues/10)] [PR [#1](https://github.com/o/r/pull/1) @alice] [[release-notes](https://example.com/notes)]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, formatReferences(tt.refs))
+		})
+	}
+}
+
 func Test_removeConventionalCommitPrefix(t *testing.T) {
 	tests := []struct {
 		name string

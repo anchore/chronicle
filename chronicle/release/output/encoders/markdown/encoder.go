@@ -92,26 +92,70 @@ func formatSummary(summary change.Change) string {
 		result = result[:len(result)-1]
 	}
 
-	var refs string
-	for _, ref := range summary.References {
+	return result + formatReferences(summary.References) + "\n"
+}
+
+// formatReferences groups references by kind and renders them as space-prefixed
+// bracketed groups: `[Issue ...] [PR ... @handles] [other]`. See package docs
+// for the full bundling rules.
+func formatReferences(refs []change.Reference) string {
+	if len(refs) == 0 {
+		return ""
+	}
+
+	var issues, prs, handles, others []string
+	for _, ref := range refs {
+		frag := renderRef(ref)
 		switch {
-		case ref.URL == "":
-			refs += fmt.Sprintf(" %s", ref.Text)
-		case strings.HasPrefix(ref.Text, "@") && strings.HasPrefix(ref.URL, "https://github.com/"):
-			// the github release page automatically credits contributors as a footer; embedding the
-			// handle in a link suppresses that, so we leave bare @-handles alone.
-			refs += fmt.Sprintf(" %s", ref.Text)
+		case strings.HasPrefix(ref.Text, "@"):
+			handles = append(handles, frag)
+		case strings.Contains(ref.URL, "/issues/"):
+			issues = append(issues, frag)
+		case strings.Contains(ref.URL, "/pull/"):
+			prs = append(prs, frag)
 		default:
-			refs += fmt.Sprintf(" [%s](%s)", ref.Text, ref.URL)
+			others = append(others, frag)
 		}
 	}
 
-	refs = strings.TrimSpace(refs)
-	if refs != "" {
-		result += fmt.Sprintf(" [%s]", refs)
+	// bundle handles into the PR group if present, else the Issue group, else standalone.
+	switch {
+	case len(prs) > 0:
+		prs = append(prs, handles...)
+		handles = nil
+	case len(issues) > 0:
+		issues = append(issues, handles...)
+		handles = nil
 	}
 
-	return result + "\n"
+	var out strings.Builder
+	if len(issues) > 0 {
+		fmt.Fprintf(&out, " [Issue %s]", strings.Join(issues, " "))
+	}
+	if len(prs) > 0 {
+		fmt.Fprintf(&out, " [PR %s]", strings.Join(prs, " "))
+	}
+	if len(handles) > 0 {
+		fmt.Fprintf(&out, " [%s]", strings.Join(handles, " "))
+	}
+	if len(others) > 0 {
+		fmt.Fprintf(&out, " [%s]", strings.Join(others, " "))
+	}
+	return out.String()
+}
+
+// renderRef renders a single reference to its markdown fragment, preserving
+// the bare-text behavior for @-handles linked to a github user page (so the
+// github release page can still auto-credit contributors).
+func renderRef(ref change.Reference) string {
+	switch {
+	case ref.URL == "":
+		return ref.Text
+	case strings.HasPrefix(ref.Text, "@") && strings.HasPrefix(ref.URL, "https://github.com/"):
+		return ref.Text
+	default:
+		return fmt.Sprintf("[%s](%s)", ref.Text, ref.URL)
+	}
 }
 
 func endsWithPunctuation(s string) bool {
