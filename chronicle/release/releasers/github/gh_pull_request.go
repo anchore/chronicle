@@ -25,7 +25,15 @@ type ghPullRequest struct {
 	MergeCommit  string
 }
 
-type prFilter func(issue ghPullRequest) bool
+// prFilter decides whether to keep a PR. When returning false, the optional ctx
+// pointer (if non-nil) is populated with a short reason identifier.
+type prFilter func(pr ghPullRequest, ctx ...*string) bool
+
+// droppedPR pairs a PR with the reason it was filtered out.
+type droppedPR struct {
+	pr     ghPullRequest
+	reason string
+}
 
 func applyPRFilters(allMergedPRs []ghPullRequest, config Config, sinceTag, untilTag *git.Tag, includeCommits []string, filters ...prFilter) []ghPullRequest {
 	// first pass: exclude PRs which are not within the date range derived from the tags
@@ -40,45 +48,55 @@ func applyPRFilters(allMergedPRs []ghPullRequest, config Config, sinceTag, until
 		if len(reincluded) > 0 {
 			log.WithFields("count", len(reincluded)).Trace("PRs re-included by merge commit")
 		}
-		includedPRs = append(includedPRs, reincluded...)
+		includedPRs = append(includedPRs, prsFromDropped(reincluded)...)
 	}
 
 	// third pass: now that we have a list of PRs considered for release, we can filter down to those which have the correct traits (e.g. labels)
 	beforeQual := len(includedPRs)
-	var droppedQual []ghPullRequest
-	includedPRs, droppedQual = filterPRs(includedPRs, filters...)
+	includedPRs, droppedQual := filterPRs(includedPRs, filters...)
 	log.WithFields("kept", len(includedPRs), "dropped", len(droppedQual), "input", beforeQual).Trace("PR qualitative filter")
 
 	return includedPRs
 }
 
-func filterPRs(prs []ghPullRequest, filters ...prFilter) ([]ghPullRequest, []ghPullRequest) {
+// prsFromDropped extracts the underlying PR values from a dropped list.
+func prsFromDropped(dropped []droppedPR) []ghPullRequest {
+	prs := make([]ghPullRequest, len(dropped))
+	for i, d := range dropped {
+		prs[i] = d.pr
+	}
+	return prs
+}
+
+func filterPRs(prs []ghPullRequest, filters ...prFilter) (kept []ghPullRequest, dropped []droppedPR) {
 	if len(filters) == 0 {
 		return prs, nil
 	}
 
-	results := make([]ghPullRequest, 0, len(prs))
-	removed := make([]ghPullRequest, 0, len(prs))
+	kept = make([]ghPullRequest, 0, len(prs))
+	dropped = make([]droppedPR, 0, len(prs))
 
 prLoop:
-	for _, r := range prs {
+	for _, pr := range prs {
 		for _, f := range filters {
-			if !f(r) {
-				removed = append(removed, r)
+			var reason string
+			if !f(pr, &reason) {
+				dropped = append(dropped, droppedPR{pr: pr, reason: reason})
 				continue prLoop
 			}
 		}
-		results = append(results, r)
+		kept = append(kept, pr)
 	}
 
-	return results, removed
+	return kept, dropped
 }
 
 //nolint:unused
 func prsAtOrAfter(since time.Time) prFilter {
-	return func(pr ghPullRequest) bool {
+	return func(pr ghPullRequest, ctx ...*string) bool {
 		keep := pr.MergedAt.After(since) || pr.MergedAt.Equal(since)
 		if !keep {
+			setReason(ctx, "chronology:too-old")
 			log.Tracef("PR #%d filtered out: merged at or before %s (merged %s)", pr.Number, internal.FormatDateTime(since), internal.FormatDateTime(pr.MergedAt))
 		}
 		return keep
@@ -86,9 +104,10 @@ func prsAtOrAfter(since time.Time) prFilter {
 }
 
 func prsAtOrBefore(since time.Time) prFilter {
-	return func(pr ghPullRequest) bool {
+	return func(pr ghPullRequest, ctx ...*string) bool {
 		keep := pr.MergedAt.Before(since) || pr.MergedAt.Equal(since)
 		if !keep {
+			setReason(ctx, "chronology:too-new")
 			log.Tracef("PR #%d filtered out: merged at or after %s (merged %s)", pr.Number, internal.FormatDateTime(since), internal.FormatDateTime(pr.MergedAt))
 		}
 		return keep
@@ -96,9 +115,10 @@ func prsAtOrBefore(since time.Time) prFilter {
 }
 
 func prsAfter(since time.Time) prFilter {
-	return func(pr ghPullRequest) bool {
+	return func(pr ghPullRequest, ctx ...*string) bool {
 		keep := pr.MergedAt.After(since)
 		if !keep {
+			setReason(ctx, "chronology:too-old")
 			log.Tracef("PR #%d filtered out: merged before %s (merged %s)", pr.Number, internal.FormatDateTime(since), internal.FormatDateTime(pr.MergedAt))
 		}
 		return keep
@@ -107,9 +127,10 @@ func prsAfter(since time.Time) prFilter {
 
 //nolint:unused
 func prsBefore(since time.Time) prFilter {
-	return func(pr ghPullRequest) bool {
+	return func(pr ghPullRequest, ctx ...*string) bool {
 		keep := pr.MergedAt.Before(since)
 		if !keep {
+			setReason(ctx, "chronology:too-new")
 			log.Tracef("PR #%d filtered out: merged after %s (merged %s)", pr.Number, internal.FormatDateTime(since), internal.FormatDateTime(pr.MergedAt))
 		}
 		return keep
@@ -117,9 +138,10 @@ func prsBefore(since time.Time) prFilter {
 }
 
 func prsWithoutClosedLinkedIssue() prFilter {
-	return func(pr ghPullRequest) bool {
+	return func(pr ghPullRequest, ctx ...*string) bool {
 		for _, i := range pr.LinkedIssues {
 			if i.Closed {
+				setReason(ctx, "linked-issue:closed")
 				log.Tracef("PR #%d filtered out: has closed linked issue", pr.Number)
 				return false
 			}
@@ -129,21 +151,23 @@ func prsWithoutClosedLinkedIssue() prFilter {
 }
 
 func prsWithClosedLinkedIssue() prFilter {
-	return func(pr ghPullRequest) bool {
+	return func(pr ghPullRequest, ctx ...*string) bool {
 		for _, i := range pr.LinkedIssues {
 			if i.Closed {
 				return true
 			}
 		}
+		setReason(ctx, "linked-issue:none-closed")
 		log.Tracef("PR #%d filtered out: does not have a closed linked issue", pr.Number)
 		return false
 	}
 }
 
 func prsWithoutOpenLinkedIssue() prFilter {
-	return func(pr ghPullRequest) bool {
+	return func(pr ghPullRequest, ctx ...*string) bool {
 		for _, i := range pr.LinkedIssues {
 			if !i.Closed {
+				setReason(ctx, "linked-issue:open")
 				log.Tracef("PR #%d filtered out: has linked issue that is still open: issue %d", pr.Number, i.Number)
 
 				return false
@@ -154,7 +178,7 @@ func prsWithoutOpenLinkedIssue() prFilter {
 }
 
 func prsWithLabel(labels ...string) prFilter {
-	return func(pr ghPullRequest) bool {
+	return func(pr ghPullRequest, ctx ...*string) bool {
 		for _, targetLabel := range labels {
 			for _, l := range pr.Labels {
 				if l == targetLabel {
@@ -162,6 +186,7 @@ func prsWithLabel(labels ...string) prFilter {
 				}
 			}
 		}
+		setReason(ctx, "label:missing-required")
 		log.Tracef("PR #%d filtered out: missing required label", pr.Number)
 
 		return false
@@ -169,9 +194,10 @@ func prsWithLabel(labels ...string) prFilter {
 }
 
 func prsWithoutLabels() prFilter {
-	return func(pr ghPullRequest) bool {
+	return func(pr ghPullRequest, ctx ...*string) bool {
 		keep := len(pr.Labels) == 0
 		if !keep {
+			setReason(ctx, "labels:present")
 			log.Tracef("PR #%d filtered out: has labels", pr.Number)
 		}
 		return keep
@@ -179,9 +205,10 @@ func prsWithoutLabels() prFilter {
 }
 
 func prsWithoutLinkedIssues() prFilter {
-	return func(pr ghPullRequest) bool {
+	return func(pr ghPullRequest, ctx ...*string) bool {
 		keep := len(pr.LinkedIssues) == 0
 		if !keep {
+			setReason(ctx, "linked-issues:present")
 			log.Tracef("PR #%d filtered out: has linked issues", pr.Number)
 		}
 		return keep
@@ -189,11 +216,12 @@ func prsWithoutLinkedIssues() prFilter {
 }
 
 func prsWithChangeTypes(config Config) prFilter {
-	return func(pr ghPullRequest) bool {
+	return func(pr ghPullRequest, ctx ...*string) bool {
 		changeTypes := config.ChangeTypesByLabel.ChangeTypes(pr.Labels...)
 
 		keep := len(changeTypes) > 0
 		if !keep {
+			setReason(ctx, "change-type:none")
 			log.Tracef("PR #%d filtered out: no change types", pr.Number)
 		}
 		return keep
@@ -201,10 +229,11 @@ func prsWithChangeTypes(config Config) prFilter {
 }
 
 func prsWithoutLabel(labels ...string) prFilter {
-	return func(pr ghPullRequest) bool {
+	return func(pr ghPullRequest, ctx ...*string) bool {
 		for _, targetLabel := range labels {
 			for _, l := range pr.Labels {
 				if l == targetLabel {
+					setReason(ctx, "label:excluded:"+l)
 					log.Tracef("PR #%d filtered out: has label %q", pr.Number, l)
 					return false
 				}
@@ -217,8 +246,9 @@ func prsWithoutLabel(labels ...string) prFilter {
 
 func prsWithoutMergeCommit(commits ...string) prFilter {
 	commitSet := strset.New(commits...)
-	return func(pr ghPullRequest) bool {
+	return func(pr ghPullRequest, ctx ...*string) bool {
 		if !commitSet.Has(pr.MergeCommit) {
+			setReason(ctx, "merge-commit:not-in-set")
 			log.Tracef("PR #%d filtered out: has merge commit outside of valid set %s", pr.Number, pr.MergeCommit)
 			return false
 		}
@@ -227,21 +257,32 @@ func prsWithoutMergeCommit(commits ...string) prFilter {
 	}
 }
 
-func keepPRsWithCommits(prs []ghPullRequest, commits []string, filters ...prFilter) []ghPullRequest {
-	results := make([]ghPullRequest, 0, len(prs))
+func keepPRsWithCommits(dropped []droppedPR, commits []string, filters ...prFilter) []droppedPR {
+	results := make([]droppedPR, 0, len(dropped))
 
 	commitSet := strset.New(commits...)
-	for _, pr := range prs {
+	for _, d := range dropped {
+		pr := d.pr
 		if commitSet.Has(pr.MergeCommit) {
 			log.Tracef("PR #%d included: has selected commit %s", pr.Number, pr.MergeCommit)
 			keep, _ := filterPRs([]ghPullRequest{pr}, filters...)
-			results = append(results, keep...)
+			for _, kpr := range keep {
+				results = append(results, droppedPR{pr: kpr, reason: ""})
+			}
 		} else {
 			log.Tracef("PR #%d filtered out: does not have merge commit %s", pr.Number, pr.MergeCommit)
 		}
 	}
 
 	return results
+}
+
+// setReason writes the reason into the first element of the variadic ctx slice,
+// if provided and non-nil. This allows filter callers to retrieve the drop reason.
+func setReason(ctx []*string, reason string) {
+	if len(ctx) > 0 && ctx[0] != nil {
+		*ctx[0] = reason
+	}
 }
 
 //nolint:funlen

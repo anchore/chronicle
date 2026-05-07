@@ -215,6 +215,117 @@ func TestCommitsBetween(t *testing.T) {
 	}
 }
 
+func TestCommitsBetweenWithMeta(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		config  Range
+		count   int
+		wantErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "all inclusive",
+			path: "testdata/repos/tag-range-repo",
+			config: Range{
+				SinceRef:     "v0.1.0",
+				UntilRef:     "v0.1.1",
+				IncludeStart: true,
+				IncludeEnd:   true,
+			},
+			count: 4,
+		},
+		{
+			name: "exclude start and end",
+			path: "testdata/repos/tag-range-repo",
+			config: Range{
+				SinceRef:     "v0.1.0",
+				UntilRef:     "v0.1.1",
+				IncludeStart: false,
+				IncludeEnd:   false,
+			},
+			count: 2,
+		},
+		{
+			name: "invalid since ref",
+			path: "testdata/repos/tag-range-repo",
+			config: Range{
+				SinceRef: "v999.999.999",
+				UntilRef: "v0.1.1",
+			},
+			wantErr: require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.wantErr == nil {
+				tt.wantErr = require.NoError
+			}
+
+			got, err := CommitsBetweenWithMeta(tt.path, tt.config)
+			tt.wantErr(t, err)
+			if err != nil {
+				return
+			}
+
+			require.Len(t, got, tt.count)
+
+			// build expected commits from git directly and compare metadata fields
+			expected := gitCommitsWithMeta(t, tt.path, tt.config)
+			if diff := cmp.Diff(expected, got); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// gitCommitsWithMeta queries git directly to produce the expected []Commit slice
+// for the given range, honoring IncludeStart and IncludeEnd.
+func gitCommitsWithMeta(t *testing.T, path string, cfg Range) []Commit {
+	t.Helper()
+
+	// use the same inclusive range trick as gitLogRange: since~1..until
+	cmd := exec.Command("git", "--no-pager", "log",
+		`--pretty=format:%H|%s|%an|%aI`,
+		fmt.Sprintf("%s~1..%s", cfg.SinceRef, cfg.UntilRef),
+	)
+	cmd.Dir = path
+	output, err := cmd.Output()
+	require.NoError(t, err)
+
+	rows := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	var commits []Commit
+	for _, row := range rows {
+		if row == "" {
+			continue
+		}
+		parts := strings.SplitN(row, "|", 4)
+		require.Len(t, parts, 4, "unexpected git log row: %q", row)
+
+		ts, err := time.Parse(time.RFC3339, parts[3])
+		require.NoError(t, err)
+
+		commits = append(commits, Commit{
+			Hash:      parts[0],
+			Subject:   parts[1],
+			Author:    parts[2],
+			Timestamp: ts,
+		})
+	}
+
+	if !cfg.IncludeStart {
+		// git log is in reverse chronological order; start commit is at the back
+		commits = commits[:len(commits)-1]
+	}
+	if !cfg.IncludeEnd {
+		// end commit is at the front
+		commits = commits[1:]
+	}
+
+	return commits
+}
+
 func gitLogRange(t *testing.T, path, since, until string) []string {
 	t.Helper()
 

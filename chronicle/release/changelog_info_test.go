@@ -88,7 +88,7 @@ func TestChangelogInfo_NoRelease(t *testing.T) {
 	assert.Equal(t, "https://github.com/owner/repo/commits/v0.1.0", description.VCSChangesURL)
 }
 
-func Test_changelogChanges(t *testing.T) {
+func Test_changelogChangesWithSpeculation(t *testing.T) {
 	tests := []struct {
 		name                string
 		startReleaseVersion string
@@ -130,7 +130,7 @@ func Test_changelogChanges(t *testing.T) {
 			if tt.wantErr == nil {
 				tt.wantErr = require.NoError
 			}
-			endReleaseVersion, _, err := changelogChanges(tt.startReleaseVersion, tt.summer, tt.config)
+			endReleaseVersion, _, _, err := changelogChangesWithSpeculation(tt.startReleaseVersion, tt.summer, tt.config)
 			tt.wantErr(t, err)
 
 			assert.Equal(t, tt.endReleaseVersion, endReleaseVersion)

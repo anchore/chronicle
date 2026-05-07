@@ -1,0 +1,101 @@
+
+[TestEncoder_Encode/condensed,_hide-filtered,_with_previous_release - 1]
+◆  v0.5.0  ‹2026-05-07›
+│  commit   pr    title                         closes      type / filter reason
+│
+●  a1b2c3d  #466  feat: multi-output formats    #450, #451  enhancement
+│
+●  1234567  #470  fix: nil deref in summarizer  #468        bug
+│
+◆  v0.4.1  ‹2026-04-18›
+
+---
+
+[TestEncoder_Encode/condensed,_show-filtered,_with_previous_release - 1]
+◆  v0.5.0  ‹2026-05-07›
+│  commit   pr    title                         closes            type / filter reason
+│
+●  a1b2c3d  #466  feat: multi-output formats    #450, #451, #452  enhancement
+│
+·  deadbee  —   chore: fix typo in README                       filtered: no PR
+│
+·  f7e8d9c  #467  chore: update CI config                         filtered: label:chore
+│
+●  1234567  #470  fix: nil deref in summarizer  #468              bug
+│
+◆  v0.4.1  ‹2026-04-18›
+
+---
+
+[TestEncoder_Encode/expanded,_hide-filtered,_with_previous_release - 1]
+◆  v0.5.0  ‹2026-05-07›
+│  commit   pr    title                             type / filter reason
+│
+●  a1b2c3d  #466  feat: multi-output formats        enhancement
+│                 closes #450  add JSON output to releases       enhancement
+│                 closes #451  document the JSON schema          enhancement
+│
+●  1234567  #470  fix: nil deref in summarizer      bug
+│                 closes #468  panic on empty merge commit list  bug
+│
+◆  v0.4.1  ‹2026-04-18›
+
+---
+
+[TestEncoder_Encode/expanded,_show-filtered,_with_previous_release - 1]
+◆  v0.5.0  ‹2026-05-07›
+│  commit   pr    title                                         type / filter reason
+│
+●  a1b2c3d  #466  feat: multi-output formats                    enhancement
+│                 closes #450  add JSON output to releases                   enhancement
+│                 closes #451  document the JSON schema                      enhancement
+│                 closes #452  stale issue that was closed but not in scope  filtered: out-of-scope
+│
+·  deadbee  —   chore: fix typo in README                     filtered: no PR
+│
+·  f7e8d9c  #467  chore: update CI config                       filtered: label:chore
+│
+●  1234567  #470  fix: nil deref in summarizer                  bug
+│                 closes #468  panic on empty merge commit list              bug
+│
+◆  v0.4.1  ‹2026-04-18›
+
+---
+
+[TestEncoder_Encode/condensed,_no_previous_release_(no_bottom_anchor) - 1]
+◆  v0.5.0  ‹2026-05-07›
+│  commit   pr    title                         closes      type / filter reason
+│
+●  a1b2c3d  #466  feat: multi-output formats    #450, #451  enhancement
+│
+●  1234567  #470  fix: nil deref in summarizer  #468        bug
+
+---
+
+[TestEncoder_Encode/condensed,_speculated_release_(open_diamond_+_parenthetical) - 1]
+◇  v0.5.0  ‹2026-05-07 (speculated)›
+│  commit   pr    title                         closes      type / filter reason
+│
+●  a1b2c3d  #466  feat: multi-output formats    #450, #451  enhancement
+│
+●  1234567  #470  fix: nil deref in summarizer  #468        bug
+│
+◆  v0.4.1  ‹2026-04-18›
+
+---
+
+[TestEncoder_Encode/non-TTY_output_contains_no_ANSI_escapes - 1]
+◆  v0.5.0  ‹2026-05-07›
+│  commit   pr    title                         closes            type / filter reason
+│
+●  a1b2c3d  #466  feat: multi-output formats    #450, #451, #452  enhancement
+│
+·  deadbee  —   chore: fix typo in README                       filtered: no PR
+│
+·  f7e8d9c  #467  chore: update CI config                         filtered: label:chore
+│
+●  1234567  #470  fix: nil deref in summarizer  #468              bug
+│
+◆  v0.4.1  ‹2026-04-18›
+
+---

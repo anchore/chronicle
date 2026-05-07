@@ -424,7 +424,7 @@ func changesFromStandardPRFilters(config Config, allMergedPRs []ghPullRequest, s
 	includedPRs := applyStandardPRFilters(allMergedPRs, config, sinceTag, untilTag, includeCommits)
 
 	beforeChangeTypeFilter := len(includedPRs)
-	var droppedNoChangeType []ghPullRequest
+	var droppedNoChangeType []droppedPR
 	includedPRs, droppedNoChangeType = filterPRs(includedPRs, prsWithChangeTypes(config))
 	log.WithFields("kept", len(includedPRs), "dropped", len(droppedNoChangeType), "input", beforeChangeTypeFilter).Trace("PR change-type filter")
 
@@ -517,12 +517,12 @@ func changesFromUnlabeledPRs(config Config, allMergedPRs []ghPullRequest, sinceT
 
 	filters = append(filters, standardChronologicalPrFilters(config, sinceTag, untilTag, includeCommits)...)
 
-	filteredIssues, _ := filterPRs(allMergedPRs, filters...)
+	filteredPRs, _ := filterPRs(allMergedPRs, filters...)
 
-	log.WithFields("count", len(filteredIssues)).Info("unlabeled PRs contributing to changelog")
-	logPRs(filteredIssues)
+	log.WithFields("count", len(filteredPRs)).Info("unlabeled PRs contributing to changelog")
+	logPRs(filteredPRs)
 
-	return createChangesFromPRs(config, filteredIssues)
+	return createChangesFromPRs(config, filteredPRs)
 }
 
 func changesFromUnlabeledIssues(config Config, allMergedPRs []ghPullRequest, allIssues []ghIssue, sinceTag, untilTag *git.Tag) []change.Change {

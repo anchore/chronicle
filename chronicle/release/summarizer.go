@@ -21,3 +21,10 @@ type Summarizer interface {
 	// ChangesURL is the URL to find the specific source changes that makeup this release, e.g. https://github.com/anchore/chronicle/compare/v0.3.0...v0.4.1 .
 	ChangesURL(sinceRef, untilRef string) string
 }
+
+// TrunkSummarizer is implemented by Summarizers that can produce commit-anchored
+// trunk data for the trunk output format. Returning nil means trunk data is
+// unavailable.
+type TrunkSummarizer interface {
+	Trunk(sinceRef, untilRef string) (*TrunkData, error)
+}

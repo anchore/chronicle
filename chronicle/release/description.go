@@ -10,4 +10,7 @@ type Description struct {
 	Notice           string             // manual note or summary that describes the changelog at a high level
 	Changes          change.Changes     // all issues and PRs that makeup this release
 	SupportedChanges []change.TypeTitle // the sections of the changelog and their display titles
+	PreviousRelease  *Release           // the release this changelog starts from; nil if since the beginning of history
+	Speculated       bool               // true when the version was inferred by the speculator
+	Trunk            *TrunkData         // optional, populated by summarizers that implement TrunkSummarizer
 }

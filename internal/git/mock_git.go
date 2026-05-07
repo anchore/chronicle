@@ -3,17 +3,22 @@ package git
 var _ Interface = (*MockInterface)(nil)
 
 type MockInterface struct {
-	MockHeadOrTagCommit string
-	MockHeadTag         string
-	MockTags            []string
-	MockRemoteURL       string
-	MockSearchTag       string
-	MockCommitsBetween  []string
-	MockFirstCommit     string
+	MockHeadOrTagCommit        string
+	MockHeadTag                string
+	MockTags                   []string
+	MockRemoteURL              string
+	MockSearchTag              string
+	MockCommitsBetween         []string
+	MockCommitsBetweenWithMeta []Commit
+	MockFirstCommit            string
 }
 
 func (m MockInterface) CommitsBetween(_ Range) ([]string, error) {
 	return m.MockCommitsBetween, nil
+}
+
+func (m MockInterface) CommitsBetweenWithMeta(_ Range) ([]Commit, error) {
+	return m.MockCommitsBetweenWithMeta, nil
 }
 
 func (m MockInterface) HeadTagOrCommit() (string, error) {

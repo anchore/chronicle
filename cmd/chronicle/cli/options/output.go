@@ -10,11 +10,18 @@ import (
 	jsonenc "github.com/anchore/chronicle/chronicle/release/output/encoders/json"
 	mdenc "github.com/anchore/chronicle/chronicle/release/output/encoders/markdown"
 	mdpretty "github.com/anchore/chronicle/chronicle/release/output/encoders/markdownpretty"
+	trunkenc "github.com/anchore/chronicle/chronicle/release/output/encoders/trunk"
 	versionenc "github.com/anchore/chronicle/chronicle/release/output/encoders/version"
 	"github.com/anchore/chronicle/internal/log"
 	"github.com/anchore/clio"
 	"github.com/anchore/fangs"
 )
+
+// TrunkOptions holds user-configurable settings for the trunk output format.
+type TrunkOptions struct {
+	Condensed    bool `yaml:"condensed" json:"condensed" mapstructure:"condensed"`
+	ShowFiltered bool `yaml:"show-filtered" json:"show-filtered" mapstructure:"show-filtered"`
+}
 
 // Output configures one or more `-o NAME[=PATH]` outputs for a command.
 // Embed this in a command's config (squashed) to expose the standard set
@@ -30,14 +37,17 @@ type Output struct {
 	// VersionFile is the deprecated --version-file path. It is folded into
 	// the spec list by Specs() and emits a deprecation warning when set.
 	VersionFile string `yaml:"version-file" json:"version-file" mapstructure:"version-file"`
+
+	// Trunk holds format-specific options for the trunk encoder.
+	Trunk TrunkOptions `yaml:"trunk" json:"trunk" mapstructure:"trunk"`
 }
 
 var _ clio.FlagAdder = (*Output)(nil)
 
 // DefaultOutput returns an Output with the standard chronicle encoder set
-// (md, json, version, md-pretty) wired up and a default of markdown-on-stdout.
-// TTY detection for md-pretty happens once at construction time; if stdout
-// later turns out to be piped, md-pretty falls back to plain markdown.
+// (md, json, version, md-pretty, trunk) wired up and a default of markdown-on-stdout.
+// TTY detection for md-pretty and trunk happens once at construction time; if stdout
+// later turns out to be piped, those encoders fall back gracefully.
 func DefaultOutput() Output {
 	return Output{
 		Available: output.NewEncoders(
@@ -45,8 +55,14 @@ func DefaultOutput() Output {
 			&jsonenc.Encoder{},
 			&versionenc.Encoder{},
 			&mdpretty.Encoder{IsTTY: isStdoutTTY()},
+			&trunkenc.Encoder{
+				IsTTY:        isStdoutTTY(),
+				Condensed:    true,
+				ShowFiltered: true,
+			},
 		),
 		Outputs: []string{mdenc.ID},
+		Trunk:   TrunkOptions{Condensed: true, ShowFiltered: true},
 	}
 }
 
@@ -65,6 +81,18 @@ func (o *Output) AddFlags(flags clio.FlagSet) {
 		&o.VersionFile,
 		"version-file", "",
 		"deprecated: use -o version=<path> instead",
+	)
+
+	flags.BoolVarP(
+		&o.Trunk.Condensed,
+		"trunk-condensed", "",
+		"trunk format: one row per commit (set to false for expanded, multi-row output)",
+	)
+
+	flags.BoolVarP(
+		&o.Trunk.ShowFiltered,
+		"trunk-show-filtered", "",
+		"trunk format: show non-contributing commits and filtered PRs/issues dimmed",
 	)
 
 	// MarkDeprecated both hides the flag from help and prints a one-time
@@ -102,8 +130,18 @@ func (o *Output) Check() error {
 }
 
 // Writer constructs the output writer for the configured specs, validated
-// against this Output's available encoder set.
+// against this Output's available encoder set. The trunk encoder is refreshed
+// from the current TrunkOptions so that flag-parsed values take effect even
+// though the encoder was constructed before flag parsing ran.
 func (o *Output) Writer() (output.Writer, error) {
+	// refresh trunk encoder fields from the (now flag-parsed) TrunkOptions
+	if enc, ok := o.Available[trunkenc.ID]; ok {
+		if te, ok := enc.(*trunkenc.Encoder); ok {
+			te.Condensed = o.Trunk.Condensed
+			te.ShowFiltered = o.Trunk.ShowFiltered
+		}
+	}
+
 	specs, err := o.Specs()
 	if err != nil {
 		return nil, err

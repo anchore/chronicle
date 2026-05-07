@@ -35,9 +35,18 @@ func ChangelogInfo(summer Summarizer, config ChangelogInfoConfig) (*Release, *De
 		log.Info("since the beginning of git history")
 	}
 
-	releaseVersion, changes, err := changelogChanges(startReleaseVersion, summer, config)
+	releaseVersion, changes, speculated, err := changelogChangesWithSpeculation(startReleaseVersion, summer, config)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// fetch trunk data if the summarizer supports it
+	var trunkData *TrunkData
+	if ts, ok := summer.(TrunkSummarizer); ok {
+		trunkData, err = ts.Trunk(startReleaseVersion, config.UntilTag)
+		if err != nil {
+			return nil, nil, fmt.Errorf("unable to fetch trunk data: %w", err)
+		}
 	}
 
 	var releaseDisplayVersion = releaseVersion
@@ -57,31 +66,38 @@ func ChangelogInfo(summer Summarizer, config ChangelogInfoConfig) (*Release, *De
 		Changes:          changes,
 		SupportedChanges: config.ChangeTypeTitles,
 		Notice:           "", // TODO...
+		PreviousRelease:  startRelease,
+		Speculated:       speculated,
+		Trunk:            trunkData,
 	}, nil
 }
 
-func changelogChanges(startReleaseVersion string, summer Summarizer, config ChangelogInfoConfig) (string, []change.Change, error) {
+// changelogChangesWithSpeculation returns the resolved end-release version and the set of
+// changes between startReleaseVersion and the configured UntilTag (speculating the version
+// when needed), and reports whether the release version was produced by the speculator.
+func changelogChangesWithSpeculation(startReleaseVersion string, summer Summarizer, config ChangelogInfoConfig) (releaseVersion string, changes []change.Change, speculated bool, err error) {
 	endReleaseVersion := config.UntilTag
 
-	changes, err := summer.Changes(startReleaseVersion, config.UntilTag)
+	changes, err = summer.Changes(startReleaseVersion, config.UntilTag)
 	if err != nil {
-		return "", nil, fmt.Errorf("unable to summarize changes: %w", err)
+		return "", nil, false, fmt.Errorf("unable to summarize changes: %w", err)
 	}
 
 	if config.VersionSpeculator != nil {
 		if endReleaseVersion == "" {
-			specEndReleaseVersion, err := speculateNextVersion(config.VersionSpeculator, startReleaseVersion, changes)
-			if err != nil {
-				log.Warnf("unable to speculate next release version: %+v", err)
+			specEndReleaseVersion, specErr := speculateNextVersion(config.VersionSpeculator, startReleaseVersion, changes)
+			if specErr != nil {
+				log.Warnf("unable to speculate next release version: %+v", specErr)
 			} else {
 				endReleaseVersion = specEndReleaseVersion
+				speculated = true
 			}
 		} else {
 			log.Infof("not speculating next version current head tag=%q", endReleaseVersion)
 		}
 	}
 
-	return endReleaseVersion, changes, nil
+	return endReleaseVersion, changes, speculated, nil
 }
 
 func speculateNextVersion(speculator VersionSpeculator, startReleaseVersion string, changes []change.Change) (string, error) {

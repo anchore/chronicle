@@ -15,6 +15,7 @@ type Interface interface {
 	SearchForTag(tagRef string) (*Tag, error)
 	TagsFromLocal() ([]Tag, error)
 	CommitsBetween(Range) ([]string, error)
+	CommitsBetweenWithMeta(Range) ([]Commit, error)
 }
 
 type gitter struct {
@@ -36,6 +37,10 @@ func New(repoPath string) (Interface, error) {
 
 func (g gitter) CommitsBetween(cfg Range) ([]string, error) {
 	return CommitsBetween(g.repoPath, cfg)
+}
+
+func (g gitter) CommitsBetweenWithMeta(cfg Range) ([]Commit, error) {
+	return CommitsBetweenWithMeta(g.repoPath, cfg)
 }
 
 func (g gitter) HeadTagOrCommit() (string, error) {

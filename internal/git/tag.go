@@ -3,6 +3,7 @@ package git
 import (
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	git "github.com/go-git/go-git/v5"
@@ -25,6 +26,14 @@ type Range struct {
 	UntilRef     string
 	IncludeStart bool
 	IncludeEnd   bool
+}
+
+// Commit holds lightweight metadata extracted from a single git commit.
+type Commit struct {
+	Hash      string
+	Subject   string // first line of the commit message
+	Author    string
+	Timestamp time.Time
 }
 
 func CommitsBetween(repoPath string, cfg Range) ([]string, error) {
@@ -69,6 +78,67 @@ func CommitsBetween(repoPath string, cfg Range) ([]string, error) {
 			}
 		default:
 			commits = append(commits, hash)
+		}
+
+		return
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error walking commits between %q..%q: %w", cfg.SinceRef, cfg.UntilRef, err)
+	}
+
+	return commits, nil
+}
+
+// CommitsBetweenWithMeta walks the same range as CommitsBetween but returns
+// full commit metadata instead of just hashes.
+func CommitsBetweenWithMeta(repoPath string, cfg Range) ([]Commit, error) {
+	r, err := openRepo(repoPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var sinceHash *plumbing.Hash
+	if cfg.SinceRef != "" {
+		sinceHash, err = r.ResolveRevision(plumbing.Revision(cfg.SinceRef))
+		if err != nil {
+			return nil, fmt.Errorf("unable to find since git ref=%q: %w", cfg.SinceRef, err)
+		}
+	}
+
+	untilHash, err := r.ResolveRevision(plumbing.Revision(cfg.UntilRef))
+	if err != nil {
+		return nil, fmt.Errorf("unable to find until git ref=%q: %w", cfg.UntilRef, err)
+	}
+
+	iter, err := r.Log(&git.LogOptions{From: *untilHash})
+	if err != nil {
+		return nil, fmt.Errorf("unable to find until git log for ref=%q: %w", cfg.UntilRef, err)
+	}
+
+	log.WithFields("since", sinceHash, "until", untilHash).Trace("searching commit range")
+
+	var commits []Commit
+	err = iter.ForEach(func(c *object.Commit) (retErr error) {
+		subject := strings.TrimSpace(strings.SplitN(c.Message, "\n", 2)[0])
+		entry := Commit{
+			Hash:      c.Hash.String(),
+			Subject:   subject,
+			Author:    c.Author.Name,
+			Timestamp: c.Author.When,
+		}
+
+		switch {
+		case untilHash != nil && c.Hash == *untilHash:
+			if cfg.IncludeEnd {
+				commits = append(commits, entry)
+			}
+		case sinceHash != nil && c.Hash == *sinceHash:
+			retErr = storer.ErrStop
+			if cfg.IncludeStart {
+				commits = append(commits, entry)
+			}
+		default:
+			commits = append(commits, entry)
 		}
 
 		return

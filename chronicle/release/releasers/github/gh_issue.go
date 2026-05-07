@@ -24,7 +24,9 @@ type ghIssue struct {
 	URL        string
 }
 
-type issueFilter func(issue ghIssue) bool
+// issueFilter decides whether to keep an issue. When returning false, the optional
+// ctx pointer (if non-nil) is populated with a short reason identifier.
+type issueFilter func(issue ghIssue, ctx ...*string) bool
 
 func filterIssues(issues []ghIssue, filters ...issueFilter) []ghIssue {
 	if len(filters) == 0 {
@@ -48,9 +50,10 @@ issueLoop:
 
 //nolint:unused
 func issuesAtOrAfter(since time.Time) issueFilter {
-	return func(issue ghIssue) bool {
+	return func(issue ghIssue, ctx ...*string) bool {
 		keep := issue.ClosedAt.After(since) || issue.ClosedAt.Equal(since)
 		if !keep {
+			setIssueReason(ctx, "chronology:before-since")
 			log.Tracef("issue #%d filtered out: closed at or before %s (closed %s)", issue.Number, internal.FormatDateTime(since), internal.FormatDateTime(issue.ClosedAt))
 		}
 		return keep
@@ -58,9 +61,10 @@ func issuesAtOrAfter(since time.Time) issueFilter {
 }
 
 func issuesAtOrBefore(since time.Time) issueFilter {
-	return func(issue ghIssue) bool {
+	return func(issue ghIssue, ctx ...*string) bool {
 		keep := issue.ClosedAt.Before(since) || issue.ClosedAt.Equal(since)
 		if !keep {
+			setIssueReason(ctx, "chronology:after-until")
 			log.Tracef("issue #%d filtered out: closed at or after %s (closed %s)", issue.Number, internal.FormatDateTime(since), internal.FormatDateTime(issue.ClosedAt))
 		}
 		return keep
@@ -68,9 +72,10 @@ func issuesAtOrBefore(since time.Time) issueFilter {
 }
 
 func issuesAfter(since time.Time) issueFilter {
-	return func(issue ghIssue) bool {
+	return func(issue ghIssue, ctx ...*string) bool {
 		keep := issue.ClosedAt.After(since)
 		if !keep {
+			setIssueReason(ctx, "chronology:before-since")
 			log.Tracef("issue #%d filtered out: closed before %s (closed %s)", issue.Number, internal.FormatDateTime(since), internal.FormatDateTime(issue.ClosedAt))
 		}
 		return keep
@@ -79,9 +84,10 @@ func issuesAfter(since time.Time) issueFilter {
 
 //nolint:unused
 func issuesBefore(since time.Time) issueFilter {
-	return func(issue ghIssue) bool {
+	return func(issue ghIssue, ctx ...*string) bool {
 		keep := issue.ClosedAt.Before(since)
 		if !keep {
+			setIssueReason(ctx, "chronology:after-until")
 			log.Tracef("issue #%d filtered out: closed after %s (closed %s)", issue.Number, internal.FormatDateTime(since), internal.FormatDateTime(issue.ClosedAt))
 		}
 		return keep
@@ -89,7 +95,7 @@ func issuesBefore(since time.Time) issueFilter {
 }
 
 func issuesWithLabel(labels ...string) issueFilter {
-	return func(issue ghIssue) bool {
+	return func(issue ghIssue, ctx ...*string) bool {
 		for _, targetLabel := range labels {
 			for _, l := range issue.Labels {
 				if l == targetLabel {
@@ -98,6 +104,7 @@ func issuesWithLabel(labels ...string) issueFilter {
 			}
 		}
 
+		setIssueReason(ctx, "label:missing-required")
 		log.Tracef("issue #%d filtered out: missing required label", issue.Number)
 
 		return false
@@ -105,10 +112,11 @@ func issuesWithLabel(labels ...string) issueFilter {
 }
 
 func issuesWithoutLabel(labels ...string) issueFilter {
-	return func(issue ghIssue) bool {
+	return func(issue ghIssue, ctx ...*string) bool {
 		for _, targetLabel := range labels {
 			for _, l := range issue.Labels {
 				if l == targetLabel {
+					setIssueReason(ctx, "label:excluded:"+l)
 					log.Tracef("issue #%d filtered out: has label %q", issue.Number, l)
 
 					return false
@@ -120,12 +128,13 @@ func issuesWithoutLabel(labels ...string) issueFilter {
 }
 
 func excludeIssuesNotPlanned(allMergedPRs []ghPullRequest) issueFilter {
-	return func(issue ghIssue) bool {
+	return func(issue ghIssue, ctx ...*string) bool {
 		if issue.NotPlanned {
 			if len(getLinkedPRs(allMergedPRs, issue)) > 0 {
 				log.Tracef("issue #%d included: is closed as not planned but has linked PRs", issue.Number)
 				return true
 			}
+			setIssueReason(ctx, "closed-as:not-planned")
 			log.Tracef("issue #%d filtered out: as not planned", issue.Number)
 			return false
 		}
@@ -134,10 +143,11 @@ func excludeIssuesNotPlanned(allMergedPRs []ghPullRequest) issueFilter {
 }
 
 func issuesWithChangeTypes(config Config) issueFilter {
-	return func(issue ghIssue) bool {
+	return func(issue ghIssue, ctx ...*string) bool {
 		changeTypes := config.ChangeTypesByLabel.ChangeTypes(issue.Labels...)
 		keep := len(changeTypes) > 0
 		if !keep {
+			setIssueReason(ctx, "change-type:none")
 			log.Tracef("issue #%d filtered out: no change types", issue.Number)
 		}
 		return keep
@@ -145,12 +155,21 @@ func issuesWithChangeTypes(config Config) issueFilter {
 }
 
 func issuesWithoutLabels() issueFilter {
-	return func(issue ghIssue) bool {
+	return func(issue ghIssue, ctx ...*string) bool {
 		keep := len(issue.Labels) == 0
 		if !keep {
+			setIssueReason(ctx, "labels:present")
 			log.Tracef("issue #%d filtered out: has labels", issue.Number)
 		}
 		return keep
+	}
+}
+
+// setIssueReason writes the reason into the first element of the variadic ctx
+// slice, if provided and non-nil.
+func setIssueReason(ctx []*string, reason string) {
+	if len(ctx) > 0 && ctx[0] != nil {
+		*ctx[0] = reason
 	}
 }
 
