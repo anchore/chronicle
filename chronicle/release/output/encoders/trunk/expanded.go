@@ -47,10 +47,7 @@ func (e *Encoder) renderExpanded(w io.Writer, d release.Description) error {
 			return err
 		}
 
-		title := r.title
-		if len(title) > wTitle {
-			title = title[:wTitle]
-		}
+		title := truncateRunes(r.title, wTitle)
 
 		if err := writeExpandedCommitRow(w, st, r, title, wHash, wPR, wTitle); err != nil {
 			return err
@@ -71,21 +68,22 @@ func (e *Encoder) renderExpanded(w io.Writer, d release.Description) error {
 
 // measureExpandedColumns scans commit and issue rows to find per-column widths,
 // floored by the header label widths and capped by maxTitleWidth for the title.
+// Widths are based on visible (rune-count) content.
 func measureExpandedColumns(rows []expandedRow) (wHash, wPR, wTitle int) {
 	wHash = len("commit")
 	wPR = len("pr")
 	wTitle = len("title")
 	for _, r := range rows {
-		if l := len(r.title); l > wTitle {
+		if l := visibleLen(r.title); l > wTitle {
 			wTitle = l
 		}
 		if r.isIssue {
 			continue
 		}
-		if l := len(r.hash); l > wHash {
+		if l := visibleLen(r.hash); l > wHash {
 			wHash = l
 		}
-		if l := len(r.pr); l > wPR {
+		if l := visibleLen(r.pr); l > wPR {
 			wPR = l
 		}
 	}
@@ -97,7 +95,9 @@ func measureExpandedColumns(rows []expandedRow) (wHash, wPR, wTitle int) {
 
 // writeExpandedCommitRow renders a top-level commit row with categorical
 // coloring on the glyph and the type column. Hash and PR# are hyperlinked
-// when URLs are present.
+// when URLs are present. Cell styling is applied inside each hyperlink wrap
+// so dim attributes survive terminals that reset SGR state at OSC 8
+// boundaries.
 func writeExpandedCommitRow(w io.Writer, st styles, r expandedRow, title string, wHash, wPR, wTitle int) error {
 	var glyphStyle, typeStyle, restStyle = st.normal, st.normal, st.normal
 
@@ -111,16 +111,17 @@ func writeExpandedCommitRow(w io.Writer, st styles, r expandedRow, title string,
 		typeStyle = cat
 	}
 
-	hashCell := padToVisibleWidth(st.link(r.hash, r.hashURL), len(r.hash), wHash)
-	prCell := padToVisibleWidth(st.link(r.pr, r.prURL), len(r.pr), wPR)
+	hashCell := padToVisibleWidth(st.styledLink(r.hash, r.hashURL, restStyle), visibleLen(r.hash), wHash)
+	prCell := padToVisibleWidth(st.styledLink(r.pr, r.prURL, restStyle), visibleLen(r.pr), wPR)
+	titleCell := padToVisibleWidth(restStyle.Render(title), visibleLen(title), wTitle)
 
-	mid := fmt.Sprintf("  %s  %s  %-*s  ",
+	mid := fmt.Sprintf("  %s  %s  %s  ",
 		hashCell,
 		prCell,
-		wTitle, title,
+		titleCell,
 	)
 
-	line := glyphStyle.Render(r.glyph) + restStyle.Render(mid) + typeStyle.Render(r.typ)
+	line := glyphStyle.Render(r.glyph) + mid + typeStyle.Render(r.typ)
 	_, err := fmt.Fprintln(w, line)
 	return err
 }
@@ -131,10 +132,7 @@ func writeExpandedCommitRow(w io.Writer, st styles, r expandedRow, title string,
 // color (mirroring how the commit glyph carries the commit's category). The
 // trunk char at column 0 stays dim.
 func writeExpandedIssueRow(w io.Writer, st styles, r expandedRow, issuePrefix string, wTitle int) error {
-	issueTitle := r.title
-	if len(issueTitle) > wTitle {
-		issueTitle = issueTitle[:wTitle]
-	}
+	issueTitle := truncateRunes(r.title, wTitle)
 
 	var labelStyle, typeStyle, titleStyle = st.normal, st.normal, st.normal
 	if r.filtered {
@@ -148,16 +146,16 @@ func writeExpandedIssueRow(w io.Writer, st styles, r expandedRow, issuePrefix st
 	}
 
 	issueRef := fmt.Sprintf("#%d", r.issueNum)
-	linkedRef := st.link(issueRef, r.issueURL)
-	label := "closes " + linkedRef
+	linkedRef := st.styledLink(issueRef, r.issueURL, labelStyle)
+	label := labelStyle.Render("closes ") + linkedRef
 
 	// issuePrefix is "│" followed by spaces; render the trunk char dim so it
 	// matches the trunk decoration on the spacer lines.
 	prefix := st.dim.Render(st.trunkLine) + issuePrefix[len(st.trunkLine):]
 
-	mid := fmt.Sprintf("  %-*s  ", wTitle, issueTitle)
+	titleCell := padToVisibleWidth(titleStyle.Render(issueTitle), visibleLen(issueTitle), wTitle)
 
-	line := prefix + labelStyle.Render(label) + titleStyle.Render(mid) + typeStyle.Render(r.typ)
+	line := prefix + label + "  " + titleCell + "  " + typeStyle.Render(r.typ)
 	_, err := fmt.Fprintln(w, line)
 	return err
 }

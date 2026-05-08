@@ -17,7 +17,7 @@
 │
 ●  a1b2c3d  #466  feat: multi-output formats    #450, #451, #452  enhancement
 │
-·  deadbee  —   chore: fix typo in README                       filtered: no PR
+·  deadbee  —     chore: fix typo in README                       filtered: no PR
 │
 ·  f7e8d9c  #467  chore: update CI config                         filtered: label:chore
 │
@@ -51,7 +51,7 @@
 │                 closes #451  document the JSON schema                      enhancement
 │                 closes #452  stale issue that was closed but not in scope  filtered: out-of-scope
 │
-·  deadbee  —   chore: fix typo in README                     filtered: no PR
+·  deadbee  —     chore: fix typo in README                     filtered: no PR
 │
 ·  f7e8d9c  #467  chore: update CI config                       filtered: label:chore
 │
@@ -90,7 +90,7 @@
 │
 ●  a1b2c3d  #466  feat: multi-output formats    #450, #451, #452  enhancement
 │
-·  deadbee  —   chore: fix typo in README                       filtered: no PR
+·  deadbee  —     chore: fix typo in README                       filtered: no PR
 │
 ·  f7e8d9c  #467  chore: update CI config                         filtered: label:chore
 │

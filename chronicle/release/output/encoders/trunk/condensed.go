@@ -45,10 +45,7 @@ func (e *Encoder) renderCondensed(w io.Writer, d release.Description) error {
 			return err
 		}
 
-		title := r.title
-		if len(title) > wTitle {
-			title = title[:wTitle]
-		}
+		title := truncateRunes(r.title, wTitle)
 
 		if err := writeCondensedRow(w, st, r, title, wHash, wPR, wTitle, wCloses); err != nil {
 			return err
@@ -69,21 +66,21 @@ func (e *Encoder) renderCondensed(w io.Writer, d release.Description) error {
 
 // measureCondensedColumns scans rows to find the widths needed for each column,
 // floored by the header label widths and capped by maxTitleWidth for the title.
-// Widths are based on visible (printable) content — escape codes for hyperlinks
-// or styling are added later, so they must not affect column sizing.
+// Widths are based on visible (rune-count) content — escape codes for hyperlinks
+// or styling are added later and must not affect column sizing.
 func measureCondensedColumns(rows []condensedRow) (wHash, wPR, wTitle, wCloses int) {
 	wHash = len("commit")
 	wPR = len("pr")
 	wTitle = len("title")
 	wCloses = len("closes")
 	for _, r := range rows {
-		if l := len(r.hash); l > wHash {
+		if l := visibleLen(r.hash); l > wHash {
 			wHash = l
 		}
-		if l := len(r.pr); l > wPR {
+		if l := visibleLen(r.pr); l > wPR {
 			wPR = l
 		}
-		if l := len(r.title); l > wTitle {
+		if l := visibleLen(r.title); l > wTitle {
 			wTitle = l
 		}
 		if l := closeRefsVisibleWidth(r.closes); l > wCloses {
@@ -100,7 +97,9 @@ func measureCondensedColumns(rows []condensedRow) (wHash, wPR, wTitle, wCloses i
 // colored by the row's semver category. Filtered rows render entirely dim,
 // overriding the category color so the dim/normal distinction stays primary.
 // Hash, PR#, and each issue ref in the closes column are wrapped with OSC 8
-// hyperlinks when the destination is a TTY and a URL is available.
+// hyperlinks when the destination is a TTY and a URL is available. Cell
+// styling is applied INSIDE each hyperlink wrap so dim/color attributes
+// survive terminals that reset SGR state at OSC 8 boundaries.
 func writeCondensedRow(w io.Writer, st styles, r condensedRow, title string, wHash, wPR, wTitle, wCloses int) error {
 	var glyphStyle, typeStyle, restStyle = st.normal, st.normal, st.normal
 
@@ -115,18 +114,19 @@ func writeCondensedRow(w io.Writer, st styles, r condensedRow, title string, wHa
 		typeStyle = cat
 	}
 
-	hashCell := padToVisibleWidth(st.link(r.hash, r.hashURL), len(r.hash), wHash)
-	prCell := padToVisibleWidth(st.link(r.pr, r.prURL), len(r.pr), wPR)
-	closesCell := padToVisibleWidth(renderCloseRefs(st, r.closes), closeRefsVisibleWidth(r.closes), wCloses)
+	hashCell := padToVisibleWidth(st.styledLink(r.hash, r.hashURL, restStyle), visibleLen(r.hash), wHash)
+	prCell := padToVisibleWidth(st.styledLink(r.pr, r.prURL, restStyle), visibleLen(r.pr), wPR)
+	closesCell := padToVisibleWidth(renderCloseRefs(st, r.closes, restStyle), closeRefsVisibleWidth(r.closes), wCloses)
+	titleCell := padToVisibleWidth(restStyle.Render(title), visibleLen(title), wTitle)
 
-	mid := fmt.Sprintf("  %s  %s  %-*s  %s  ",
+	mid := fmt.Sprintf("  %s  %s  %s  %s  ",
 		hashCell,
 		prCell,
-		wTitle, title,
+		titleCell,
 		closesCell,
 	)
 
-	line := glyphStyle.Render(r.glyph) + restStyle.Render(mid) + typeStyle.Render(r.typ)
+	line := glyphStyle.Render(r.glyph) + mid + typeStyle.Render(r.typ)
 	_, err := fmt.Fprintln(w, line)
 	return err
 }

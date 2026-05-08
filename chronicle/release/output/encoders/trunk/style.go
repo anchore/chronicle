@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
@@ -159,6 +160,24 @@ func padToVisibleWidth(content string, visibleWidth, targetWidth int) string {
 	return content + strings.Repeat(" ", targetWidth-visibleWidth)
 }
 
+// visibleLen returns the rune count of s, which is the visible cell width for
+// plain text using single-cell glyphs (no double-wide CJK, no emoji). This is
+// what we need for column padding because byte-len would over-count multi-byte
+// runes like the em-dash placeholder used for missing PR numbers.
+func visibleLen(s string) int {
+	return utf8.RuneCountInString(s)
+}
+
+// truncateRunes returns s clipped to at most maxRunes runes, byte-safe for
+// multi-byte UTF-8. Used to cap long titles without splitting a rune.
+func truncateRunes(s string, maxRunes int) string {
+	if utf8.RuneCountInString(s) <= maxRunes {
+		return s
+	}
+	runes := []rune(s)
+	return string(runes[:maxRunes])
+}
+
 // closeRef is one entry in the closes column: the visible label (e.g. "#450")
 // and the URL it should link to.
 type closeRef struct {
@@ -173,21 +192,29 @@ func closeRefsVisibleWidth(refs []closeRef) int {
 	}
 	n := 0
 	for _, r := range refs {
-		n += len(r.text)
+		n += visibleLen(r.text)
 	}
-	n += (len(refs) - 1) * 2 // ", " separators
+	n += (len(refs) - 1) * 2 // ", " separators (always ASCII)
 	return n
 }
 
-// renderCloseRefs returns the comma-joined string with each label hyperlinked
-// (when its url is non-empty and the styles support links).
-func renderCloseRefs(st styles, refs []closeRef) string {
+// renderCloseRefs returns the comma-joined string with each label first styled
+// with textStyle (so dim/category color survives across OSC 8 boundaries) and
+// then wrapped with a hyperlink when its url is non-empty.
+func renderCloseRefs(st styles, refs []closeRef, textStyle lipgloss.Style) string {
 	if len(refs) == 0 {
 		return ""
 	}
 	parts := make([]string, len(refs))
 	for i, r := range refs {
-		parts[i] = st.link(r.text, r.url)
+		parts[i] = st.styledLink(r.text, r.url, textStyle)
 	}
-	return strings.Join(parts, ", ")
+	return strings.Join(parts, textStyle.Render(", "))
+}
+
+// styledLink applies textStyle to text and then wraps with a hyperlink (when
+// supported and url is non-empty). Styling goes inside the OSC 8 wrap so it
+// survives terminals that reset SGR state at hyperlink boundaries.
+func (s styles) styledLink(text, url string, textStyle lipgloss.Style) string {
+	return s.link(textStyle.Render(text), url)
 }
