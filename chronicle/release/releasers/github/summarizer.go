@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/anchore/chronicle/chronicle/release"
@@ -44,6 +45,12 @@ type Summarizer struct {
 	repoName       string
 	config         Config
 	releaseFetcher releaseFetcher
+	// releaseCache memoizes per-tag release lookups so that the start-release
+	// metadata fetched for the changelog header is not re-fetched again when
+	// computing the change scope. Map presence (rather than non-nil value) is
+	// the signal that a tag has been queried, so "no release for this tag"
+	// results are cached too.
+	releaseCache map[string]*ghRelease
 }
 
 // changeScope is used to describe the start and end of a changes made in a repo.
@@ -86,15 +93,34 @@ func NewSummarizer(gitter git.Interface, config Config) (*Summarizer, error) {
 		repoName:       repo,
 		config:         config,
 		releaseFetcher: fetchRelease,
+		releaseCache:   make(map[string]*ghRelease),
 	}, nil
 }
 
-func (s *Summarizer) Release(ref string) (*release.Release, error) {
-	targetRelease, err := s.releaseFetcher(s.userName, s.repoName, ref)
+// fetchReleaseCached returns the release for the given tag, querying the API
+// only on first lookup. Safe for single-goroutine use: callers are the
+// changelog-info pre-flight and getSince, which both run on the main goroutine.
+func (s *Summarizer) fetchReleaseCached(tag string) (*ghRelease, error) {
+	if r, ok := s.releaseCache[tag]; ok {
+		return r, nil
+	}
+	r, err := s.releaseFetcher(s.userName, s.repoName, tag)
 	if err != nil {
 		return nil, err
 	}
-	if targetRelease.Tag == "" {
+	if s.releaseCache == nil {
+		s.releaseCache = make(map[string]*ghRelease)
+	}
+	s.releaseCache[tag] = r
+	return r, nil
+}
+
+func (s *Summarizer) Release(ref string) (*release.Release, error) {
+	targetRelease, err := s.fetchReleaseCached(ref)
+	if err != nil {
+		return nil, err
+	}
+	if targetRelease == nil || targetRelease.Tag == "" {
 		return nil, nil
 	}
 	return &release.Release{
@@ -121,6 +147,12 @@ func (s *Summarizer) LastRelease() (*release.Release, error) {
 		return nil, fmt.Errorf("unable to fetch releases for %s/%s: %w", s.userName, s.repoName, err)
 	}
 	if latestRelease != nil {
+		// seed the cache so that getSince doesn't re-fetch this same release
+		// when it later needs the date for the timestamp filter
+		if s.releaseCache == nil {
+			s.releaseCache = make(map[string]*ghRelease)
+		}
+		s.releaseCache[latestRelease.Tag] = latestRelease
 		return &release.Release{
 			Version: latestRelease.Tag,
 			Date:    latestRelease.Date,
@@ -210,7 +242,7 @@ func (s *Summarizer) getSince(sinceRef string) (*git.Tag, string, bool, *time.Ti
 
 	var sinceTime *time.Time
 	if sinceTag != nil {
-		sinceRelease, err := s.releaseFetcher(s.userName, s.repoName, sinceTag.Name)
+		sinceRelease, err := s.fetchReleaseCached(sinceTag.Name)
 		if err != nil {
 			return nil, "", false, nil, fmt.Errorf("unable to fetch release %q: %w", sinceTag.Name, err)
 		}
@@ -233,20 +265,36 @@ func (s *Summarizer) getSince(sinceRef string) (*git.Tag, string, bool, *time.Ti
 func (s *Summarizer) changes(scope changeScope) ([]change.Change, error) {
 	var changes []change.Change
 
-	allMergedPRs, err := fetchMergedPRs(s.userName, s.repoName, scope.Start.Timestamp)
-	if err != nil {
-		return nil, err
+	// the merged-PR and closed-issue queries are independent paginated GraphQL
+	// calls — they dominate runtime, so run them concurrently and join after.
+	var (
+		allMergedPRs    []ghPullRequest
+		allClosedIssues []ghIssue
+		prErr, issueErr error
+		wg              sync.WaitGroup
+	)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		allMergedPRs, prErr = fetchMergedPRs(s.userName, s.repoName, scope.Start.Timestamp)
+	}()
+	go func() {
+		defer wg.Done()
+		allClosedIssues, issueErr = fetchClosedIssues(s.userName, s.repoName, scope.Start.Timestamp)
+	}()
+	wg.Wait()
+
+	if prErr != nil {
+		return nil, prErr
+	}
+	if issueErr != nil {
+		return nil, issueErr
 	}
 
 	log.WithFields("count", len(allMergedPRs), "since", scope.Start.Timestamp).Info("merged PRs discovered")
 
 	if s.config.IncludePRs {
 		changes = append(changes, changesFromStandardPRFilters(s.config, allMergedPRs, scope.Start.Tag, scope.End.Tag, scope.Commits)...)
-	}
-
-	allClosedIssues, err := fetchClosedIssues(s.userName, s.repoName, scope.Start.Timestamp)
-	if err != nil {
-		return nil, err
 	}
 
 	if !s.config.IncludeIssuesClosedAsNotPlanned {
