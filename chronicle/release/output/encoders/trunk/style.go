@@ -7,7 +7,6 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
-	"github.com/savioxavier/termlink"
 
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
@@ -45,7 +44,12 @@ func newStyles(isTTY bool) styles {
 			if url == "" {
 				return text
 			}
-			return termlink.Link(text, url)
+			// OSC 8 hyperlink: ESC ] 8 ; ; URL ESC \ TEXT ESC ] 8 ; ; ESC \
+			// Terminals that don't support OSC 8 ignore the unknown sequence and
+			// just print the visible text. We bypass termlink's environment-based
+			// detection because IsTTY is already the authority on whether we're
+			// writing to a terminal.
+			return "\x1b]8;;" + url + "\x1b\\" + text + "\x1b]8;;\x1b\\"
 		}
 	}
 

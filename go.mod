@@ -15,7 +15,6 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/leodido/go-conventionalcommits v0.12.0
 	github.com/muesli/termenv v0.16.0
-	github.com/savioxavier/termlink v1.4.3
 	github.com/scylladb/go-set v1.0.2
 	github.com/shurcooL/githubv4 v0.0.0-20201206200315-234843c633fa
 	github.com/spf13/cobra v1.10.2
