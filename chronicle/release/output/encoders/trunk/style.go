@@ -32,10 +32,14 @@ type styles struct {
 
 // newStyles builds a styles value whose color profile matches isTTY.
 // When isTTY is false the renderer uses termenv.Ascii so all styles become no-ops
-// and no ANSI escape codes are emitted.
+// and no ANSI escape codes are emitted. When isTTY is true we explicitly force
+// ANSI256 — relying on lipgloss/termenv auto-detection would otherwise fall back
+// to Ascii in environments without a real stdout TTY (e.g., test runners).
 func newStyles(isTTY bool) styles {
 	r := lipgloss.NewRenderer(nil)
-	if !isTTY {
+	if isTTY {
+		r.SetColorProfile(termenv.ANSI256)
+	} else {
 		r.SetColorProfile(termenv.Ascii)
 	}
 
