@@ -7,8 +7,7 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   Static-Analysis:
@@ -33,6 +32,8 @@ jobs:
     name: "Unit tests"
     needs: All-Unit-Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - run: echo All Unit Tests passed
 

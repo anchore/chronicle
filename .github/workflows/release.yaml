@@ -1,8 +1,6 @@
 name: "Release"
 
-permissions:
-  contents: read
-  checks: read
+permissions: {}
 
 concurrency:
   group: release
@@ -23,6 +21,8 @@ jobs:
       version: ${{ github.event.inputs.version }}
 
   check-gate:
+    permissions:
+      checks: read   # required for getting the status of specific check names
     uses: anchore/workflows/.github/workflows/check-gate.yaml@4f25313f96311410cad4173f74617654a3e46d48 # v0.3.0
     with:
       checks: '["Static analysis", "Unit tests", "Build snapshot artifacts"]'
