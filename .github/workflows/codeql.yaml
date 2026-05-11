@@ -13,6 +13,9 @@ on:
   schedule:
     - cron: '38 11 * * 3'
 
+# Default to no permissions at the workflow level; jobs opt in to what they need.
+permissions: {}
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
