@@ -32,9 +32,9 @@ jobs:
     environment: release
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
-      packages: write
-      id-token: write
+      contents: write  # required for creating the GitHub release and pushing the version tag
+      packages: write  # required for publishing release artifacts to GitHub packages
+      id-token: write  # required for keyless signing (cosign/sigstore OIDC)
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
@@ -42,17 +42,14 @@ jobs:
           persist-credentials: true
 
       - name: Bootstrap environment
-        uses: ./.github/actions/bootstrap
-
-      - name: Create tag
-        uses: anchore/workflows/.github/actions/create-tag-via-deploy-key@4f25313f96311410cad4173f74617654a3e46d48 # v0.3.0
-        with:
-          tag: ${{ github.event.inputs.version }}
-          deploy-key: ${{ secrets.DEPLOY_KEY }}
+        uses: anchore/go-make/.github/actions/setup@752160c57b8e4b9b305e58a7aa10e20f5992f65a # v0.3.0
 
       - name: Build & publish release artifacts
         run: make ci-release
         env:
+          # for pushing tags (requires write access to content, but not packages)
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          RELEASE_VERSION: ${{ github.event.inputs.version }}
           # for mac signing and notarization...
           QUILL_SIGN_P12: ${{ secrets.ANCHORE_APPLE_DEVELOPER_ID_CERT_CHAIN }}
           QUILL_SIGN_PASSWORD: ${{ secrets.ANCHORE_APPLE_DEVELOPER_ID_CERT_PASS }}
