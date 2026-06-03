@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
 	"regexp"
 
 	"github.com/anchore/chronicle/internal"
@@ -14,7 +14,13 @@ var remotePattern = regexp.MustCompile(`\[remote\s*"origin"]\s*\n\s*url\s*=\s*(?
 
 // TODO: can't use r.Config for same validation reasons
 func RemoteURL(p string) (string, error) {
-	cfgPath := path.Join(p, ".git", "config")
+	// the origin URL lives in the shared config, which for a worktree is in the common dir rather
+	// than the per-worktree git dir.
+	dirs, err := resolveGitDirs(p)
+	if err != nil {
+		return "", err
+	}
+	cfgPath := filepath.Join(dirs.commonDir, "config")
 	f, err := os.Open(cfgPath)
 	if err != nil {
 		return "", fmt.Errorf("unable to open git config %q: %w", cfgPath, err)

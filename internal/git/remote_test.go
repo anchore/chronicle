@@ -18,6 +18,13 @@ func TestRemoteUrl(t *testing.T) {
 			path:    "testdata/repos/remote-repo",
 			expects: "git@github.com:wagoodman/count-goober.git",
 		},
+		{
+			// a linked worktree has a .git file (not dir) pointing at a separate git dir,
+			// with config shared via the common dir
+			name:    "worktree",
+			path:    "testdata/repos/worktree-linked-repo",
+			expects: "git@github.com:wagoodman/count-goober.git",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
