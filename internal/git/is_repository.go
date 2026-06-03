@@ -14,6 +14,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/cache"
 	rawconfig "github.com/go-git/go-git/v5/plumbing/format/config"
 	"github.com/go-git/go-git/v5/storage/filesystem"
+	"github.com/go-git/go-git/v5/storage/filesystem/dotgit"
 
 	"github.com/anchore/chronicle/internal/log"
 )
@@ -156,35 +157,25 @@ func stripInvalidBranches(b []byte) ([]byte, []string) {
 	return buf.Bytes(), dropped
 }
 
+// resolveDotGit returns the dot-git and worktree filesystems for the repo at path, mirroring what
+// go-git's PlainOpenWithOptions(EnableDotGitCommonDir) does but without going through its validating
+// Open helper. It handles plain repos and the .git-as-file (gitdir pointer) layout, and for linked
+// worktrees wires the per-worktree git dir together with the shared common dir so reads of config,
+// refs, and objects route to the right place.
 func resolveDotGit(path string) (dot, wt billy.Filesystem, err error) {
-	// reuse PlainOpenWithOptions's behavior by attempting a one-shot open; if it fails for the
-	// config reason we still got the dot/worktree filesystems wired up via osfs below. This is a
-	// minimal re-implementation of go-git's dotGitToOSFilesystems that handles plain repos and
-	// .git-as-file (gitdir pointer) layouts.
 	wt = osfs.New(path)
-	dot, err = wt.Chroot(".git")
+
+	dirs, err := resolveGitDirs(path)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// if .git is a regular file (worktree/submodule), follow its `gitdir:` pointer
-	fi, statErr := wt.Stat(".git")
-	if statErr == nil && !fi.IsDir() {
-		f, openErr := wt.Open(".git")
-		if openErr != nil {
-			return nil, nil, openErr
-		}
-		defer f.Close()
-		buf, readErr := io.ReadAll(f)
-		if readErr != nil {
-			return nil, nil, readErr
-		}
-		line := strings.TrimSpace(string(buf))
-		const prefix = "gitdir:"
-		if strings.HasPrefix(line, prefix) {
-			gitdir := strings.TrimSpace(strings.TrimPrefix(line, prefix))
-			dot = osfs.New(gitdir)
-		}
+	dot = osfs.New(dirs.gitDir)
+
+	// for a linked worktree the git dir holds only per-worktree state (HEAD, index) while config,
+	// refs, and objects live in the common dir; merge the two the same way go-git does.
+	if dirs.commonDir != dirs.gitDir {
+		dot = dotgit.NewRepositoryFilesystem(dot, osfs.New(dirs.commonDir))
 	}
 
 	return dot, wt, nil

@@ -5,6 +5,7 @@ all: repos/remote-repo repos/worktree-main-repo repos/tagged-repo repos/commit-i
 repos/remote-repo:
 	./create-remote-repo.sh
 
+# note: this also produces repos/worktree-linked-repo (the linked worktree alongside the main repo)
 repos/worktree-main-repo:
 	./create-worktree-repo.sh
 

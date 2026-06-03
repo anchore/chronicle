@@ -5,14 +5,6 @@ set -eux -o pipefail
 export GIT_CONFIG_GLOBAL=/dev/null
 export GIT_CONFIG_SYSTEM=/dev/null
 
-if [ -d "/path/to/dir" ]
-then
-    echo "fixture already exists!"
-    exit 0
-else
-    echo "creating fixture..."
-fi
-
 git init repos/worktree-main-repo
 
 pushd repos/worktree-main-repo
