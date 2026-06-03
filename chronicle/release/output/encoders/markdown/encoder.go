@@ -7,9 +7,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/leodido/go-conventionalcommits"
-	cc "github.com/leodido/go-conventionalcommits/parser"
-
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 )
@@ -43,7 +40,7 @@ func (e *Encoder) Encode(w io.Writer, title string, d release.Description) error
 
 	funcMap := template.FuncMap{
 		"formatChangeSections": func(changes change.Changes) string {
-			return formatChangeSections(d.SupportedChanges, changes)
+			return formatChangeSections(d.SupportedChanges, changes, d.ConventionalCommitTypes)
 		},
 	}
 
@@ -66,27 +63,27 @@ func renderTitle(raw string, d release.Description) (string, error) {
 	return buf.String(), nil
 }
 
-func formatChangeSections(sections []change.TypeTitle, changes change.Changes) string {
+func formatChangeSections(sections []change.TypeTitle, changes change.Changes, recognizedTypes []string) string {
 	var result string
 	for _, section := range sections {
 		summaries := changes.ByChangeType(section.ChangeType)
 		if len(summaries) > 0 {
-			result += formatChangeSection(section.Title, summaries) + "\n"
+			result += formatChangeSection(section.Title, summaries, recognizedTypes) + "\n"
 		}
 	}
 	return strings.TrimRight(result, "\n")
 }
 
-func formatChangeSection(title string, summaries []change.Change) string {
+func formatChangeSection(title string, summaries []change.Change, recognizedTypes []string) string {
 	result := fmt.Sprintf("### %s\n\n", title)
 	for _, summary := range summaries {
-		result += formatSummary(summary)
+		result += formatSummary(summary, recognizedTypes)
 	}
 	return result
 }
 
-func formatSummary(summary change.Change) string {
-	result := removeConventionalCommitPrefix(strings.TrimSpace(summary.Text))
+func formatSummary(summary change.Change, recognizedTypes []string) string {
+	result := change.TrimConventionalCommitPrefix(strings.TrimSpace(summary.Text), recognizedTypes...)
 	result = fmt.Sprintf("- %s", result)
 	if endsWithPunctuation(result) {
 		result = result[:len(result)-1]
@@ -163,20 +160,4 @@ func endsWithPunctuation(s string) bool {
 		return false
 	}
 	return strings.Contains("!.?", s[len(s)-1:]) //nolint:gocritic
-}
-
-func removeConventionalCommitPrefix(s string) string {
-	res, err := cc.NewMachine(cc.WithTypes(conventionalcommits.TypesConventional)).Parse([]byte(s))
-	if err != nil || res == nil || (res != nil && !res.Ok()) {
-		// probably not a conventional commit
-		return s
-	}
-
-	// conventional commits always have a prefix and the message starts after the first ":"
-	fields := strings.SplitN(s, ":", 2)
-	if len(fields) == 2 {
-		return strings.TrimSpace(fields[1])
-	}
-
-	return s
 }

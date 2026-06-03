@@ -373,6 +373,15 @@ func Test_prFilters(t *testing.T) {
 		MergeCommit: "made-up-commit-hash",
 	}
 
+	// no change-type label, but a conventional-commit title that resolves to a
+	// change type only when title inference is enabled.
+	prConventionalCommitNoLabel := ghPullRequest{
+		Title:       "feat: pr with conventional-commit title and no label",
+		Number:      15,
+		MergedAt:    timeAfter,
+		MergeCommit: mergeCommit1,
+	}
+
 	input := []ghPullRequest{
 		// keep
 		prBugAfterLastRelease,
@@ -446,6 +455,32 @@ func Test_prFilters(t *testing.T) {
 				prFeatureAfterEndTag,
 				prFeatureAfterEndTagAndMergeRange,
 			},
+		},
+		{
+			name:  "inference off drops unlabeled conventional-commit PR",
+			since: sinceTag,
+			config: Config{
+				ChangeTypesByLabel:                  changeTypeSet,
+				ChangeTypesByConventionalCommitType: change.TypeSet{"feat": feature},
+				InferChangeTypeFromTitle:            false,
+				ConsiderPRMergeCommits:              false,
+			},
+			inputPrs:    []ghPullRequest{prBugAfterLastRelease, prConventionalCommitNoLabel},
+			commits:     allMergeCommits,
+			expectedPrs: []ghPullRequest{prBugAfterLastRelease},
+		},
+		{
+			name:  "inference on keeps unlabeled conventional-commit PR",
+			since: sinceTag,
+			config: Config{
+				ChangeTypesByLabel:                  changeTypeSet,
+				ChangeTypesByConventionalCommitType: change.TypeSet{"feat": feature},
+				InferChangeTypeFromTitle:            true,
+				ConsiderPRMergeCommits:              false,
+			},
+			inputPrs:    []ghPullRequest{prBugAfterLastRelease, prConventionalCommitNoLabel},
+			commits:     allMergeCommits,
+			expectedPrs: []ghPullRequest{prBugAfterLastRelease, prConventionalCommitNoLabel},
 		},
 	}
 
@@ -1042,6 +1077,50 @@ func Test_changesFromUnlabeledPRs(t *testing.T) {
 				},
 			},
 		},
+		{
+			// with title inference on, an unlabeled PR whose change type is inferred
+			// from its conventional-commit title is carried by the standard (typed)
+			// path, so it must be excluded here to avoid double-counting.
+			name: "excludes unlabeled PR with inferable conventional-commit title",
+			config: Config{
+				Host:                     "some-host",
+				InferChangeTypeFromTitle: true,
+				ChangeTypesByConventionalCommitType: change.TypeSet{
+					"feat": change.NewType("added-feature", change.SemVerMinor),
+				},
+			},
+			inputPrs: []ghPullRequest{
+				// filter: change type inferred from title
+				{
+					MergedAt: timeStart,
+					Title:    "feat: shiny new thing",
+					Number:   8,
+					Author:   "cc-author",
+					URL:      "cc-url",
+				},
+				// keep: not a conventional commit
+				prWithoutLabels,
+			},
+			expectedChanges: []change.Change{
+				{
+					Text:        "pr without labels",
+					ChangeTypes: change.UnknownTypes,
+					Timestamp:   timeStart,
+					References: []change.Reference{
+						{
+							Text: "#6",
+							URL:  "some-url",
+						},
+						{
+							Text: "@some-author",
+							URL:  "https://some-host/some-author",
+						},
+					},
+					EntryType: "githubPR",
+					Entry:     prWithoutLabels,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1429,6 +1508,194 @@ func TestSummarizer_ChangesURL(t *testing.T) {
 
 			got := s.ChangesURL(tt.sinceRef, tt.untilRef)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func Test_prChangeTypes(t *testing.T) {
+	feature := change.NewType("added-feature", change.SemVerMinor)
+	bugFix := change.NewType("bug-fix", change.SemVerPatch)
+	breaking := change.NewType("breaking-feature", change.SemVerMajor)
+
+	labelSet := change.TypeSet{
+		"enhancement": feature,
+		"bug":         bugFix,
+	}
+	prefixSet := change.TypeSet{
+		"feat":                      feature,
+		"fix":                       bugFix,
+		change.BreakingChangePrefix: breaking,
+	}
+
+	config := Config{
+		InferChangeTypeFromTitle:            true,
+		ChangeTypesByLabel:                  labelSet,
+		ChangeTypesByConventionalCommitType: prefixSet,
+	}
+
+	tests := []struct {
+		name   string
+		config Config
+		pr     ghPullRequest
+		want   []change.Type
+	}{
+		{
+			name:   "label resolves change type",
+			config: config,
+			pr:     ghPullRequest{Title: "anything", Labels: []string{"bug"}},
+			want:   []change.Type{bugFix},
+		},
+		{
+			name:   "label wins over conventional-commit title",
+			config: config,
+			pr:     ghPullRequest{Title: "feat: add a thing", Labels: []string{"bug"}},
+			want:   []change.Type{bugFix},
+		},
+		{
+			name:   "infer from feat title when unlabeled",
+			config: config,
+			pr:     ghPullRequest{Title: "feat: add a thing"},
+			want:   []change.Type{feature},
+		},
+		{
+			name:   "infer from fix title when label is not a change-type label",
+			config: config,
+			pr:     ghPullRequest{Title: "fix: squash a bug", Labels: []string{"size/L"}},
+			want:   []change.Type{bugFix},
+		},
+		{
+			name:   "breaking marker takes precedence over base type",
+			config: config,
+			pr:     ghPullRequest{Title: "feat!: drop legacy API"},
+			want:   []change.Type{breaking},
+		},
+		{
+			// when "!" is not mapped, a breaking PR falls back to its base type.
+			name: "breaking marker falls back to base type when unmapped",
+			config: Config{
+				InferChangeTypeFromTitle:            true,
+				ChangeTypesByLabel:                  labelSet,
+				ChangeTypesByConventionalCommitType: change.TypeSet{"feat": feature},
+			},
+			pr:   ghPullRequest{Title: "feat!: drop legacy API"},
+			want: []change.Type{feature},
+		},
+		{
+			// the parser lowercases the type, so an uppercase title still resolves
+			// against the lowercase-keyed prefix set.
+			name:   "inference is case-insensitive on the title type",
+			config: config,
+			pr:     ghPullRequest{Title: "Feat: add a thing"},
+			want:   []change.Type{feature},
+		},
+		{
+			name:   "unmapped conventional-commit type yields nothing",
+			config: config,
+			pr:     ghPullRequest{Title: "docs: update the readme"},
+			want:   nil,
+		},
+		{
+			name:   "non-conventional title yields nothing",
+			config: config,
+			pr:     ghPullRequest{Title: "Bump foo to v2"},
+			want:   nil,
+		},
+		{
+			name: "inference disabled falls back to labels only",
+			config: Config{
+				InferChangeTypeFromTitle:            false,
+				ChangeTypesByLabel:                  labelSet,
+				ChangeTypesByConventionalCommitType: prefixSet,
+			},
+			pr:   ghPullRequest{Title: "feat: add a thing"},
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := prChangeTypes(tt.config, tt.pr)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func Test_prHasUnmappedBreakingMarker(t *testing.T) {
+	feature := change.NewType("added-feature", change.SemVerMinor)
+	breaking := change.NewType("breaking-feature", change.SemVerMajor)
+
+	withBreaking := Config{
+		InferChangeTypeFromTitle: true,
+		ChangeTypesByConventionalCommitType: change.TypeSet{
+			"feat":                      feature,
+			change.BreakingChangePrefix: breaking,
+		},
+	}
+	withoutBreaking := Config{
+		InferChangeTypeFromTitle:            true,
+		ChangeTypesByLabel:                  change.TypeSet{"bug": change.NewType("bug-fix", change.SemVerPatch)},
+		ChangeTypesByConventionalCommitType: change.TypeSet{"feat": feature},
+	}
+
+	tests := []struct {
+		name   string
+		config Config
+		pr     ghPullRequest
+		want   bool
+	}{
+		{
+			name:   "breaking marker with no breaking mapping warns (base type mapped)",
+			config: withoutBreaking,
+			pr:     ghPullRequest{Title: "feat!: drop legacy API"},
+			want:   true,
+		},
+		{
+			name:   "breaking marker with no breaking mapping warns (base type also unmapped)",
+			config: withoutBreaking,
+			pr:     ghPullRequest{Title: "chore!: drop legacy API"},
+			want:   true,
+		},
+		{
+			name:   "breaking marker mapped does not warn",
+			config: withBreaking,
+			pr:     ghPullRequest{Title: "feat!: drop legacy API"},
+			want:   false,
+		},
+		{
+			// an explicit change-type label short-circuits title inference, so the
+			// title (and its breaking marker) is never consulted — warning would be
+			// misleading.
+			name:   "change-type label short-circuits inference, no warning",
+			config: withoutBreaking,
+			pr:     ghPullRequest{Title: "feat!: drop legacy API", Labels: []string{"bug"}},
+			want:   false,
+		},
+		{
+			name:   "non-breaking conventional commit does not warn",
+			config: withoutBreaking,
+			pr:     ghPullRequest{Title: "feat: add a thing"},
+			want:   false,
+		},
+		{
+			name:   "non-conventional title does not warn",
+			config: withoutBreaking,
+			pr:     ghPullRequest{Title: "Bump foo to v2"},
+			want:   false,
+		},
+		{
+			name: "inference disabled does not warn",
+			config: Config{
+				InferChangeTypeFromTitle:            false,
+				ChangeTypesByConventionalCommitType: change.TypeSet{"feat": feature},
+			},
+			pr:   ghPullRequest{Title: "feat!: drop legacy API"},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, prHasUnmappedBreakingMarker(tt.config, tt.pr))
 		})
 	}
 }

@@ -38,6 +38,13 @@ type Config struct {
 	ChangeTypesByLabel              change.TypeSet
 	IssuesRequireLinkedPR           bool
 	ConsiderPRMergeCommits          bool
+
+	// InferChangeTypeFromTitle, when true, infers a change type from a PR's
+	// conventional-commit title prefix when the PR carries no change-type label.
+	InferChangeTypeFromTitle bool
+	// ChangeTypesByConventionalCommitType maps a conventional-commit prefix (e.g.
+	// "feat", "fix", or the "!" breaking marker) to a change type.
+	ChangeTypesByConventionalCommitType change.TypeSet
 }
 
 type Summarizer struct {
@@ -595,12 +602,9 @@ func uniqueIssuesFromPRs(prs []ghPullRequest) []ghIssue {
 }
 
 func changesFromStandardPRFilters(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag, includeCommits []string) []change.Change {
+	// the standard qualitative filters already keep only PRs that resolve to a
+	// change type (prsWithChangeTypes), so no further change-type filter is needed.
 	includedPRs := applyStandardPRFilters(allMergedPRs, config, sinceTag, untilTag, includeCommits)
-
-	beforeChangeTypeFilter := len(includedPRs)
-	var droppedNoChangeType []droppedPR
-	includedPRs, droppedNoChangeType = filterPRs(includedPRs, prsWithChangeTypes(config))
-	log.WithFields("kept", len(includedPRs), "dropped", len(droppedNoChangeType), "input", beforeChangeTypeFilter).Trace("PR change-type filter")
 
 	log.WithFields("count", len(includedPRs)).Info("PRs contributing to changelog")
 	logPRs(includedPRs)
@@ -608,10 +612,71 @@ func changesFromStandardPRFilters(config Config, allMergedPRs []ghPullRequest, s
 	return createChangesFromPRs(config, includedPRs)
 }
 
+// prChangeTypes resolves the change types for a PR. Explicit change-type labels
+// always win; otherwise, when enabled, the type is inferred from a
+// conventional-commit prefix in the PR title (e.g. "feat: ..." -> added-feature).
+// Returns nil when no type can be resolved.
+func prChangeTypes(config Config, pr ghPullRequest) []change.Type {
+	if types := config.ChangeTypesByLabel.ChangeTypes(pr.Labels...); len(types) > 0 {
+		return types
+	}
+
+	if !config.InferChangeTypeFromTitle {
+		return nil
+	}
+
+	ccType, breaking, ok := change.ParseConventionalCommit(pr.Title)
+	if !ok {
+		return nil
+	}
+
+	// a breaking marker ("!") takes precedence over the base type when it is
+	// mapped (e.g. "feat!: ..." -> breaking-feature rather than added-feature).
+	if breaking {
+		if types := config.ChangeTypesByConventionalCommitType.ChangeTypes(change.BreakingChangePrefix); len(types) > 0 {
+			return types
+		}
+	}
+
+	// conventional-commit types are matched case-insensitively; the parser
+	// normalizes to lowercase and configured prefixes are keyed lowercase.
+	return config.ChangeTypesByConventionalCommitType.ChangeTypes(strings.ToLower(ccType))
+}
+
+// prHasUnmappedBreakingMarker reports whether a PR title carries a
+// conventional-commit breaking marker ("!") that maps to no change type. When
+// true the breaking signal is silently dropped — the PR is categorized by its
+// base type (e.g. "feat!: ..." -> added-feature) or not at all — so callers
+// warn to surface the likely-missing breaking-change mapping.
+//
+// An explicit change-type label short-circuits title inference entirely (see
+// prChangeTypes), so a labeled PR's title is never consulted; warning about its
+// breaking marker would be misleading (mapping "!" would not change the
+// outcome). Only PRs that fall through to title inference are considered.
+func prHasUnmappedBreakingMarker(config Config, pr ghPullRequest) bool {
+	if !config.InferChangeTypeFromTitle {
+		return false
+	}
+	if len(config.ChangeTypesByLabel.ChangeTypes(pr.Labels...)) > 0 {
+		return false
+	}
+	_, breaking, ok := change.ParseConventionalCommit(pr.Title)
+	if !ok || !breaking {
+		return false
+	}
+	return len(config.ChangeTypesByConventionalCommitType.ChangeTypes(change.BreakingChangePrefix)) == 0
+}
+
 func createChangesFromPRs(config Config, prs []ghPullRequest) []change.Change {
 	var summaries []change.Change
 	for _, pr := range prs {
-		changeTypes := config.ChangeTypesByLabel.ChangeTypes(pr.Labels...)
+		if prHasUnmappedBreakingMarker(config, pr) {
+			log.Warnf("PR #%d title %q carries a breaking-change marker (%q) but no change type maps it; "+
+				"the change will not be treated as breaking (add %q to a change type's prefixes to fix)",
+				pr.Number, pr.Title, change.BreakingChangePrefix, change.BreakingChangePrefix)
+		}
+
+		changeTypes := prChangeTypes(config, pr)
 
 		if len(changeTypes) == 0 {
 			changeTypes = change.UnknownTypes
@@ -687,6 +752,9 @@ func changesFromUnlabeledPRs(config Config, allMergedPRs []ghPullRequest, sinceT
 	filters := []prFilter{
 		prsWithoutLabels(),
 		prsWithoutLinkedIssues(),
+		// a PR whose change type was inferred from its title is carried by the
+		// standard (typed) PR path; exclude it here so it isn't counted twice.
+		prsWithoutChangeType(config),
 	}
 
 	filters = append(filters, standardChronologicalPrFilters(config, sinceTag, untilTag, includeCommits)...)
@@ -826,7 +894,9 @@ func standardChronologicalIssueFilters(sinceTag, untilTag *git.Tag) (filters []i
 func standardQualitativePrFilters(config Config) []prFilter {
 	// this represents the traits we wish to filter down to (not out).
 	return []prFilter{
-		prsWithLabel(config.ChangeTypesByLabel.Names()...),
+		// keep PRs that resolve to a change type, either from a change-type label
+		// or (when enabled) an inferred conventional-commit title prefix.
+		prsWithChangeTypes(config),
 		prsWithoutLabel(config.ExcludeLabels...),
 		// Merged PRs linked to closed issues should be hidden so that the closed issue title takes precedence over the pr title
 		prsWithoutClosedLinkedIssue(),

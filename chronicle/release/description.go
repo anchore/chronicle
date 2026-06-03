@@ -10,9 +10,14 @@ type Description struct {
 	Notice           string             // manual note or summary that describes the changelog at a high level
 	Changes          change.Changes     // all issues and PRs that makeup this release
 	SupportedChanges []change.TypeTitle // the sections of the changelog and their display titles
-	PreviousRelease  *Release           // the release this changelog starts from; nil if since the beginning of history
-	Speculated       bool               // true when the version was inferred by the speculator
-	Trunk            *TrunkData         // optional, populated by summarizers that implement TrunkSummarizer
+
+	// ConventionalCommitTypes are the (possibly non-standard) conventional-commit
+	// type prefixes recognized for this changelog, used by encoders to strip the
+	// prefix from change display text consistently with how it was categorized.
+	ConventionalCommitTypes []string
+	PreviousRelease         *Release   // the release this changelog starts from; nil if since the beginning of history
+	Speculated              bool       // true when the version was inferred by the speculator
+	Trunk                   *TrunkData // optional, populated by summarizers that implement TrunkSummarizer
 
 	// raw evidence totals (pre-filter), surfaced for the summary report so it
 	// can show "N (M kept)" trailers. Populated by the worker after the
