@@ -179,28 +179,27 @@ func prsWithoutOpenLinkedIssue() prFilter {
 	}
 }
 
-func prsWithLabel(labels ...string) prFilter {
-	return func(pr ghPullRequest, ctx ...*string) bool {
-		for _, targetLabel := range labels {
-			for _, l := range pr.Labels {
-				if l == targetLabel {
-					return true
-				}
-			}
-		}
-		setReason(ctx, "label:missing-required")
-		log.Tracef("PR #%d filtered out: missing required label", pr.Number)
-
-		return false
-	}
-}
-
 func prsWithoutLabels() prFilter {
 	return func(pr ghPullRequest, ctx ...*string) bool {
 		keep := len(pr.Labels) == 0
 		if !keep {
 			setReason(ctx, "labels:present")
 			log.Tracef("PR #%d filtered out: has labels", pr.Number)
+		}
+		return keep
+	}
+}
+
+// prsWithoutChangeType keeps only PRs that resolve to no change type. It guards
+// the unlabeled-PR path against double-counting PRs whose change type was
+// inferred from a conventional-commit title — those are carried by the standard
+// (typed) PR path instead.
+func prsWithoutChangeType(config Config) prFilter {
+	return func(pr ghPullRequest, ctx ...*string) bool {
+		keep := len(prChangeTypes(config, pr)) == 0
+		if !keep {
+			setReason(ctx, "change-type:inferred")
+			log.Tracef("PR #%d filtered out of unlabeled path: change type inferred from title", pr.Number)
 		}
 		return keep
 	}
@@ -219,7 +218,7 @@ func prsWithoutLinkedIssues() prFilter {
 
 func prsWithChangeTypes(config Config) prFilter {
 	return func(pr ghPullRequest, ctx ...*string) bool {
-		changeTypes := config.ChangeTypesByLabel.ChangeTypes(pr.Labels...)
+		changeTypes := prChangeTypes(config, pr)
 
 		keep := len(changeTypes) > 0
 		if !keep {

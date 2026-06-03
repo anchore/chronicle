@@ -1,6 +1,8 @@
 package options
 
 import (
+	"strings"
+
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/chronicle/release/releasers/github"
 	"github.com/anchore/clio"
@@ -18,6 +20,7 @@ type GithubSummarizer struct {
 	IncludeUnlabeledPRs             bool           `yaml:"include-unlabeled-prs" json:"include-unlabeled-prs" mapstructure:"include-unlabeled-prs"`
 	IssuesRequireLinkedPR           bool           `yaml:"issues-require-linked-prs" json:"issues-require-linked-prs" mapstructure:"issues-require-linked-prs"`
 	ConsiderPRMergeCommits          bool           `yaml:"consider-pr-merge-commits" json:"consider-pr-merge-commits" mapstructure:"consider-pr-merge-commits"`
+	InferChangeTypeFromTitle        bool           `yaml:"infer-change-type-from-title" json:"infer-change-type-from-title" mapstructure:"infer-change-type-from-title"`
 	Changes                         []GithubChange `yaml:"changes" json:"changes" mapstructure:"changes"`
 }
 
@@ -33,6 +36,7 @@ func (c *GithubSummarizer) DescribeFields(descriptions clio.FieldDescriptionSet)
 	descriptions.Add(&c.IncludeUnlabeledPRs, "include PRs without labels or linked issues")
 	descriptions.Add(&c.IssuesRequireLinkedPR, "only include issues with linked PRs")
 	descriptions.Add(&c.ConsiderPRMergeCommits, "include merge commits")
+	descriptions.Add(&c.InferChangeTypeFromTitle, "infer the change type from a conventional-commit PR title when no change-type label is present")
 	descriptions.Add(&c.Changes, "configure change types and their associated labels")
 }
 
@@ -43,6 +47,7 @@ type GithubChange struct {
 	Title      string   `yaml:"title" json:"title" mapstructure:"title"`
 	SemVerKind string   `yaml:"semver-field" json:"semver-field" mapstructure:"semver-field"`
 	Labels     []string `yaml:"labels" json:"labels" mapstructure:"labels"`
+	Prefixes   []string `yaml:"prefixes" json:"prefixes" mapstructure:"prefixes"`
 }
 
 func (c *GithubChange) DescribeFields(descriptions clio.FieldDescriptionSet) {
@@ -50,32 +55,41 @@ func (c *GithubChange) DescribeFields(descriptions clio.FieldDescriptionSet) {
 	descriptions.Add(&c.Title, "title to display in the changelog for this change type")
 	descriptions.Add(&c.SemVerKind, "semver field affected: major, minor, or patch")
 	descriptions.Add(&c.Labels, "GitHub labels that map to this change type")
+	descriptions.Add(&c.Prefixes, `conventional-commit type prefixes that map to this change type (e.g. "feat", "fix"); use "!" for the breaking-change marker`)
 }
 
 var _ clio.FieldDescriber = (*GithubChange)(nil)
 
 func (c GithubSummarizer) ToGithubConfig() github.Config {
 	typeSet := make(change.TypeSet)
+	prefixSet := make(change.TypeSet)
 	for _, c := range c.Changes {
 		k := change.ParseSemVerKind(c.SemVerKind)
 		t := change.NewType(c.Type, k)
 		for _, l := range c.Labels {
 			typeSet[l] = t
 		}
+		for _, p := range c.Prefixes {
+			// conventional-commit types are matched case-insensitively against the
+			// (lowercase-normalized) parsed PR title type, so key on the lowercase form.
+			prefixSet[strings.ToLower(p)] = t
+		}
 	}
 	return github.Config{
-		Host:                            c.Host,
-		IncludeIssuePRAuthors:           c.IncludeIssuePRAuthors,
-		IncludeIssuePRs:                 c.IncludeIssuePRs,
-		IncludeIssues:                   c.IncludeIssues,
-		IncludeIssuesClosedAsNotPlanned: c.IncludeIssuesClosedAsNotPlanned,
-		IncludePRs:                      c.IncludePRs,
-		IncludeUnlabeledIssues:          c.IncludeUnlabeledIssues,
-		IncludeUnlabeledPRs:             c.IncludeUnlabeledPRs,
-		ExcludeLabels:                   c.ExcludeLabels,
-		IssuesRequireLinkedPR:           c.IssuesRequireLinkedPR,
-		ConsiderPRMergeCommits:          c.ConsiderPRMergeCommits,
-		ChangeTypesByLabel:              typeSet,
+		Host:                                c.Host,
+		IncludeIssuePRAuthors:               c.IncludeIssuePRAuthors,
+		IncludeIssuePRs:                     c.IncludeIssuePRs,
+		IncludeIssues:                       c.IncludeIssues,
+		IncludeIssuesClosedAsNotPlanned:     c.IncludeIssuesClosedAsNotPlanned,
+		IncludePRs:                          c.IncludePRs,
+		IncludeUnlabeledIssues:              c.IncludeUnlabeledIssues,
+		IncludeUnlabeledPRs:                 c.IncludeUnlabeledPRs,
+		ExcludeLabels:                       c.ExcludeLabels,
+		IssuesRequireLinkedPR:               c.IssuesRequireLinkedPR,
+		ConsiderPRMergeCommits:              c.ConsiderPRMergeCommits,
+		InferChangeTypeFromTitle:            c.InferChangeTypeFromTitle,
+		ChangeTypesByLabel:                  typeSet,
+		ChangeTypesByConventionalCommitType: prefixSet,
 	}
 }
 
@@ -84,6 +98,7 @@ func DefaultGithubSimmarizer() GithubSummarizer {
 		Host:                            "github.com",
 		IssuesRequireLinkedPR:           false,
 		ConsiderPRMergeCommits:          true,
+		InferChangeTypeFromTitle:        true,
 		IncludePRs:                      true,
 		IncludeIssuePRAuthors:           true,
 		IncludeIssuePRs:                 true,
@@ -103,18 +118,28 @@ func DefaultGithubSimmarizer() GithubSummarizer {
 				Type:       "added-feature",
 				Title:      "Added Features",
 				Labels:     []string{"enhancement", "feature", "minor"},
+				Prefixes:   []string{"feat"},
 				SemVerKind: change.SemVerMinor.String(),
 			},
 			{
 				Type:       "bug-fix",
 				Title:      "Bug Fixes",
 				Labels:     []string{"bug", "fix", "bug-fix", "patch"},
+				Prefixes:   []string{"fix"},
+				SemVerKind: change.SemVerPatch.String(),
+			},
+			{
+				Type:       "performance",
+				Title:      "Performance",
+				Labels:     []string{"performance", "perf"},
+				Prefixes:   []string{"perf"},
 				SemVerKind: change.SemVerPatch.String(),
 			},
 			{
 				Type:       "breaking-feature",
 				Title:      "Breaking Changes",
 				Labels:     []string{"breaking", "backwards-incompatible", "breaking-change", "breaking-feature", "major"},
+				Prefixes:   []string{change.BreakingChangePrefix},
 				SemVerKind: change.SemVerMajor.String(),
 			},
 			{

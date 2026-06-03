@@ -166,41 +166,6 @@ func Test_prsBefore(t *testing.T) {
 	}
 }
 
-func Test_prsWithLabel(t *testing.T) {
-	tests := []struct {
-		name   string
-		pr     ghPullRequest
-		labels []string
-		keep   bool
-	}{
-		{
-			name: "matches on label",
-			labels: []string{
-				"positive",
-			},
-			pr: ghPullRequest{
-				Labels: []string{"something-else", "positive"},
-			},
-			keep: true,
-		},
-		{
-			name: "does not match on label",
-			labels: []string{
-				"positive",
-			},
-			pr: ghPullRequest{
-				Labels: []string{"something-else", "negative"},
-			},
-			keep: false,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.keep, prsWithLabel(test.labels...)(test.pr))
-		})
-	}
-}
-
 func Test_prsWithoutLabel(t *testing.T) {
 	tests := []struct {
 		name   string

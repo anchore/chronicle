@@ -156,7 +156,12 @@ github:
   # issues can only be considered for changelog candidates if they have linked PRs that are merged (note: does NOT require github.include-issues to be set)
   # same as CHRONICLE_GITHUB_ISSUES_REQUIRE_LINKED_PRS env var
   issues-require-linked-prs: false
-  
+
+  # when a merged PR has no change-type label, infer the change type from a conventional-commit
+  # prefix in the PR title (e.g. "feat: ..." -> Added Features). An explicit label always wins.
+  # same as CHRONICLE_GITHUB_INFER_CHANGE_TYPE_FROM_TITLE env var
+  infer-change-type-from-title: true
+
   # list of definitions of what labels applied to issues or PRs constitute a changelog entry. These entries also dictate 
   # the changelog section, the changelog title, and the semver field that best represents the class of change.
   # note: cannot be set via environment variables
@@ -172,6 +177,7 @@ The `github.changes` configurable is a list of mappings, each that take the foll
 - `title`: _[string]_ title of the section in the changelog listing all entries.
 - `semver-field`: _[string]_ change entries will bump the respective semver field when guessing the next release version. Allowable values: `major`, `minor`, or `patch`.
 - `labels`: _[list of strings]_ all issue or PR labels that should match this change section.
+- `prefixes`: _[list of strings]_ [conventional-commit](https://www.conventionalcommits.org/en/v1.0.0/#specification) type prefixes that map to this change section when `github.infer-change-type-from-title` is enabled and a PR carries no change-type label (e.g. `feat`, `fix`). Prefixes are matched case-insensitively. Use the special value `!` to match the conventional-commit breaking-change marker (e.g. a `feat!: ...` title); if a PR title carries a `!` marker but no change section declares the `!` prefix, chronicle logs a warning and falls back to the base type (so the breaking change won't bump the major version). Only applies to PRs, not issues; an explicit label always takes precedence over an inferred prefix.
 
 The default value for `github.changes` is:
 
@@ -190,6 +196,8 @@ The default value for `github.changes` is:
     - enhancement
     - feature
     - minor
+  prefixes:
+    - feat
   
 - name: bug-fix
   title: Bug Fixes
@@ -199,6 +207,17 @@ The default value for `github.changes` is:
     - fix
     - bug-fix
     - patch
+  prefixes:
+    - fix
+
+- name: performance
+  title: Performance
+  semver-field: patch
+  labels:
+    - performance
+    - perf
+  prefixes:
+    - perf
   
 - name: breaking-feature
   title: Breaking Changes
@@ -209,6 +228,8 @@ The default value for `github.changes` is:
     - breaking-change
     - breaking-feature
     - major
+  prefixes:
+    - "!"
     
 - name: removed-feature
   title: Removed Features

@@ -86,6 +86,12 @@ func createChangelogFromGithub(appConfig *createConfig) (*release.Release, *rele
 		return startRelease, description, err
 	}
 
+	// surface the configured conventional-commit prefixes so encoders can trim
+	// them from change display text consistently with how they were categorized.
+	if description != nil {
+		description.ConventionalCommitTypes = getGithubConventionalCommitTypes(appConfig)
+	}
+
 	// resolve range slots from what we now know about each end of the range.
 	resolveRangeSlots(rng, gitter, appConfig.SinceTag, untilTag, description)
 
@@ -241,6 +247,23 @@ func checkTrunkPrerequisites(appConfig *createConfig) error {
 		}
 	}
 	return nil
+}
+
+// getGithubConventionalCommitTypes collects every conventional-commit type
+// prefix configured across all change types (excluding the breaking "!" marker,
+// which is not a type token). Encoders use these to trim non-standard prefixes
+// from display text.
+func getGithubConventionalCommitTypes(appConfig *createConfig) []string {
+	var prefixes []string
+	for _, c := range appConfig.Github.Changes {
+		for _, p := range c.Prefixes {
+			if p == change.BreakingChangePrefix {
+				continue
+			}
+			prefixes = append(prefixes, p)
+		}
+	}
+	return prefixes
 }
 
 func getGithubSupportedChanges(appConfig *createConfig) []change.TypeTitle {
