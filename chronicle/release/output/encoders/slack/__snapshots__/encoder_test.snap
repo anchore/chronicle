@@ -1,0 +1,42 @@
+
+[TestSlackPresenter_Present - 1]
+*v0.19.1*
+
+*Bug Fixes*
+• Redirect cursor hide/show to stderr [PR <https://github.com/anchore/syft/pull/456|#456>]
+
+*Added Features*
+• added feature [PR <https://github.com/anchore/syft/pull/457|#457> `@wagoodman`]
+• another added feature
+
+*Breaking Changes*
+• breaking change [Issue <https://github.com/anchore/syft/issues/450|#450>] [PR <https://github.com/anchore/syft/pull/458|#458> `@wagoodman`]
+
+*<https://github.com/anchore/syft/compare/v0.19.0...v0.19.1|Full Changelog>*
+
+---
+
+[TestSlackPresenter_Present_NoTitle - 1]
+*Bug Fixes*
+• Redirect cursor hide/show to stderr [PR <https://github.com/anchore/syft/pull/456|#456>]
+
+*<https://github.com/anchore/syft/compare/v0.19.0...v0.19.1|Full Changelog>*
+
+---
+
+[TestSlackPresenter_Present_NoChanges - 1]
+*Changelog*
+
+*<https://github.com/anchore/syft/compare/v0.19.0...v0.19.1|Full Changelog>*
+
+---
+
+[TestSlackPresenter_Present_EscapesMrkdwn - 1]
+*release &lt;v0.19.1&gt; &amp; friends*
+
+*Bug Fixes*
+• handle &lt;-chan close &amp; guard A &gt; B [PR <https://github.com/anchore/syft/pull/456|#456>]
+
+*<https://github.com/anchore/syft/compare/v0.19.0...v0.19.1|Full Changelog>*
+
+---

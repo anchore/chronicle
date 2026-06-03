@@ -77,6 +77,7 @@ Configuration options (example values are the default):
 #   md-pretty  — ANSI-styled markdown (stdout only; falls back to md if not a TTY)
 #   json       — release description as JSON
 #   version    — just the resolved version string with a trailing newline
+#   slack      — Slack "mrkdwn" suitable for a webhook payload's text field
 # An entry with no path writes to stdout (at most one entry may write to
 # stdout).
 # same as -o, --output, and CHRONICLE_OUTPUT env var

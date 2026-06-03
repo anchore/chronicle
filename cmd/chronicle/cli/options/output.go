@@ -10,6 +10,7 @@ import (
 	jsonenc "github.com/anchore/chronicle/chronicle/release/output/encoders/json"
 	mdenc "github.com/anchore/chronicle/chronicle/release/output/encoders/markdown"
 	mdpretty "github.com/anchore/chronicle/chronicle/release/output/encoders/markdownpretty"
+	slackenc "github.com/anchore/chronicle/chronicle/release/output/encoders/slack"
 	trunkenc "github.com/anchore/chronicle/chronicle/release/output/encoders/trunk"
 	versionenc "github.com/anchore/chronicle/chronicle/release/output/encoders/version"
 	"github.com/anchore/chronicle/internal/log"
@@ -54,6 +55,7 @@ func DefaultOutput() Output {
 			&mdenc.Encoder{},
 			&jsonenc.Encoder{},
 			&versionenc.Encoder{},
+			&slackenc.Encoder{},
 			&mdpretty.Encoder{IsTTY: isStdoutTTY()},
 			&trunkenc.Encoder{
 				IsTTY:        isStdoutTTY(),
