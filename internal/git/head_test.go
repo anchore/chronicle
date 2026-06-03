@@ -91,6 +91,13 @@ func TestHeadCommit(t *testing.T) {
 			// of a commit string is fixed and is a good proxy here)
 			expectsLength: 40,
 		},
+		{
+			// a linked worktree resolves HEAD via the shared common dir; without common-dir
+			// support go-git fails with "reference not found"
+			name:          "worktree",
+			path:          "testdata/repos/worktree-linked-repo",
+			expectsLength: 40,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

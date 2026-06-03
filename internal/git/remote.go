@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/anchore/chronicle/internal"
 )
@@ -14,7 +15,10 @@ var remotePattern = regexp.MustCompile(`\[remote\s*"origin"]\s*\n\s*url\s*=\s*(?
 
 // TODO: can't use r.Config for same validation reasons
 func RemoteURL(p string) (string, error) {
-	cfgPath := path.Join(p, ".git", "config")
+	cfgPath, err := gitConfigPath(p)
+	if err != nil {
+		return "", err
+	}
 	f, err := os.Open(cfgPath)
 	if err != nil {
 		return "", fmt.Errorf("unable to open git config %q: %w", cfgPath, err)
@@ -31,6 +35,65 @@ func RemoteURL(p string) (string, error) {
 	}
 
 	return url, nil
+}
+
+// gitConfigPath resolves the path to the git config file for the repo rooted at p. For a normal
+// repo this is simply ".git/config", but when worktrees are in use ".git" is a file pointing at a
+// separate git dir, so we must follow that pointer to locate the shared config.
+func gitConfigPath(p string) (string, error) {
+	dotGit := filepath.Join(p, ".git")
+	fi, err := os.Stat(dotGit)
+	if err != nil {
+		return "", fmt.Errorf("unable to stat %q: %w", dotGit, err)
+	}
+
+	// common case: .git is a directory holding the config directly
+	if fi.IsDir() {
+		return filepath.Join(dotGit, "config"), nil
+	}
+
+	// worktree/submodule case: .git is a file containing a "gitdir:" pointer to the real git dir
+	gitDir, err := readGitDirPointer(dotGit)
+	if err != nil {
+		return "", err
+	}
+
+	// worktrees keep per-worktree metadata in their own git dir but share config via the common
+	// dir, which is recorded in a "commondir" file (relative paths resolve against the git dir).
+	commonDir := gitDir
+	if data, readErr := os.ReadFile(filepath.Join(gitDir, "commondir")); readErr == nil {
+		common := strings.TrimSpace(string(data))
+		if !filepath.IsAbs(common) {
+			common = filepath.Join(gitDir, common)
+		}
+		commonDir = common
+	}
+
+	return filepath.Join(commonDir, "config"), nil
+}
+
+// readGitDirPointer reads a ".git" file and returns the path it points at via its "gitdir:" line,
+// resolving relative pointers against the directory containing the file.
+func readGitDirPointer(dotGitFile string) (string, error) {
+	data, err := os.ReadFile(dotGitFile)
+	if err != nil {
+		return "", fmt.Errorf("unable to read git dir pointer %q: %w", dotGitFile, err)
+	}
+
+	const prefix = "gitdir:"
+	for line := range strings.SplitSeq(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, prefix) {
+			continue
+		}
+		gitDir := strings.TrimSpace(strings.TrimPrefix(line, prefix))
+		if !filepath.IsAbs(gitDir) {
+			gitDir = filepath.Join(filepath.Dir(dotGitFile), gitDir)
+		}
+		return gitDir, nil
+	}
+
+	return "", fmt.Errorf("no 'gitdir:' pointer found in %q", dotGitFile)
 }
 
 // TODO: can't use r.Config for same validation reasons

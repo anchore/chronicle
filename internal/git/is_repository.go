@@ -30,7 +30,11 @@ import (
 //
 // On failure the returned error contains the underlying go-git reason.
 func openRepo(path string) (*gogit.Repository, error) {
-	if r, err := gogit.PlainOpen(path); err == nil {
+	// EnableDotGitCommonDir is required for worktrees (and submodules): there ".git" is a file
+	// pointing at a per-worktree git dir, while refs and objects live in the shared common dir. A
+	// plain open would succeed but yield a repo whose HEAD can't resolve. We keep DetectDotGit off
+	// here so the strict open still only considers the given path (preserving IsRepository semantics).
+	if r, err := gogit.PlainOpenWithOptions(path, &gogit.PlainOpenOptions{EnableDotGitCommonDir: true}); err == nil {
 		return r, nil
 	} else if !isConfigValidationErr(err) {
 		// remember the strict error in case the fallbacks turn up nothing more useful
