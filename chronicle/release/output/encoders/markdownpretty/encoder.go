@@ -107,9 +107,11 @@ func (e *Encoder) StdoutOnly() bool { return true }
 
 func (e *Encoder) Encode(w io.Writer, title string, d release.Description) error {
 	// always render plain markdown first; if we're not on a TTY, that's the
-	// final output. Otherwise it becomes glamour's input.
+	// final output. Otherwise it becomes glamour's input. NoCollapse keeps the
+	// dependency sections expanded: glamour renders <details> inline and drops
+	// the blank lines between sections, so we ask for plain headers + tables.
 	var raw bytes.Buffer
-	if err := (&mdenc.Encoder{}).Encode(&raw, title, d); err != nil {
+	if err := (&mdenc.Encoder{NoCollapse: true}).Encode(&raw, title, d); err != nil {
 		return err
 	}
 

@@ -95,9 +95,9 @@ func ParseCLIReportType(e partybus.Event) (string, string, error) {
 	return context, report, nil
 }
 
-func ParseCLISummaryType(e partybus.Event) (string, string, error) {
+func ParseCLISummaryType(e partybus.Event) (string, Summary, error) {
 	if err := checkEventType(e.Type, CLISummaryType); err != nil {
-		return "", "", err
+		return "", Summary{}, err
 	}
 
 	context, ok := e.Source.(string)
@@ -106,9 +106,9 @@ func ParseCLISummaryType(e partybus.Event) (string, string, error) {
 		context = ""
 	}
 
-	summary, ok := e.Value.(string)
+	summary, ok := e.Value.(Summary)
 	if !ok {
-		return "", "", newPayloadErr(e.Type, "Value", e.Value)
+		return "", Summary{}, newPayloadErr(e.Type, "Value", e.Value)
 	}
 
 	return context, summary, nil

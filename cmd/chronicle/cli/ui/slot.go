@@ -54,11 +54,11 @@ func (s slot) View() string {
 	switch s.data.State() {
 	case event.SlotResolved:
 		b.WriteString(intent)
-		if vals := s.data.Values(); len(vals) > 0 {
+		if text := formatValues(s.data.Values()); text != "" {
 			b.WriteString(" ")
 			b.WriteString(dimStyle.Render(arrow))
 			b.WriteString(" ")
-			b.WriteString(resolvedStyle.Render(strings.Join(vals, "  ")))
+			b.WriteString(resolvedStyle.Render(text))
 		}
 	case event.SlotFailed:
 		if err := s.data.Err(); err != nil {
@@ -78,18 +78,11 @@ func (s slot) View() string {
 	return b.String()
 }
 
-// markView returns the mark column: shared spinner while running, ✔ on
-// resolved, red ✘ on failure, dim dot while pending.
+// markView returns the mark column: shared spinner while running, otherwise the
+// shared static glyph (✔ resolved, ✘ failure, dim dot pending).
 func (s slot) markView() string {
-	switch s.data.State() {
-	case event.SlotResolved:
-		return okMarkStyle.Render(checkMark)
-	case event.SlotFailed:
-		return failStyle.Render(xMark)
-	case event.SlotRunning:
-		if s.sp != nil {
-			return s.sp.View()
-		}
+	if s.data.State() == event.SlotRunning && s.sp != nil {
+		return s.sp.View()
 	}
-	return dimStyle.Render(dotMark)
+	return staticMark(s.data.State())
 }

@@ -6,12 +6,12 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/anchore/chronicle/chronicle/event"
 )
 
 // style palette per the spec's "Style palette" table. ANSI base colors only —
-// no hex — so terminals with custom palettes look right. The summary-block
-// styles (bump, notify, mini-bar) live in internal/bus/summary.go alongside
-// their renderer rather than here.
+// no hex — so terminals with custom palettes look right.
 var (
 	dimStyle      = lipgloss.NewStyle().Faint(true)
 	resolvedStyle = lipgloss.NewStyle()
@@ -44,12 +44,32 @@ func newChronicleSpinner() spinner.Model {
 	return s
 }
 
+// staticMark renders the status glyph for a non-running slot/leaf state, shared
+// by the live slot/leaf rows (which add a spinner for the running state) and the
+// recap (which never sees a running state). Skipped only ever applies to a leaf;
+// a slot can't reach it, so mapping it here is inert for slots.
+func staticMark(s event.SlotState) string {
+	switch s {
+	case event.SlotResolved:
+		return okMarkStyle.Render(checkMark)
+	case event.SlotFailed:
+		return failStyle.Render(xMark)
+	case event.SlotSkipped:
+		return dimStyle.Render(skipMark)
+	}
+	return dimStyle.Render(dotMark)
+}
+
+// headerRange is the group key whose section is rendered as the project title
+// ("Project: OWNER/REPO") rather than a bolded header.
+const headerRange = "range"
+
 // displayHeader maps an internal cache key (e.g. "range", "evidence") to the
 // label rendered in the live TUI. The "range" group is suppressed here — the
 // handler injects "Project: OWNER/REPO" as the title instead. Other headers
 // are title-cased and bolded so they stand out as section dividers.
 func displayHeader(name string) string {
-	if name == "range" || name == "" {
+	if name == headerRange || name == "" {
 		return ""
 	}
 	return boldStyle.Render(strings.ToUpper(name[:1]) + name[1:])

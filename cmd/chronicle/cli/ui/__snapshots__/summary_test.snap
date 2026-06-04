@@ -1,0 +1,75 @@
+
+[TestRenderSummary_FullBlock - 1]
+Project: anchore/chronicle
+├── ✔ since   latest release → v0.14.0  a3b4c5d  Jan 15 2026
+└── ✔ until   HEAD → v0.18.0  f1e2d3c  May 4 2026
+
+Evidence
+├── ✔ commits         47   (15 dropped)
+├── ✔ issues          73   (31 dropped)
+└── ✔ pull requests   164  (77 dropped)
+
+Changes
+├── major   removed=1
+├── minor   added=3 changed=5
+└── patch   fixed=11
+
+v0.18.0 → v0.19.0   (minor bump)
+---
+
+[TestRenderSummary_NoSpeculation - 1]
+├── ✔ since   latest release → v0.14.0  a3b4c5d  Jan 15 2026
+└── ✔ until   HEAD → v0.18.0  f1e2d3c  May 4 2026
+
+Evidence
+├── ✔ commits         47   (15 dropped)
+├── ✔ issues          73   (31 dropped)
+└── ✔ pull requests   164  (77 dropped)
+
+Changes
+├── major   removed=1
+├── minor   added=3 changed=5
+└── patch   fixed=11
+---
+
+[TestRenderSummary_SkippedEvidence - 1]
+├── ✔ since   latest release → v1.45.0  9673f86  Jun 2 2026
+└── ✔ until   HEAD → v1.45.0
+
+Evidence
+├── ✔ commits         0
+├── ⊘ issues          skipped
+└── ⊘ pull requests   skipped
+
+Changes
+├── major   removed=1
+├── minor   added=3 changed=5
+└── patch   fixed=11
+---
+
+[TestRenderSummary_NoBump - 1]
+Changes
+├── major   removed=1
+├── minor   added=3 changed=5
+└── patch   fixed=11
+
+v0.18.0 → v0.18.0   (no bump)
+---
+
+[TestRenderSummary_MajorBump - 1]
+Changes
+├── major   removed=1
+├── minor   added=3 changed=5
+└── patch   fixed=11
+
+v0.18.0 → v1.0.0   (major bump)
+---
+
+[TestRenderSummary_PatchBump - 1]
+Changes
+├── major   removed=1
+├── minor   added=3 changed=5
+└── patch   fixed=11
+
+v0.18.0 → v0.18.1   (patch bump)
+---

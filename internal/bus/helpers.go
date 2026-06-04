@@ -37,7 +37,6 @@ func PublishTask(titles event.Title, context string, total int) *event.ManualSta
 // so worker code can call Slot()/Close() unconditionally as no-ops.
 func PublishGroup(header string, slots []event.GroupSlotInit) *event.Group {
 	g := event.NewGroup(header, slots)
-	registerGroup(g)
 	publish(partybus.Event{
 		Type:   event.GroupTaskType,
 		Source: header,
@@ -46,12 +45,21 @@ func PublishGroup(header string, slots []event.GroupSlotInit) *event.Group {
 	return g
 }
 
-// PublishTree emits a TreeTaskType event for a tree group of leaves. The
+// PublishTree emits a TreeTaskType event for a flat tree group of leaves. The
 // returned *event.Tree is always non-nil — even when no publisher is set —
 // so worker code can call Leaf()/Close() unconditionally as no-ops.
 func PublishTree(header string, names []string) *event.Tree {
-	t := event.NewTree(header, names)
-	registerTree(t)
+	specs := make([]event.LeafSpec, len(names))
+	for i, n := range names {
+		specs[i] = event.LeafSpec{Name: n}
+	}
+	return PublishTreeSpec(header, specs)
+}
+
+// PublishTreeSpec emits a TreeTaskType event for a tree group whose leaves may
+// each carry child leaves one level deep (e.g. "source sbom" → since/until).
+func PublishTreeSpec(header string, specs []event.LeafSpec) *event.Tree {
+	t := event.NewTreeWithChildren(header, specs)
 	publish(partybus.Event{
 		Type:   event.TreeTaskType,
 		Source: header,
@@ -78,13 +86,14 @@ func Report(report string) {
 	})
 }
 
-// Summary emits the post-run recap block destined for stderr. Distinct from
-// Report so it can be routed to a different stream without running through
-// the magenta notification style.
-func Summary(text string) {
+// PublishSummary emits the raw figures for the post-run recap block. The UI
+// renders them (alongside the range/evidence groups it already received) into
+// the recap shown on stderr post-teardown. Carrying data rather than a
+// pre-rendered string keeps all presentation in the UI layer.
+func PublishSummary(s event.Summary) {
 	publish(partybus.Event{
 		Type:  event.CLISummaryType,
-		Value: text,
+		Value: s,
 	})
 }
 
