@@ -69,6 +69,12 @@ type Summarizer struct {
 	issuesKept        int
 	associatedCommits int
 
+	// detailSkipped is set when the most recent Changes() call short-circuited
+	// before fetching issues and PRs because the scope held no commits. The
+	// worker reads it to mark those evidence leaves as skipped rather than
+	// resolved-with-zero.
+	detailSkipped bool
+
 	// optional UI leaves plumbed in by SetEvidenceLeaves. P3 stores them for
 	// P4 to use; this code does not yet update them.
 	commitsLeaf *event.Leaf
@@ -141,6 +147,17 @@ func (s *Summarizer) AssociatedCommits() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.associatedCommits
+}
+
+// DetailFetchSkipped reports whether the most recent Changes() call skipped the
+// issue and PR fetches because the scope contained no commits.
+func (s *Summarizer) DetailFetchSkipped() bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.detailSkipped
 }
 
 // changeScope is used to describe the start and end of a changes made in a repo.
@@ -276,7 +293,42 @@ func (s *Summarizer) Changes(sinceRef, untilRef string) ([]change.Change, error)
 
 	logChangeScope(*scope, s.config.ConsiderPRMergeCommits)
 
+	// short-circuit: when merge commits gate the changelog and the resolved
+	// range contains none (e.g. HEAD sits exactly on the previous release), no
+	// PR or issue can be attributed to this release — skip the GitHub API
+	// fetches entirely and report an empty changelog.
+	if s.scopeHasNoCommits(*scope) {
+		log.Info("no commits in scope; skipping issue and pull request retrieval")
+		s.recordEmptyEvidence()
+		return nil, nil
+	}
+
 	return s.changes(*scope)
+}
+
+// scopeHasNoCommits reports whether the resolved range provably contains no
+// commits. This is only meaningful when ConsiderPRMergeCommits is enabled,
+// since that is the only mode in which the commit range is computed; in
+// timestamp-only mode scope.Commits is always empty and must not be treated as
+// a signal to short-circuit.
+func (s *Summarizer) scopeHasNoCommits(scope changeScope) bool {
+	return s.config.ConsiderPRMergeCommits && len(scope.Commits) == 0
+}
+
+// recordEmptyEvidence zeroes the evidence totals captured for the summary
+// report and flags that the issue/PR fetches were skipped. Used by the
+// no-commits short-circuit so the worker reports a skipped state rather than
+// stale values or a misleading resolved-with-zero.
+func (s *Summarizer) recordEmptyEvidence() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.commitTotal = 0
+	s.prTotal = 0
+	s.issueTotal = 0
+	s.prsKept = 0
+	s.issuesKept = 0
+	s.associatedCommits = 0
+	s.detailSkipped = true
 }
 
 func (s *Summarizer) getChangeScope(sinceRef, untilRef string) (*changeScope, error) {
@@ -372,6 +424,7 @@ func (s *Summarizer) changes(scope changeScope) ([]change.Change, error) {
 	// under the lock rather than repeatedly inside the goroutines below.
 	s.mu.Lock()
 	s.commitTotal = len(scope.Commits)
+	s.detailSkipped = false
 	prsLeaf := s.prsLeaf
 	issuesLeaf := s.issuesLeaf
 	s.mu.Unlock()

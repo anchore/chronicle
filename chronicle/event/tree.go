@@ -171,6 +171,19 @@ func (l *Leaf) Resolve(count, note string) {
 	l.SetCompleted()
 }
 
+// Skip marks the leaf as intentionally not run — e.g. the analysis
+// short-circuited before this fetch was needed. The leaf carries no count; the
+// UI renders a distinct "skipped" state rather than a completed value.
+func (l *Leaf) Skip() {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	l.state = SlotSkipped
+	l.mu.Unlock()
+	l.SetCompleted()
+}
+
 // Fail flips the leaf to the failed state.
 func (l *Leaf) Fail(err error) {
 	if l == nil {

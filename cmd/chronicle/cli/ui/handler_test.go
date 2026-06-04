@@ -152,6 +152,18 @@ func TestTreeGroup_Snapshot_Resolved(t *testing.T) {
 	snaps.MatchSnapshot(t, tg.View())
 }
 
+func TestTreeGroup_Snapshot_Skipped(t *testing.T) {
+	// HEAD sits on the previous release: commits resolve to zero and the issue
+	// and PR fetches are skipped entirely (no count, distinct mark).
+	tr := event.NewTree("evidence", []string{"commits", "issues", "pull requests"})
+	tr.Leaf("commits").Resolve("0", "")
+	tr.Leaf("issues").Skip()
+	tr.Leaf("pull requests").Skip()
+
+	tg := buildTreeGroup(tr)
+	snaps.MatchSnapshot(t, tg.View())
+}
+
 func buildBracketGroup(g *event.Group) tea.Model {
 	sp := newChronicleSpinner()
 	return NewBracketGroup(g, "", &sp)

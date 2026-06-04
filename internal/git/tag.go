@@ -67,13 +67,17 @@ func CommitsBetween(repoPath string, cfg Range) ([]string, error) {
 		hash := c.Hash.String()
 
 		switch {
-		case untilHash != nil && c.Hash == *untilHash:
-			if cfg.IncludeEnd {
-				commits = append(commits, hash)
-			}
+		// check the since boundary first: it is the stop condition, so when since
+		// and until resolve to the same commit (e.g. HEAD sits exactly on the
+		// previous release tag) we still halt the walk instead of running it to
+		// the root of history.
 		case sinceHash != nil && c.Hash == *sinceHash:
 			retErr = storer.ErrStop
 			if cfg.IncludeStart {
+				commits = append(commits, hash)
+			}
+		case untilHash != nil && c.Hash == *untilHash:
+			if cfg.IncludeEnd {
 				commits = append(commits, hash)
 			}
 		default:
@@ -128,13 +132,17 @@ func CommitsBetweenWithMeta(repoPath string, cfg Range) ([]Commit, error) {
 		}
 
 		switch {
-		case untilHash != nil && c.Hash == *untilHash:
-			if cfg.IncludeEnd {
-				commits = append(commits, entry)
-			}
+		// check the since boundary first: it is the stop condition, so when since
+		// and until resolve to the same commit (e.g. HEAD sits exactly on the
+		// previous release tag) we still halt the walk instead of running it to
+		// the root of history.
 		case sinceHash != nil && c.Hash == *sinceHash:
 			retErr = storer.ErrStop
 			if cfg.IncludeStart {
+				commits = append(commits, entry)
+			}
+		case untilHash != nil && c.Hash == *untilHash:
+			if cfg.IncludeEnd {
 				commits = append(commits, entry)
 			}
 		default:

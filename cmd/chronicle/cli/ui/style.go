@@ -25,6 +25,7 @@ const (
 	checkMark = "✔" // U+2714 Heavy Check Mark
 	xMark     = "✘" // U+2718 Heavy Ballot X
 	dotMark   = "·"
+	skipMark  = "⊘" // U+2298 Circled Division Slash — work intentionally skipped
 	arrow     = "→"
 )
 

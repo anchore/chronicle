@@ -130,12 +130,23 @@ func resolveEvidenceLeaves(evidence *event.Tree, summer *github.Summarizer, desc
 		description.CommitTotal = commitTotal
 	}
 
-	prsKept := summer.PRsKept()
-	issuesKept := summer.IssuesKept()
+	// commits is always resolved with its count: it is the signal we acted on
+	// (zero commits is what drove the short-circuit).
 	associatedCommits := summer.AssociatedCommits()
-
 	evidence.Leaf("commits").Resolve(strconv.Itoa(commitTotal),
 		droppedTrailer(commitTotal, associatedCommits))
+
+	// when there were no commits in scope the issue/PR fetches were skipped, so
+	// mark those leaves as skipped rather than resolved-with-zero — a zero count
+	// would imply we looked and found nothing.
+	if summer.DetailFetchSkipped() {
+		evidence.Leaf("issues").Skip()
+		evidence.Leaf("pull requests").Skip()
+		return
+	}
+
+	issuesKept := summer.IssuesKept()
+	prsKept := summer.PRsKept()
 	evidence.Leaf("issues").Resolve(strconv.Itoa(issueTotal),
 		droppedTrailer(issueTotal, issuesKept))
 	evidence.Leaf("pull requests").Resolve(strconv.Itoa(prTotal),

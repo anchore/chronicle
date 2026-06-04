@@ -26,3 +26,11 @@ Evidence
 └── ✔ pull requests   164   (87 kept)
 
 ---
+
+[TestTreeGroup_Snapshot_Skipped - 1]
+Evidence
+├── ✔ commits         0
+├── ⊘ issues          skipped
+└── ⊘ pull requests   skipped
+
+---
