@@ -8,6 +8,7 @@ import (
 	"github.com/gkampitakis/go-snaps/snaps"
 	"github.com/stretchr/testify/require"
 
+	"github.com/anchore/chronicle/chronicle/dependency"
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 )
@@ -60,6 +61,81 @@ func TestSlackPresenter_Present(t *testing.T) {
 		},
 	)
 }
+
+func TestSlackPresenter_Present_DependencyDiff(t *testing.T) {
+	// exercises Updated (with remediated), Downgraded (with reintroduction),
+	// Added (no annotation), and Removed (with remediated) change kinds.
+	assertEncoderAgainstGoldenSnapshot(t,
+		`{{ .Version }}`,
+		release.Description{
+			SupportedChanges: []change.TypeTitle{
+				{ChangeType: change.NewType("bug", change.SemVerPatch), Title: "Bug Fixes"},
+			},
+			Release: release.Release{
+				Version: "v0.20.0",
+				Date:    time.Date(2024, time.January, 15, 12, 0, 0, 0, time.UTC),
+			},
+			VCSChangesURL: "https://github.com/anchore/syft/compare/v0.19.0...v0.20.0",
+			Changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{change.NewType("bug", change.SemVerPatch)},
+					Text:        "fix: some bug fix",
+				},
+			},
+			DependencyDiff: &slackDepDiff,
+		},
+	)
+}
+
+// slackDepDiff is the dependency diff fixture for the slack diff snapshot: an
+// Updated (remediated), Downgraded (reintroduction), Added (none), and Removed
+// (remediated) change. Built via NewDiff so the rollup counts (3 remediated, 1
+// introduced) derive from the per-change Vuln deltas.
+var slackDepDiff = dependency.NewDiff([]dependency.PackageChange{
+	{
+		Name:        "golang.org/x/net",
+		Type:        "go-module",
+		FromVersion: "v0.17.0",
+		ToVersion:   "v0.23.0",
+		Kind:        dependency.Updated,
+		Vuln: &dependency.VulnDelta{
+			Remediated: []dependency.Vulnerability{
+				{ID: "CVE-2023-44487", Severity: "high", DataSource: "https://nvd.nist.gov/vuln/detail/CVE-2023-44487"},
+				// no DataSource: exercises the bare-ID fallback (unlinked).
+				{ID: "CVE-2023-39325", Severity: "high"},
+			},
+		},
+	},
+	{
+		Name:        "github.com/foo/bar",
+		Type:        "go-module",
+		FromVersion: "v1.2.0",
+		ToVersion:   "v1.1.0",
+		Kind:        dependency.Downgraded,
+		Vuln: &dependency.VulnDelta{
+			Introduced: []dependency.Vulnerability{
+				{ID: "CVE-2024-12345", Severity: "critical", DataSource: "https://nvd.nist.gov/vuln/detail/CVE-2024-12345"},
+			},
+		},
+	},
+	{
+		Name:      "github.com/new/dep",
+		Type:      "go-module",
+		ToVersion: "v0.4.0",
+		Kind:      dependency.Added,
+	},
+	{
+		Name:        "github.com/old/dep",
+		Type:        "go-module",
+		FromVersion: "v0.9.0",
+		Kind:        dependency.Removed,
+		Vuln: &dependency.VulnDelta{
+			Remediated: []dependency.Vulnerability{
+				{ID: "CVE-2022-0001", Severity: "medium", DataSource: "https://nvd.nist.gov/vuln/detail/CVE-2022-0001"},
+			},
+		},
+	},
+})
 
 func TestSlackPresenter_Present_NoTitle(t *testing.T) {
 	assertEncoderAgainstGoldenSnapshot(t,

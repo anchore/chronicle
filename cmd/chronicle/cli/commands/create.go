@@ -1,11 +1,14 @@
 package commands
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 
+	"github.com/anchore/chronicle/chronicle/dependency"
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/internal/bus"
@@ -35,7 +38,10 @@ Create a changelog representing the changes from tag v0.14.0 until v0.18.0 (for 
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// ensure errors are printed to stderr since most output is redirected to CHANGELOG.md more often than not
 			cmd.SetErr(os.Stderr)
-			return runCreate(appConfig)
+			// cmd.Context() is the clio-provided context cancelled on SIGINT, so
+			// threading it lets a Ctrl-C interrupt the (network-bound) dependency
+			// scan rather than detaching it on context.Background().
+			return runCreate(cmd.Context(), appConfig)
 		},
 	}, appConfig)
 }
@@ -67,7 +73,7 @@ func repoPathArgs(cfg *createConfig) cobra.PositionalArgs {
 	}
 }
 
-func runCreate(appConfig *createConfig) error {
+func runCreate(ctx context.Context, appConfig *createConfig) error {
 	// fast-fail on misconfigured -o values before the worker hits the
 	// network; sink construction (which creates temp files) is still deferred
 	// until after the worker succeeds so failures don't leak temp files.
@@ -75,7 +81,19 @@ func runCreate(appConfig *createConfig) error {
 		return err
 	}
 
-	startRelease, description, err := selectWorker(appConfig.RepoPath)(appConfig)
+	// vulnerability annotation operates on the dependency diff, so it has
+	// nothing to act on without an ecosystem (syft cataloger selector) to scan.
+	if appConfig.Dependencies.AnnotateVulnerabilities && len(splitEcosystems(appConfig.Dependencies.Ecosystems)) == 0 {
+		return errors.New("--vulnerabilities requires at least one dependency ecosystem to scan; set --dependencies (e.g. --dependencies language)")
+	}
+
+	// fail loudly on a misspelled min-severity rather than silently treating it
+	// as "no filter" (which is how the annotator interprets an unknown value).
+	if !dependency.ValidSeverity(appConfig.Dependencies.MinSeverity) {
+		return fmt.Errorf("invalid dependencies.min-severity %q; valid values: negligible, low, medium, high, critical", appConfig.Dependencies.MinSeverity)
+	}
+
+	startRelease, description, err := selectWorker(appConfig.RepoPath)(ctx, appConfig)
 	if err != nil {
 		return err
 	}
@@ -149,7 +167,7 @@ func summaryOpts(startRelease *release.Release, desc *release.Description, specu
 }
 
 //nolint:revive
-func selectWorker(repo string) func(*createConfig) (*release.Release, *release.Description, error) {
+func selectWorker(repo string) func(context.Context, *createConfig) (*release.Release, *release.Description, error) {
 	// TODO: we only support github, but this is the spot to add support for other providers such as GitLab or Bitbucket or other VCSs altogether, such as subversion.
 	return createChangelogFromGithub
 }

@@ -20,7 +20,7 @@ func Root(app clio.Application, createCmd *cobra.Command) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// ensure errors are printed to stderr since most output is redirected to CHANGELOG.md more often than not
 			cmd.SetErr(os.Stderr)
-			return runCreate(appConfig)
+			return runCreate(cmd.Context(), appConfig)
 		},
 	}, appConfig)
 

@@ -164,6 +164,88 @@ func TestTreeGroup_Snapshot_Skipped(t *testing.T) {
 	snaps.MatchSnapshot(t, tg.View())
 }
 
+func TestTreeGroup_Snapshot_NestedSBOM_Scanning(t *testing.T) {
+	tr := event.NewTreeWithChildren("evidence", []event.LeafSpec{
+		{Name: "commits"},
+		{Name: "issues"},
+		{Name: "pull requests"},
+		{Name: "source sbom", Children: []string{"since", "until"}},
+	})
+	tr.Leaf("commits").Resolve("47", "32 associated")
+	tr.Leaf("issues").Resolve("73", "")
+	tr.Leaf("pull requests").Resolve("164", "")
+
+	// source sbom mid-scan: parent shows the cataloging stage, branches show the
+	// live package count syft is reporting.
+	sbom := tr.Leaf("source sbom")
+	sbom.SetStage("cataloging…")
+	sbom.Child("since").BindLive(stagedString("142 packages"))
+	sbom.Child("until").BindLive(stagedString("156 packages"))
+
+	tg := buildTreeGroup(tr)
+	snaps.MatchSnapshot(t, tg.View())
+}
+
+func TestTreeGroup_Snapshot_NestedSBOM_Resolved(t *testing.T) {
+	tr := event.NewTreeWithChildren("evidence", []event.LeafSpec{
+		{Name: "commits"},
+		{Name: "issues"},
+		{Name: "pull requests"},
+		{Name: "source sbom", Children: []string{"since", "until"}},
+	})
+	tr.Leaf("commits").Resolve("47", "32 associated")
+	tr.Leaf("issues").Resolve("73", "")
+	tr.Leaf("pull requests").Resolve("164", "")
+
+	sbom := tr.Leaf("source sbom")
+	sbom.Child("since").Resolve("142 packages", "")
+	sbom.Child("until").Resolve("156 packages", "")
+	sbom.Resolve("added=10 removed=12 updated=2 downgraded=3", "")
+
+	tg := buildTreeGroup(tr)
+	snaps.MatchSnapshot(t, tg.View())
+}
+
+func TestTreeGroup_Snapshot_SBOMAndVulnerabilities(t *testing.T) {
+	tr := event.NewTreeWithChildren("evidence", []event.LeafSpec{
+		{Name: "commits"},
+		{Name: "issues"},
+		{Name: "pull requests"},
+		{Name: "source sbom", Children: []string{"since", "until"}},
+		{Name: "vulnerabilities", Children: []string{"since", "until"}},
+	})
+	tr.Leaf("commits").Resolve("47", "32 associated")
+	tr.Leaf("issues").Resolve("73", "")
+	tr.Leaf("pull requests").Resolve("164", "")
+
+	// sbom cataloging finished; vulnerability matching still running while the
+	// db (which loaded in parallel) is now feeding the match.
+	sbom := tr.Leaf("source sbom")
+	sbom.Child("since").Resolve("142 packages", "")
+	sbom.Child("until").Resolve("156 packages", "")
+	sbom.Resolve("added=10 removed=12 updated=2 downgraded=3", "")
+
+	vuln := tr.Leaf("vulnerabilities")
+	vuln.SetStage("matching…")
+	vuln.Child("since").SetStage("matching…")
+	vuln.Child("until").Resolve("7 vulnerabilities", "")
+
+	tg := buildTreeGroup(tr)
+	snaps.MatchSnapshot(t, tg.View())
+}
+
+// stagedString is a minimal StagedProgressable whose stage is a fixed string —
+// stands in for syft's live "N packages" cataloging progress.
+func stagedString(stage string) progress.StagedProgressable {
+	return &struct {
+		progress.Stager
+		progress.Progressable
+	}{
+		Stager:       progress.NewAtomicStage(stage),
+		Progressable: progress.NewManual(-1),
+	}
+}
+
 func buildBracketGroup(g *event.Group) tea.Model {
 	sp := newChronicleSpinner()
 	return NewBracketGroup(g, "", &sp)

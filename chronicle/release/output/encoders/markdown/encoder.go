@@ -7,6 +7,8 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/anchore/chronicle/chronicle/dependency"
+	"github.com/anchore/chronicle/chronicle/dependency/render"
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 )
@@ -18,10 +20,21 @@ const headerTemplate = `{{if .Title }}# {{.Title}}
 
 {{ end }}{{if .Changes }}{{ formatChangeSections .Changes }}
 
+{{ end }}{{if .DependencyDiff }}{{ formatDependencies .DependencyDiff }}
+
 {{ end }}**[(Full Changelog)]({{.VCSChangesURL}})**
 `
 
-type Encoder struct{}
+// Encoder renders a Description as GitHub-flavored markdown.
+//
+// NoCollapse disables the collapsible <details> rendering of dependency
+// sections. It exists for the md-pretty terminal encoder: glamour renders
+// <details> inline (a terminal can't collapse anything) and squashes the blank
+// lines between sections, so md-pretty asks for expanded sections instead. The
+// zero value keeps collapsing on, preserving the plain-markdown behavior.
+type Encoder struct {
+	NoCollapse bool
+}
 
 func (e *Encoder) ID() string { return ID }
 
@@ -41,6 +54,9 @@ func (e *Encoder) Encode(w io.Writer, title string, d release.Description) error
 	funcMap := template.FuncMap{
 		"formatChangeSections": func(changes change.Changes) string {
 			return formatChangeSections(d.SupportedChanges, changes, d.ConventionalCommitTypes)
+		},
+		"formatDependencies": func(diff *dependency.Diff) string {
+			return formatDependencies(diff, d.DependencyRender, !e.NoCollapse)
 		},
 	}
 
@@ -90,6 +106,179 @@ func formatSummary(summary change.Change, recognizedTypes []string) string {
 	}
 
 	return result + formatReferences(summary.References) + "\n"
+}
+
+// formatDependencies renders the ### Dependencies section from a Diff. It is
+// gated by the caller (template) so it is only invoked when DependencyDiff is
+// non-nil; we guard against an empty diff for safety.
+func formatDependencies(diff *dependency.Diff, rc *render.Config, supportsCollapsed bool) string {
+	if diff == nil || diff.Totals().Total() == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("### Dependencies\n\n")
+	// the summary always reports the full per-kind totals; the enumeration below
+	// honors OnlyVulnerable via VisibleChanges, so the two can differ without the
+	// diff itself ever being filtered.
+	sb.WriteString(render.SummaryLine(*diff) + "\n")
+
+	// the flat vulnerabilities rollup only earns its place when the per-package
+	// change lists are collapsed (hidden behind <details>): then it surfaces the
+	// vulns that would otherwise be buried. When sections render expanded — slack,
+	// md-pretty, or list-mode markdown — the inline annotations already show them,
+	// so the rollup is redundant and is omitted.
+	if usesCollapse(rc, supportsCollapsed) {
+		sb.WriteString(vulnerabilitySection(*diff))
+	}
+
+	// group the visible changes by ecosystem; with a single ecosystem render flat
+	// (no subsection header), otherwise emit a #### subsection per ecosystem.
+	groups := render.GroupByEcosystem(rc.VisibleChanges(diff.Changes()))
+	multi := len(groups) > 1
+	for _, g := range groups {
+		if multi {
+			sb.WriteString("\n#### " + g.Title + "\n")
+		}
+		sb.WriteString(formatEcosystemActions(g.Changes, rc, supportsCollapsed))
+	}
+
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+// actionOrder is the order change kinds render within an ecosystem: listed
+// kinds (updates, downgrades) first, then summarized kinds (added, removed).
+var actionOrder = []struct {
+	kind  dependency.ChangeKind
+	label string
+}{
+	{dependency.Updated, "Updated"},
+	{dependency.Downgraded, "Downgraded"},
+	{dependency.Added, "Added"},
+	{dependency.Removed, "Removed"},
+}
+
+// formatEcosystemActions renders the per-change-kind blocks for one ecosystem's
+// changes, honoring each kind's display mode (hide/summary/list/collapsed).
+func formatEcosystemActions(changes []dependency.PackageChange, rc *render.Config, supportsCollapsed bool) string {
+	var sb strings.Builder
+	for _, a := range actionOrder {
+		mode := rc.ResolveDisplay(a.kind, supportsCollapsed)
+		if mode == render.ModeHide {
+			continue
+		}
+
+		var subset []dependency.PackageChange
+		for _, c := range changes {
+			if c.Kind == a.kind {
+				subset = append(subset, c)
+			}
+		}
+		if len(subset) == 0 {
+			continue
+		}
+
+		header := fmt.Sprintf("%s (%s)", a.label, rc.PackageCountLabel(len(subset)))
+
+		switch mode {
+		case render.ModeSummary:
+			fmt.Fprintf(&sb, "\n**%s**\n", header)
+		case render.ModeCollapsed:
+			fmt.Fprintf(&sb, "\n<details>\n<summary>%s</summary>\n\n", header)
+			sb.WriteString(dependencyList(subset))
+			sb.WriteString("</details>\n")
+		default: // ModeList
+			fmt.Fprintf(&sb, "\n**%s**\n\n", header)
+			sb.WriteString(dependencyList(subset))
+		}
+	}
+	return sb.String()
+}
+
+// dependencyList renders changes as a compact bullet list rather than a table
+// (whose columns pad to the widest cell, wasting space on variable-width version
+// strings). Each line is the package name, the version transition in backticks,
+// and any vulnerability note in bold parentheses (bolded so the vuln impact
+// stands out against the plain package name).
+func dependencyList(changes []dependency.PackageChange) string {
+	var sb strings.Builder
+	for _, c := range changes {
+		fmt.Fprintf(&sb, "- %s %s", c.Name, render.VersionTransitionWith(c, backtick))
+		if note := render.VulnNoteWith(c, vulnLink); note != "" {
+			sb.WriteString(" **(" + note + ")**")
+		}
+		sb.WriteString("\n")
+	}
+	return sb.String()
+}
+
+// backtick wraps a string in inline-code backticks; used to style each version
+// token in a transition while leaving the → arrow as plain text.
+func backtick(s string) string { return "`" + s + "`" }
+
+// usesCollapse reports whether any change kind actually resolves to collapsed
+// display — i.e. the format supports it and at least one section is hidden
+// behind a <details>. It gates the vulnerabilities rollup, which is only useful
+// when sections are collapsed (so md-pretty, slack, and all-expanded markdown
+// don't get it).
+func usesCollapse(rc *render.Config, supportsCollapsed bool) bool {
+	if !supportsCollapsed {
+		return false
+	}
+	for _, a := range actionOrder {
+		if rc.ResolveDisplay(a.kind, supportsCollapsed) == render.ModeCollapsed {
+			return true
+		}
+	}
+	return false
+}
+
+// vulnerabilitySection renders the flat, non-collapsible vulnerabilities rollup
+// shown above the per-package change lists: the remediated and introduced
+// vulnerability groups (vuln-centric, with affected packages) sit directly under
+// the Dependencies heading, with no nested subsection. Returns "" when the diff
+// carries no vulnerabilities.
+func vulnerabilitySection(d dependency.Diff) string {
+	rem := render.RemediatedVulns(d)
+	intro := render.IntroducedVulns(d)
+	if len(rem) == 0 && len(intro) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	writeVulnGroup(&sb, "🟢 Remediated", rem)
+	writeVulnGroup(&sb, "🔴 Introduced", intro)
+	return sb.String()
+}
+
+// writeVulnGroup writes one labeled vulnerability group as a bullet list (or
+// nothing when empty). Each bullet is the linked ID, its severity in
+// parentheses, and the affected packages.
+func writeVulnGroup(sb *strings.Builder, label string, vulns []render.VulnListing) {
+	if len(vulns) == 0 {
+		return
+	}
+	fmt.Fprintf(sb, "\n**%s (%d)**\n\n", label, len(vulns))
+	for _, v := range vulns {
+		fmt.Fprintf(sb, "- %s", vulnLink(dependency.Vulnerability{ID: v.ID, DataSource: v.DataSource}))
+		if v.Severity != "" {
+			fmt.Fprintf(sb, " (%s)", v.Severity)
+		}
+		if len(v.Packages) > 0 {
+			fmt.Fprintf(sb, " — %s", strings.Join(v.Packages, ", "))
+		}
+		sb.WriteString("\n")
+	}
+}
+
+// vulnLink renders a vulnerability ID as a markdown link to its data source
+// (grype's primary reference URL), falling back to the bare ID when grype
+// supplied no URL. The md-pretty encoder turns these into clickable terminal
+// hyperlinks via its OSC 8 substitution pass.
+func vulnLink(v dependency.Vulnerability) string {
+	if v.DataSource == "" {
+		return v.ID
+	}
+	return fmt.Sprintf("[%s](%s)", v.ID, v.DataSource)
 }
 
 // formatReferences groups references by kind and renders them as space-prefixed

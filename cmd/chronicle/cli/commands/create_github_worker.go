@@ -1,20 +1,26 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/anchore/chronicle/chronicle/dependency"
+	"github.com/anchore/chronicle/chronicle/dependency/render"
+	"github.com/anchore/chronicle/chronicle/dependency/report"
 	"github.com/anchore/chronicle/chronicle/event"
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/chronicle/release/releasers/github"
+	"github.com/anchore/chronicle/cmd/chronicle/cli/options"
 	"github.com/anchore/chronicle/internal/bus"
 	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
 )
 
-func createChangelogFromGithub(appConfig *createConfig) (*release.Release, *release.Description, error) {
+func createChangelogFromGithub(ctx context.Context, appConfig *createConfig) (*release.Release, *release.Description, error) {
 	// pre-flight: the trunk format encodes commit-level data that is only
 	// populated when consider-pr-merge-commits is enabled. Fail fast before
 	// any GitHub API work if the combination is invalid.
@@ -52,15 +58,8 @@ func createChangelogFromGithub(appConfig *createConfig) (*release.Release, *rele
 	rng.Slot("since").Start()
 	rng.Slot("until").Start()
 
-	evidence := bus.PublishTree("evidence", []string{
-		"commits", "issues", "pull requests",
-	})
+	evidence := publishEvidenceTree(appConfig)
 	defer evidence.Close()
-	// same kickoff for evidence — leaves stay running through the GraphQL
-	// fetches until resolveEvidenceLeaves resolves them with their counts.
-	evidence.Leaf("commits").Start()
-	evidence.Leaf("issues").Start()
-	evidence.Leaf("pull requests").Start()
 
 	changeTypeTitles := getGithubSupportedChanges(appConfig)
 
@@ -98,7 +97,111 @@ func createChangelogFromGithub(appConfig *createConfig) (*release.Release, *rele
 	// surface raw fetch totals and resolve evidence leaves with kept counts.
 	resolveEvidenceLeaves(evidence, summer, description)
 
+	// optional source-scan dependency diff. Non-fatal: a changelog must not
+	// fail because grype isn't ready or syft hit a snag.
+	attachDependencyDiff(ctx, appConfig, gitter, untilTag, description, evidence.Leaf("source sbom"), evidence.Leaf("vulnerabilities"))
+
 	return startRelease, description, nil
+}
+
+// attachDependencyDiff runs the opt-in dependency diff between the resolved
+// since/until endpoints and attaches it to the description. Any failure (no DB,
+// syft error, unresolvable ref) is logged and swallowed so changelog generation
+// continues unaffected.
+func attachDependencyDiff(ctx context.Context, appConfig *createConfig, gitter git.Interface, untilTag string, description *release.Description, sbomLeaf, vulnLeaf *event.Leaf) {
+	if description == nil {
+		return
+	}
+
+	// the feature is enabled when at least one ecosystem is requested.
+	ecosystems := splitEcosystems(appConfig.Dependencies.Ecosystems)
+	if len(ecosystems) == 0 {
+		return
+	}
+
+	// since: prefer the previous release tag; otherwise the first commit so the
+	// diff spans the whole history.
+	sinceRef := ""
+	if description.PreviousRelease != nil {
+		sinceRef = description.PreviousRelease.Version
+	}
+	if sinceRef == "" {
+		sha, err := gitter.FirstCommit()
+		if err != nil {
+			log.WithFields("error", err).Warn("unable to resolve since ref for dependency diff; skipping")
+			return
+		}
+		sinceRef = sha
+	}
+
+	// until: the resolved end tag, else HEAD.
+	untilRef := untilTag
+	if untilRef == "" {
+		untilRef = "HEAD"
+	}
+
+	if appConfig.Dependencies.OnlyVulnerable && !appConfig.Dependencies.AnnotateVulnerabilities {
+		log.Warn("dependencies.only-vulnerable has no effect without annotate-vulnerabilities; showing all changes")
+	}
+
+	cfg := report.Config{
+		Ecosystems:              ecosystems,
+		ExcludePaths:            appConfig.Dependencies.Exclude,
+		AnnotateVulnerabilities: appConfig.Dependencies.AnnotateVulnerabilities,
+		AutoUpdateDB:            true, // always keep the grype DB fresh; not user-configurable
+		MinSeverity:             appConfig.Dependencies.MinSeverity,
+		SourceName:              bus.Repo(), // "owner/repo"; report falls back to the repo dir name when empty
+	}
+
+	diff, err := report.Run(ctx, appConfig.RepoPath, sinceRef, untilRef, cfg, sbomLeaf, vulnLeaf)
+	if err != nil {
+		log.WithFields("error", err).Warn("unable to compute dependency diff; continuing without it")
+		return
+	}
+	description.DependencyDiff = diff
+
+	// presentation travels alongside the data, not inside it. only-vulnerable is
+	// a render-time filter and only meaningful once annotation has populated the
+	// vuln deltas, so gate it on AnnotateVulnerabilities.
+	rc := dependencyRenderConfig(appConfig.Dependencies)
+	rc.OnlyVulnerable = appConfig.Dependencies.OnlyVulnerable && appConfig.Dependencies.AnnotateVulnerabilities
+	description.DependencyRender = &rc
+}
+
+// dependencyDiffEnabled reports whether the opt-in source-sbom dependency diff
+// will run — i.e. at least one ecosystem was requested. Mirrors the guard in
+// attachDependencyDiff so the evidence tree can reserve the "source sbom" leaf.
+func dependencyDiffEnabled(appConfig *createConfig) bool {
+	return len(splitEcosystems(appConfig.Dependencies.Ecosystems)) > 0
+}
+
+// splitEcosystems normalizes the --dependencies values: each entry may itself
+// be comma-separated, so flatten, trim, and drop blanks.
+func splitEcosystems(raw []string) []string {
+	var out []string
+	for _, entry := range raw {
+		for _, part := range strings.Split(entry, ",") {
+			if p := strings.TrimSpace(part); p != "" {
+				out = append(out, p)
+			}
+		}
+	}
+	return out
+}
+
+// dependencyRenderConfig maps the cmd-layer dependency options onto the core
+// render config consumed by the encoders. Each action is a comma-separated
+// fallback list (e.g. "collapsed,list"); an empty/invalid value leaves nil so
+// ModesFor resolves the per-kind default.
+func dependencyRenderConfig(d options.Dependencies) render.Config {
+	return render.Config{
+		Actions: map[dependency.ChangeKind][]render.Mode{
+			dependency.Updated:    render.ParseModes(d.Actions.Updated),
+			dependency.Downgraded: render.ParseModes(d.Actions.Downgraded),
+			dependency.Added:      render.ParseModes(d.Actions.Added),
+			dependency.Removed:    render.ParseModes(d.Actions.Removed),
+		},
+	}
 }
 
 // buildChangelogConfig assembles the ChangelogInfoConfig, including an
@@ -121,6 +224,36 @@ func buildChangelogConfig(appConfig *createConfig, untilTag string, titles []cha
 		IssuesLeaf:        evidence.Leaf("issues"),
 		PRsLeaf:           evidence.Leaf("pull requests"),
 	}
+}
+
+// publishEvidenceTree builds and publishes the "evidence" tree (commits, issues,
+// PRs) and kicks each base leaf into the running state so spinners show during
+// the GraphQL fetches. When the dependency diff is enabled it adds a "source
+// sbom" leaf with since/until branches (driven later by report.Run), plus a
+// sibling "vulnerabilities" leaf when annotation is on. The caller owns Close.
+func publishEvidenceTree(appConfig *createConfig) *event.Tree {
+	evidenceSpecs := []event.LeafSpec{
+		{Name: "commits"},
+		{Name: "issues"},
+		{Name: "pull requests"},
+	}
+	if dependencyDiffEnabled(appConfig) {
+		evidenceSpecs = append(evidenceSpecs, event.LeafSpec{
+			Name:     "source sbom",
+			Children: []string{"since", "until"},
+		})
+		if appConfig.Dependencies.AnnotateVulnerabilities {
+			evidenceSpecs = append(evidenceSpecs, event.LeafSpec{
+				Name:     "vulnerabilities",
+				Children: []string{"since", "until"},
+			})
+		}
+	}
+	evidence := bus.PublishTreeSpec("evidence", evidenceSpecs)
+	evidence.Leaf("commits").Start()
+	evidence.Leaf("issues").Start()
+	evidence.Leaf("pull requests").Start()
+	return evidence
 }
 
 // resolveEvidenceLeaves copies fetch totals onto the description and resolves

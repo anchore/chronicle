@@ -59,7 +59,7 @@ func (l leaf) View() string {
 			b.WriteString(dimStyle.Render(err.Error()))
 		}
 	case event.SlotRunning:
-		if cur := l.data.Stage.Current; cur != "" {
+		if cur := l.data.RunningDetail(); cur != "" {
 			b.WriteString(dimStyle.Render(cur))
 		} else {
 			b.WriteString(dimStyle.Render("waiting"))

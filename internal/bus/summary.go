@@ -204,49 +204,88 @@ func renderEvidence() string {
 		return ""
 	}
 
-	// compute name width for alignment
+	// alignment is computed only over flat (childless) leaves: a leaf with
+	// children (e.g. "source sbom") carries a long rollup label that would
+	// otherwise inflate the count column for everything else.
 	nameWidth := 0
 	countWidth := 0
 	for _, n := range names {
-		if l := len(n); l > nameWidth {
-			nameWidth = l
+		l := t.Leaf(n)
+		if len(l.Children()) > 0 {
+			continue
 		}
-		if c := t.Leaf(n).Count(); len(c) > countWidth {
+		if w := len(n); w > nameWidth {
+			nameWidth = w
+		}
+		if c := l.Count(); len(c) > countWidth {
 			countWidth = len(c)
 		}
 	}
 
-	var b strings.Builder
+	var lines []string
 	if header := displaySummaryHeader(t.Header); header != "" {
-		b.WriteString(header)
-		b.WriteString("\n")
+		lines = append(lines, header)
 	}
 	for i, name := range names {
 		l := t.Leaf(name)
+		last := i == len(names)-1
 		prefix := prefixMiddle
-		if i == len(names)-1 {
+		if last {
 			prefix = prefixLast
 		}
-		mark := stateMark(l.State())
-		nm := padRight(name, nameWidth)
-		// a skipped leaf carries no count; show "skipped" in its place rather
-		// than a blank or a misleading zero.
-		count := padRight(l.Count(), countWidth)
-		if l.State() == event.SlotSkipped {
-			count = dimStyle.Render("skipped")
+
+		children := l.Children()
+		if len(children) == 0 {
+			lines = append(lines, evidenceLine(prefix, name, nameWidth, countWidth, l))
+			continue
 		}
-		line := fmt.Sprintf("%s %s %s   %s", dimStyle.Render(prefix), mark, nm, count)
-		if note := l.Note(); note != "" {
-			line += "  " + dimStyle.Render("("+note+")")
-		} else if err := l.Err(); err != nil {
-			line += "  " + dimStyle.Render(err.Error())
+
+		// child-bearing leaf: render its rollup label unpadded, then its
+		// branches indented beneath it.
+		lines = append(lines, evidenceLine(prefix, name, nameWidth, 0, l))
+		childWidth, childCountWidth := 0, 0
+		for _, c := range children {
+			if w := len(c.Name()); w > childWidth {
+				childWidth = w
+			}
+			if cw := len(c.Count()); cw > childCountWidth {
+				childCountWidth = cw
+			}
 		}
-		b.WriteString(line)
-		if i < len(names)-1 {
-			b.WriteString("\n")
+		cont := "│   "
+		if last {
+			cont = "    "
+		}
+		for j, c := range children {
+			cp := cont + prefixMiddle
+			if j == len(children)-1 {
+				cp = cont + prefixLast
+			}
+			lines = append(lines, evidenceLine(cp, c.Name(), childWidth, childCountWidth, c))
 		}
 	}
-	return b.String()
+	return strings.Join(lines, "\n")
+}
+
+// evidenceLine renders one evidence row: "{prefix} {mark} {name}   {count}{ (note)}?".
+// countWidth of 0 leaves the count unpadded (used for the long source-sbom rollup).
+func evidenceLine(prefix, name string, nameWidth, countWidth int, l *event.Leaf) string {
+	count := l.Count()
+	if countWidth > 0 {
+		count = padRight(count, countWidth)
+	}
+	// a skipped leaf carries no count; show "skipped" in its place rather
+	// than a blank or a misleading zero.
+	if l.State() == event.SlotSkipped {
+		count = dimStyle.Render("skipped")
+	}
+	line := fmt.Sprintf("%s %s %s   %s", dimStyle.Render(prefix), stateMark(l.State()), padRight(name, nameWidth), count)
+	if note := l.Note(); note != "" {
+		line += "  " + dimStyle.Render("("+note+")")
+	} else if err := l.Err(); err != nil {
+		line += "  " + dimStyle.Render(err.Error())
+	}
+	return line
 }
 
 // tierLabel is the visible label for a semver-kind tier in the rendered

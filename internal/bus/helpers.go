@@ -46,11 +46,21 @@ func PublishGroup(header string, slots []event.GroupSlotInit) *event.Group {
 	return g
 }
 
-// PublishTree emits a TreeTaskType event for a tree group of leaves. The
+// PublishTree emits a TreeTaskType event for a flat tree group of leaves. The
 // returned *event.Tree is always non-nil — even when no publisher is set —
 // so worker code can call Leaf()/Close() unconditionally as no-ops.
 func PublishTree(header string, names []string) *event.Tree {
-	t := event.NewTree(header, names)
+	specs := make([]event.LeafSpec, len(names))
+	for i, n := range names {
+		specs[i] = event.LeafSpec{Name: n}
+	}
+	return PublishTreeSpec(header, specs)
+}
+
+// PublishTreeSpec emits a TreeTaskType event for a tree group whose leaves may
+// each carry child leaves one level deep (e.g. "source sbom" → since/until).
+func PublishTreeSpec(header string, specs []event.LeafSpec) *event.Tree {
+	t := event.NewTreeWithChildren(header, specs)
 	registerTree(t)
 	publish(partybus.Event{
 		Type:   event.TreeTaskType,

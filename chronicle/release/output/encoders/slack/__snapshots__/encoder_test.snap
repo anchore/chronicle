@@ -40,3 +40,26 @@
 *<https://github.com/anchore/syft/compare/v0.19.0...v0.19.1|Full Changelog>*
 
 ---
+
+[TestSlackPresenter_Present_DependencyDiff - 1]
+*v0.20.0*
+
+*Bug Fixes*
+• some bug fix
+
+*Dependencies*
+
+4 dependency changes (1 updated, 1 downgraded, 1 added, 1 removed). 3 vulnerabilities remediated and 1 vulnerability introduced.
+
+• Updated (1 package)
+    • golang.org/x/net `v0.17.0` → `v0.23.0` *(🟢 remediated CVE-2023-39325, <https://nvd.nist.gov/vuln/detail/CVE-2023-44487|CVE-2023-44487>)*
+• Downgraded (1 package)
+    • github.com/foo/bar `v1.2.0` → `v1.1.0` *(🔴 reintroduces <https://nvd.nist.gov/vuln/detail/CVE-2024-12345|CVE-2024-12345>)*
+• Added (1 package)
+    • github.com/new/dep `v0.4.0`
+• Removed (1 package)
+    • github.com/old/dep `v0.9.0` *(🟢 remediated <https://nvd.nist.gov/vuln/detail/CVE-2022-0001|CVE-2022-0001>)*
+
+*<https://github.com/anchore/syft/compare/v0.19.0...v0.20.0|Full Changelog>*
+
+---
