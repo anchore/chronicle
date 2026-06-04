@@ -1449,6 +1449,91 @@ func TestSummarizer_getChangeScope(t *testing.T) {
 	}
 }
 
+func TestSummarizer_scopeHasNoCommits(t *testing.T) {
+	tests := []struct {
+		name   string
+		config Config
+		scope  changeScope
+		want   bool
+	}{
+		{
+			name:   "merge-commit mode with no commits short-circuits",
+			config: Config{ConsiderPRMergeCommits: true},
+			scope:  changeScope{Commits: nil},
+			want:   true,
+		},
+		{
+			name:   "merge-commit mode with commits does not short-circuit",
+			config: Config{ConsiderPRMergeCommits: true},
+			scope:  changeScope{Commits: []string{"abc123"}},
+			want:   false,
+		},
+		{
+			// timestamp-only mode never populates Commits, so an empty slice must
+			// not be read as "no changes" — that would skip every changelog.
+			name:   "timestamp-only mode never short-circuits",
+			config: Config{ConsiderPRMergeCommits: false},
+			scope:  changeScope{Commits: nil},
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Summarizer{config: tt.config}
+			require.Equal(t, tt.want, s.scopeHasNoCommits(tt.scope))
+		})
+	}
+}
+
+func TestSummarizer_Changes_noCommitsShortCircuit(t *testing.T) {
+	testTime := time.Now()
+
+	gitter, err := git.New("testdata/repos/v0.2.0-repo")
+	require.NoError(t, err)
+	gitter = mockGitter{timestamp: testTime, Interface: gitter}
+
+	s, err := NewSummarizer(gitter, Config{ConsiderPRMergeCommits: true})
+	require.NoError(t, err)
+	s.releaseFetcher = func(_, _, tag string) (*ghRelease, error) {
+		return &ghRelease{Tag: tag, Date: testTime, IsLatest: true}, nil
+	}
+
+	// since == until: HEAD sits exactly on the release tag, so the range holds
+	// no commits. The short-circuit must return an empty changelog without
+	// reaching the GitHub API (this test runs without network access; a missed
+	// short-circuit would attempt a fetch and fail).
+	changes, err := s.Changes("v0.2.0", "v0.2.0")
+	require.NoError(t, err)
+	require.Empty(t, changes)
+
+	prs, issues, commits := s.EvidenceTotals()
+	require.Zero(t, prs)
+	require.Zero(t, issues)
+	require.Zero(t, commits)
+}
+
+func TestSummarizer_Trunk_noCommitsShortCircuit(t *testing.T) {
+	testTime := time.Now()
+
+	gitter, err := git.New("testdata/repos/v0.2.0-repo")
+	require.NoError(t, err)
+	gitter = mockGitter{timestamp: testTime, Interface: gitter}
+
+	s, err := NewSummarizer(gitter, Config{ConsiderPRMergeCommits: true})
+	require.NoError(t, err)
+	s.releaseFetcher = func(_, _, tag string) (*ghRelease, error) {
+		return &ghRelease{Tag: tag, Date: testTime, IsLatest: true}, nil
+	}
+
+	// same since==until range as above: an empty commit set must yield an empty
+	// trunk view without any GitHub API fetch.
+	data, err := s.Trunk("v0.2.0", "v0.2.0")
+	require.NoError(t, err)
+	require.NotNil(t, data)
+	require.Empty(t, data.Commits)
+}
+
 type mockGitter struct {
 	timestamp time.Time
 	git.Interface

@@ -14,6 +14,10 @@ const (
 	SlotRunning
 	SlotResolved
 	SlotFailed
+	// SlotSkipped marks work that was intentionally not performed (e.g. the
+	// analysis short-circuited before this step was needed). Distinct from
+	// Resolved so the UI can show "skipped" rather than a completed count.
+	SlotSkipped
 )
 
 // GroupSlotInit is the configuration for one slot at group-construction time.

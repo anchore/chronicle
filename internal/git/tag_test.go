@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -120,6 +121,49 @@ func TestSearchForTag(t *testing.T) {
 			} else {
 				require.Nil(t, actual)
 				require.Error(t, err)
+			}
+		})
+	}
+}
+
+// TestCommitsBetween_sinceEqualsUntil covers the degenerate range where since
+// and until resolve to the same commit — e.g. running chronicle on the tip of
+// main when HEAD sits exactly on the previous release tag. The walk must halt
+// at the since boundary rather than running to the root of history.
+func TestCommitsBetween_sinceEqualsUntil(t *testing.T) {
+	tests := []struct {
+		name   string
+		config Range
+		count  int
+	}{
+		{
+			name: "exclusive start (default release behavior) yields nothing",
+			config: Range{
+				SinceRef:     "v0.2.0",
+				UntilRef:     "v0.2.0",
+				IncludeStart: false,
+				IncludeEnd:   true,
+			},
+			count: 0,
+		},
+		{
+			name: "inclusive start yields just the shared commit",
+			config: Range{
+				SinceRef:     "v0.2.0",
+				UntilRef:     "v0.2.0",
+				IncludeStart: true,
+				IncludeEnd:   true,
+			},
+			count: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual, err := CommitsBetween("testdata/repos/tag-range-repo", tt.config)
+			require.NoError(t, err)
+			require.Len(t, actual, tt.count)
+			if tt.count == 1 {
+				require.Equal(t, gitTagCommit(t, "testdata/repos/tag-range-repo", "v0.2.0"), actual[0])
 			}
 		})
 	}
@@ -246,6 +290,19 @@ func TestCommitsBetweenWithMeta(t *testing.T) {
 			count: 2,
 		},
 		{
+			// since == until: HEAD sits exactly on the previous release tag. The
+			// walk must stop at the since boundary, not run to the root of history.
+			name: "since equals until (exclusive start)",
+			path: "testdata/repos/tag-range-repo",
+			config: Range{
+				SinceRef:     "v0.2.0",
+				UntilRef:     "v0.2.0",
+				IncludeStart: false,
+				IncludeEnd:   true,
+			},
+			count: 0,
+		},
+		{
 			name: "invalid since ref",
 			path: "testdata/repos/tag-range-repo",
 			config: Range{
@@ -272,7 +329,7 @@ func TestCommitsBetweenWithMeta(t *testing.T) {
 
 			// build expected commits from git directly and compare metadata fields
 			expected := gitCommitsWithMeta(t, tt.path, tt.config)
-			if diff := cmp.Diff(expected, got); diff != "" {
+			if diff := cmp.Diff(expected, got, cmpopts.EquateEmpty()); diff != "" {
 				t.Errorf("mismatch (-want +got):\n%s", diff)
 			}
 		})

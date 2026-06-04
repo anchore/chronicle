@@ -281,6 +281,7 @@ func TestNilSafety(t *testing.T) {
 	var l *Leaf
 	require.NotPanics(t, func() { l.Resolve("1", "n") })
 	require.NotPanics(t, func() { l.Fail(nil) })
+	require.NotPanics(t, func() { l.Skip() })
 	require.NotPanics(t, func() { l.Start() })
 	require.NotPanics(t, func() { l.SetStage("x") })
 	require.Equal(t, "", l.Name())
@@ -288,4 +289,29 @@ func TestNilSafety(t *testing.T) {
 	require.Equal(t, "", l.Note())
 	require.Equal(t, SlotPending, l.State())
 	require.Nil(t, l.Err())
+}
+
+func TestLeaf_Skip(t *testing.T) {
+	tr := NewTree("evidence", []string{"issues"})
+	l := tr.Leaf("issues")
+
+	l.Skip()
+
+	require.Equal(t, SlotSkipped, l.State())
+	// a skipped leaf carries no count or note
+	require.Equal(t, "", l.Count())
+	require.Equal(t, "", l.Note())
+}
+
+func TestTree_Close_preservesSkipped(t *testing.T) {
+	// Close() promotes pending/running leaves to resolved, but must leave an
+	// explicitly skipped leaf untouched.
+	tr := NewTree("evidence", []string{"commits", "issues"})
+	tr.Leaf("commits").Start()
+	tr.Leaf("issues").Skip()
+
+	tr.Close()
+
+	require.Equal(t, SlotResolved, tr.Leaf("commits").State())
+	require.Equal(t, SlotSkipped, tr.Leaf("issues").State())
 }

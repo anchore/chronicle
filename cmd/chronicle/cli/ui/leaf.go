@@ -51,6 +51,9 @@ func (l leaf) View() string {
 			b.WriteString("   ")
 			b.WriteString(dimStyle.Render("(" + note + ")"))
 		}
+	case event.SlotSkipped:
+		// no count — the work was intentionally not performed
+		b.WriteString(dimStyle.Render("skipped"))
 	case event.SlotFailed:
 		if err := l.data.Err(); err != nil {
 			b.WriteString(dimStyle.Render(err.Error()))
@@ -73,6 +76,8 @@ func (l leaf) markView() string {
 		return okMarkStyle.Render(checkMark)
 	case event.SlotFailed:
 		return failStyle.Render(xMark)
+	case event.SlotSkipped:
+		return dimStyle.Render(skipMark)
 	case event.SlotRunning:
 		if l.sp != nil {
 			return l.sp.View()

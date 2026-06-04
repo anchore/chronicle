@@ -57,3 +57,18 @@ Changes
 
 v0.18.0 → v0.18.1   (patch bump)
 ---
+
+[TestReportSummary_SkippedEvidence - 1]
+├── ✔ since   latest release → v1.45.0  9673f86  Jun 2 2026
+└── ✔ until   HEAD → v1.45.0
+
+Evidence
+├── ✔ commits         0
+├── ⊘ issues          skipped
+└── ⊘ pull requests   skipped
+
+Changes
+├── major   removed=1
+├── minor   added=3 changed=5
+└── patch   fixed=11
+---

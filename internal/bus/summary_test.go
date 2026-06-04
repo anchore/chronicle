@@ -114,6 +114,35 @@ func TestReportSummary_NoSpeculation(t *testing.T) {
 	snaps.MatchSnapshot(t, out)
 }
 
+func TestReportSummary_SkippedEvidence(t *testing.T) {
+	// HEAD sits exactly on the previous release: zero commits in scope, so the
+	// issue and PR fetches were skipped. The evidence block should render those
+	// two leaves as "skipped" rather than a resolved zero count.
+	resetSummaryCache()
+	t.Cleanup(resetSummaryCache)
+
+	rng := PublishGroup("range", []event.GroupSlotInit{
+		{Name: "since", Label: "since", Intent: "latest release"},
+		{Name: "until", Label: "until", Intent: "HEAD"},
+	})
+	rng.Slot("since").Resolve("v1.45.0", "9673f86", "Jun 2 2026")
+	rng.Slot("until").Resolve("v1.45.0")
+
+	ev := PublishTree("evidence", []string{"commits", "issues", "pull requests"})
+	ev.Leaf("commits").Resolve("0", "")
+	ev.Leaf("issues").Skip()
+	ev.Leaf("pull requests").Skip()
+
+	out := buildSummary(SummaryOpts{
+		Description:     newDescription(),
+		PreviousVersion: "v1.45.0",
+		NextVersion:     "", // nothing changed, no speculation
+		BumpKind:        change.SemVerUnknown,
+	})
+	require.NotEmpty(t, out)
+	snaps.MatchSnapshot(t, out)
+}
+
 func TestReportSummary_NoBump(t *testing.T) {
 	resetSummaryCache()
 	t.Cleanup(resetSummaryCache)

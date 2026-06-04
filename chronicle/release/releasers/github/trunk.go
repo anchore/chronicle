@@ -42,6 +42,13 @@ func (s *Summarizer) Trunk(sinceRef, untilRef string) (*release.TrunkData, error
 
 	log.WithFields("count", len(commits)).Debug("commits fetched for trunk")
 
+	// short-circuit: no commits in range means nothing to attribute to PRs or
+	// issues, so skip the changelog pipeline and the GitHub API fetches and
+	// return an empty trunk view.
+	if len(commits) == 0 {
+		return &release.TrunkData{Commits: []release.TrunkCommit{}}, nil
+	}
+
 	commitHashSet := strset.New()
 	for _, c := range commits {
 		commitHashSet.Add(c.Hash)

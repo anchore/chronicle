@@ -229,7 +229,12 @@ func renderEvidence() string {
 		}
 		mark := stateMark(l.State())
 		nm := padRight(name, nameWidth)
+		// a skipped leaf carries no count; show "skipped" in its place rather
+		// than a blank or a misleading zero.
 		count := padRight(l.Count(), countWidth)
+		if l.State() == event.SlotSkipped {
+			count = dimStyle.Render("skipped")
+		}
 		line := fmt.Sprintf("%s %s %s   %s", dimStyle.Render(prefix), mark, nm, count)
 		if note := l.Note(); note != "" {
 			line += "  " + dimStyle.Render("("+note+")")
@@ -459,6 +464,8 @@ func stateMark(s event.SlotState) string {
 		return okMarkStyle.Render("✔")
 	case event.SlotFailed:
 		return failMarkStyle.Render("✘")
+	case event.SlotSkipped:
+		return dimStyle.Render("⊘")
 	}
 	// pending or running (the post-teardown summary should not normally see
 	// running states, but render a dim dot for either)
