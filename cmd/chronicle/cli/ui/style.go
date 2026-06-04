@@ -18,6 +18,10 @@ var (
 	boldStyle     = lipgloss.NewStyle().Bold(true)
 	failStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
 	okMarkStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+	// waitingStyle marks the transient "waiting" placeholder: dim like the other
+	// non-resolved detail text, but italic so an idle row reads as pending rather
+	// than as a value.
+	waitingStyle = lipgloss.NewStyle().Faint(true).Italic(true)
 )
 
 const (

@@ -126,16 +126,18 @@ func renderEvidence(t *event.Tree) string {
 		return ""
 	}
 
-	// alignment is computed only over flat (childless) leaves: a child-bearing
-	// leaf carries a long rollup label that would inflate the count column.
+	// the name column spans every top-level row (flat and child-bearing) so all
+	// their values line up; children are aligned to the same column separately
+	// (see alignedChildWidth). The count column is padded only from flat leaves —
+	// a child-bearing leaf's long rollup label would otherwise inflate it.
 	nameWidth, countWidth := 0, 0
 	for _, n := range names {
 		l := t.Leaf(n)
-		if len(l.Children()) > 0 {
-			continue
-		}
 		if w := len(n); w > nameWidth {
 			nameWidth = w
+		}
+		if len(l.Children()) > 0 {
+			continue
 		}
 		if c := formatMetrics(l.Metrics()); len(c) > countWidth {
 			countWidth = len(c)
@@ -160,21 +162,21 @@ func renderEvidence(t *event.Tree) string {
 			continue
 		}
 
-		// child-bearing leaf: render its rollup label unpadded, then its branches
-		// indented beneath it.
+		// child-bearing leaf: render its rollup label (padded to the top-level name
+		// width so its value aligns), then its branches indented beneath it.
 		lines = append(lines, evidenceLine(prefix, name, nameWidth, 0, l))
-		childWidth, childCountWidth := 0, 0
+
+		cont := contRule
+		if last {
+			cont = contBlank
+		}
+		// align the children's value column with the top-level rows'.
+		childWidth := alignedChildWidth(nameWidth, cont, children)
+		childCountWidth := 0
 		for _, c := range children {
-			if w := len(c.Name()); w > childWidth {
-				childWidth = w
-			}
 			if cw := len(formatMetrics(c.Metrics())); cw > childCountWidth {
 				childCountWidth = cw
 			}
-		}
-		cont := "│   "
-		if last {
-			cont = "    "
 		}
 		for j, c := range children {
 			cp := cont + branchMid

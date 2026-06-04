@@ -81,3 +81,30 @@
 *<https://example.com/compare|Full Changelog>*
 
 ---
+
+[TestSlackPresenter_Present_Toolchain - 1]
+*Changelog*
+
+*Bug Fixes*
+• Redirect cursor hide/show to stderr [PR <https://github.com/anchore/syft/pull/456|#456>]
+
+*Dependencies*
+
+*Toolchains (1)*
+• Go minimum version: 1.21 → 1.23
+
+*<https://github.com/anchore/syft/compare/v0.19.0...v0.19.1|Full Changelog>*
+
+---
+
+[TestSlackPresenter_Present_ToolchainDowngrade - 1]
+*Changelog*
+
+*Dependencies*
+
+*Toolchains (1)*
+• Go minimum version: 1.23 → 1.21 (downgrade)
+
+*<https://github.com/anchore/syft/compare/v0.19.0...v0.19.1|Full Changelog>*
+
+---

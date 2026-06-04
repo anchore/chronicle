@@ -10,8 +10,10 @@ import (
 )
 
 const (
-	branchMid  = "├──" // a non-last item's branch glyph
-	branchLast = "└──" // the last item's branch glyph
+	branchMid  = "├──"  // a non-last item's branch glyph
+	branchLast = "└──"  // the last item's branch glyph
+	contRule   = "│   " // continuation column under a parent that still has rows below it
+	contBlank  = "    " // continuation column under the last parent (nothing below)
 )
 
 // treeGroup renders a header line followed by N child leaf models stacked with
@@ -37,8 +39,9 @@ func NewTreeGroup(t *event.Tree, sp *spinner.Model) tea.Model {
 		leaves: make([]*leaf, 0, len(names)),
 	}
 
-	// top-level leaves align against each other; children align against their
-	// own siblings (a deeper indent makes cross-level alignment meaningless).
+	// the name column spans every top-level row so their values line up; children
+	// are narrowed by their extra indent (see alignedChildWidth) so their value
+	// column lines up with the top level too.
 	topWidth := 0
 	for _, n := range names {
 		if l := len(n); l > topWidth {
@@ -59,12 +62,11 @@ func NewTreeGroup(t *event.Tree, sp *spinner.Model) tea.Model {
 		if len(children) == 0 {
 			continue
 		}
-		childWidth := 0
-		for _, c := range children {
-			if l := len(c.Name()); l > childWidth {
-				childWidth = l
-			}
+		cont := contRule
+		if parentLast {
+			cont = contBlank
 		}
+		childWidth := alignedChildWidth(topWidth, cont, children)
 		for j, c := range children {
 			cl := newLeaf(c, sp)
 			cl.SetPrefix(childPrefix(parentLast, j, len(children)))
@@ -86,9 +88,9 @@ func treePrefix(i, n int) string {
 // parent ("│   " when the parent has rows below it, else "    ") followed by
 // the child's own branch glyph.
 func childPrefix(parentLast bool, j, n int) string {
-	cont := "│   "
+	cont := contRule
 	if parentLast {
-		cont = "    "
+		cont = contBlank
 	}
 	branch := branchMid
 	if j == n-1 {

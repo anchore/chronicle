@@ -106,6 +106,57 @@ func TestRenderSummary_SkippedEvidence(t *testing.T) {
 	snaps.MatchSnapshot(t, out)
 }
 
+// sampleEvidenceWithChildren mirrors a run with the dependency feature on: two
+// child-bearing rollup leaves ("source sbom", "vulnerabilities") with per-ref
+// counts, plus a flat "toolchain" row. It exercises value-column alignment
+// across flat rows, long-named rollup rows, and indented child rows.
+func sampleEvidenceWithChildren() *event.Tree {
+	tr := event.NewTreeWithChildren("evidence", []event.LeafSpec{
+		{Name: "commits"},
+		{Name: "pull requests"},
+		{Name: "source sbom", Children: []string{"since", "until"}},
+		{Name: "vulnerabilities", Children: []string{"since", "until"}},
+		{Name: "toolchain"},
+	})
+
+	c := tr.Leaf("commits")
+	c.Resolve(event.Num(5))
+	c.SetDropped(4)
+	p := tr.Leaf("pull requests")
+	p.Resolve(event.Num(18))
+	p.SetDropped(17)
+
+	sbom := tr.Leaf("source sbom")
+	sbom.Resolve(event.Count("added", 2), event.Count("removed", 4), event.Count("updated", 34), event.Count("downgraded", 1))
+	sbom.Child("since").Resolve(event.Count("package", 373))
+	sbom.Child("until").Resolve(event.Count("package", 371))
+
+	vulns := tr.Leaf("vulnerabilities")
+	vulns.Resolve(event.Count("remediated", 13), event.Count("introduced", 0), event.Count("remaining", 145))
+	vulns.Child("since").Resolve(event.Count("vulnerability", 158))
+	vulns.Child("until").Resolve(event.Count("vulnerability", 145))
+
+	tr.Leaf("toolchain").Resolve(event.Count("change", 0))
+	return tr
+}
+
+func TestRenderSummary_NestedEvidenceAlignment(t *testing.T) {
+	// the value column must line up across flat rows, long-named rollup rows
+	// ("vulnerabilities"), and the indented child rows beneath them.
+	out := RenderSummary(
+		[]*event.Group{sampleRange()},
+		[]*event.Tree{sampleEvidenceWithChildren()},
+		event.Summary{
+			Repo:            "anchore/syft",
+			Changes:         sampleChanges(),
+			PreviousVersion: "v1.44.0",
+			NextVersion:     "v1.45.0",
+			BumpKind:        change.SemVerMinor,
+		})
+	require.NotEmpty(t, out)
+	snaps.MatchSnapshot(t, out)
+}
+
 func TestRenderSummary_NoBump(t *testing.T) {
 	out := RenderSummary(nil, nil, event.Summary{
 		Changes:         sampleChanges(),

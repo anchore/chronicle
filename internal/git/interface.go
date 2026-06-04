@@ -16,6 +16,8 @@ type Interface interface {
 	TagsFromLocal() ([]Tag, error)
 	CommitsBetween(Range) ([]string, error)
 	CommitsBetweenWithMeta(Range) ([]Commit, error)
+	ListFilesAtRef(ref string, match func(path string) bool) ([]FileBlob, error)
+	WorktreeDirtyPaths() ([]string, error)
 }
 
 type gitter struct {
@@ -65,4 +67,12 @@ func (g gitter) TagsFromLocal() ([]Tag, error) {
 
 func (g gitter) FirstCommit() (string, error) {
 	return FirstCommit(g.repoPath)
+}
+
+func (g gitter) ListFilesAtRef(ref string, match func(path string) bool) ([]FileBlob, error) {
+	return ListFilesAtRef(g.repoPath, ref, match)
+}
+
+func (g gitter) WorktreeDirtyPaths() ([]string, error) {
+	return WorktreeDirtyPaths(g.repoPath)
 }

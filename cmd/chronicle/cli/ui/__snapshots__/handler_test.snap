@@ -41,8 +41,8 @@ Evidence
 ├── ✔ issues          73
 ├── ✔ pull requests   164
 └── ⠋ source sbom     cataloging…
-    ├── ⠋ since   142 packages
-    └── ⠋ until   156 packages
+    ├── ⠋ since       142 packages
+    └── ⠋ until       156 packages
 
 ---
 
@@ -52,8 +52,8 @@ Evidence
 ├── ✔ issues          73
 ├── ✔ pull requests   164
 └── ✔ source sbom     added=10 removed=12 updated=2 downgraded=3
-    ├── ✔ since   142 packages
-    └── ✔ until   156 packages
+    ├── ✔ since       142 packages
+    └── ✔ until       156 packages
 
 ---
 
@@ -63,10 +63,10 @@ Evidence
 ├── ✔ issues            73
 ├── ✔ pull requests     164
 ├── ✔ source sbom       added=10 removed=12 updated=2 downgraded=3
-│   ├── ✔ since   142 packages
-│   └── ✔ until   156 packages
+│   ├── ✔ since         142 packages
+│   └── ✔ until         156 packages
 └── ⠋ vulnerabilities   matching…
-    ├── ⠋ since   matching…
-    └── ✔ until   7 vulnerabilities
+    ├── ⠋ since         matching…
+    └── ✔ until         7 vulnerabilities
 
 ---

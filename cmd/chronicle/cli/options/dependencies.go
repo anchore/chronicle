@@ -17,6 +17,7 @@ type Dependencies struct {
 	OnlyVulnerable               bool              `yaml:"only-vulnerable" json:"only-vulnerable" mapstructure:"only-vulnerable"`
 	ShowRemainingVulnerabilities bool              `yaml:"show-remaining-vulnerabilities" json:"show-remaining-vulnerabilities" mapstructure:"show-remaining-vulnerabilities"`
 	MinSeverity                  string            `yaml:"min-severity" json:"min-severity" mapstructure:"min-severity"`
+	DetectToolchain              bool              `yaml:"detect-toolchain" json:"detect-toolchain" mapstructure:"detect-toolchain"`
 	Actions                      DependencyActions `yaml:"actions" json:"actions" mapstructure:"actions"`
 }
 
@@ -59,6 +60,7 @@ func (c *Dependencies) DescribeFields(descriptions clio.FieldDescriptionSet) {
 	descriptions.Add(&c.OnlyVulnerable, "only show dependency changes that remediated or introduced a vulnerability (requires annotate-vulnerabilities)")
 	descriptions.Add(&c.ShowRemainingVulnerabilities, "show the remaining (carried-over) vulnerabilities still present in the latest scan that this release did not remediate, as a rollup (requires annotate-vulnerabilities)")
 	descriptions.Add(&c.MinSeverity, "minimum vulnerability severity to include in annotations (e.g. low, medium, high, critical)")
+	descriptions.Add(&c.DetectToolchain, "detect declared toolchain minimum-version changes (e.g. the go directive in go.mod) for the activated ecosystems, shown as a Toolchains rollup under Dependencies")
 	descriptions.Add(&c.Actions, "how each change kind is displayed: hide, summary (count only), list (bullet list), or collapsed (bullet list in a <details> block)")
 }
 
@@ -87,6 +89,9 @@ func DefaultDependencies() Dependencies {
 		OnlyVulnerable:               false,
 		ShowRemainingVulnerabilities: false,
 		MinSeverity:                  "",
+		// toolchain detection rides on the dependencies feature for the activated
+		// ecosystems; on by default so a go-directive bump surfaces without extra flags.
+		DetectToolchain: true,
 		Actions: DependencyActions{
 			Updated:    "collapsed,list",
 			Downgraded: "collapsed,list",

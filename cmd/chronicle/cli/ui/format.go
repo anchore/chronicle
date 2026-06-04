@@ -4,9 +4,26 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/anchore/chronicle/chronicle/event"
 )
+
+// alignedChildWidth returns the name-column width for nested child rows so their
+// value column lines up with the top-level rows'. A child is indented under its
+// parent by the continuation column (cont, e.g. "│   "), which is exactly that
+// many visible columns wider than a top-level prefix; narrowing the child name
+// field by the same amount keeps the value column aligned across levels. It never
+// returns less than the widest child name, so a name is never truncated.
+func alignedChildWidth(topWidth int, cont string, children []*event.Leaf) int {
+	w := topWidth - utf8.RuneCountInString(cont)
+	for _, c := range children {
+		if n := len(c.Name()); n > w {
+			w = n
+		}
+	}
+	return w
+}
 
 // this file owns the figure→text formatting shared by the live TUI (slot/leaf)
 // and the post-teardown recap (summary). The event layer carries raw values;

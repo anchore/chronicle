@@ -11,6 +11,8 @@ type MockInterface struct {
 	MockCommitsBetween         []string
 	MockCommitsBetweenWithMeta []Commit
 	MockFirstCommit            string
+	MockFilesAtRef             map[string][]FileBlob // ref -> files present at that ref
+	MockDirtyPaths             []string              // working-tree paths with uncommitted changes
 }
 
 func (m MockInterface) CommitsBetween(_ Range) ([]string, error) {
@@ -52,4 +54,18 @@ func (m MockInterface) TagsFromLocal() ([]Tag, error) {
 
 func (m MockInterface) FirstCommit() (string, error) {
 	return m.MockFirstCommit, nil
+}
+
+func (m MockInterface) WorktreeDirtyPaths() ([]string, error) {
+	return m.MockDirtyPaths, nil
+}
+
+func (m MockInterface) ListFilesAtRef(ref string, match func(path string) bool) ([]FileBlob, error) {
+	var out []FileBlob
+	for _, f := range m.MockFilesAtRef[ref] {
+		if match == nil || match(f.Path) {
+			out = append(out, f)
+		}
+	}
+	return out, nil
 }

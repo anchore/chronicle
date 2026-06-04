@@ -46,6 +46,11 @@ Render the changelog with ANSI styling for the terminal (falls back to plain mar
 chronicle -o md-pretty
 ```
 
+Include a "Toolchain" section that reports minimum-version bumps (e.g. the `go` directive in `go.mod`) between the two changelog points
+```bash
+chronicle --detect-toolchain
+```
+
 ## Installation
 
 ```bash
@@ -166,6 +171,31 @@ github:
   # the changelog section, the changelog title, and the semver field that best represents the class of change.
   # note: cannot be set via environment variables
   changes: [...<list of entries>...] # See "Default GitHub change definitions" section for more details
+
+# detect toolchain-requirement bumps (e.g. the minimum Go version) between the changelog points. Opt-in.
+# See the "Toolchain detection" section for more details.
+toolchain:
+
+  # master switch; when false no toolchain detection is performed
+  # same as --detect-toolchain ; CHRONICLE_TOOLCHAIN_ENABLED env var
+  enabled: false
+
+  # which ecosystems to inspect; empty means all known (currently: go)
+  # same as --toolchain-ecosystems ; CHRONICLE_TOOLCHAIN_ECOSYSTEMS env var
+  ecosystems: []
+
+  # path globs excluded from source-file discovery (keeps vendored/test manifests out by default)
+  # same as CHRONICLE_TOOLCHAIN_IGNORE env var
+  ignore:
+    - '**/vendor/**'
+    - '**/node_modules/**'
+    - '**/testdata/**'
+    - '**/examples/**'
+
+  # per-ecosystem source-file globs (override to narrow, e.g. ['./go.mod'], or widen)
+  go:
+    paths:
+      - '**/go.mod'
 
 ```
 
@@ -342,6 +372,11 @@ dependencies:
   # empty string includes all severities (config-only, no flag)
   min-severity: ""
 
+  # detect declared toolchain minimum-version changes (e.g. the go directive in
+  # go.mod) for the activated ecosystems, shown as a Toolchains rollup under
+  # Dependencies. on by default; set false to disable. (config-only, no flag)
+  detect-toolchain: true
+
   # how each change kind is displayed. each value is a comma-separated list of
   # fallback modes; the encoder uses the first one it supports. modes:
   #   hide      - omit the kind
@@ -384,3 +419,35 @@ When `annotate-vulnerabilities` is enabled, chronicle uses grype's vulnerability
 - **Source/declared dependencies only.** The scan reads `go.mod`, lockfiles, and vendored manifests — it does not see base-image or OS packages. A base-image bump that removes OS-level CVEs will not appear in this section.
 - **First-run download cost.** The initial DB download is several hundred megabytes and requires network access; subsequent runs use the local grype cache.
 - **Annotation adds runtime cost.** Enabling `annotate-vulnerabilities` loads the vulnerability DB and runs two grype match passes (one for each ref), which increases wall-clock time compared to a plain dependency diff.
+
+## Toolchain detection
+
+Toolchain detection rides on the dependency scanning feature: whenever `--dependencies` is active it also reports changes to a project's declared minimum toolchain version between the changelog's start and end points, for the same ecosystems being scanned. Today this covers Go: the `go` directive in `go.mod` (the `toolchain` directive — a pinned toolchain — is intentionally ignored, since only the declared minimum is reported). It is on by default and can be turned off with `dependencies.detect-toolchain: false`.
+
+A detected bump renders as a **Toolchains** rollup inside the `### Dependencies` section, alongside the vulnerability rollups:
+
+```markdown
+### Dependencies
+
+...
+
+**Toolchains (1)**
+
+- Go minimum version: 1.21 → 1.23
+```
+
+Detection only covers the **activated dependency ecosystems** — `--dependencies go` (or `language`) inspects Go's `go.mod`, while an ecosystem with no toolchain detector (e.g. `--dependencies java`) contributes nothing. When the dependency diff finds no package changes but a toolchain bump did occur, the `### Dependencies` section still renders with just the Toolchains rollup.
+
+Downgrades (a minimum version moving *backward*) are called out explicitly, since they're usually unintentional — both inline in the rollup and as an operator log warning:
+
+```markdown
+**Toolchains (1)**
+
+- Go minimum version: 1.23 → 1.21 (downgrade)
+```
+
+Detection is **source-only**: chronicle reads the relevant manifest files directly from git at each ref (no checkout, build, or install) and compares the declared minimums. Discovery walks all matching files (e.g. `**/go.mod`) minus the default ignore globs and the dependencies `exclude` list, so multi-module repos are covered by default while vendored and test manifests stay out. When sources within one ecosystem disagree on the resulting version, chronicle warns (to the log and JSON output) but still emits the changelog — it degrades gracefully rather than failing.
+
+### Why not use Syft for this?
+
+Syft answers a different question — it inventories the *packages a project depends on*, whereas toolchain detection needs the *minimum toolchain version a project declares it requires*, which is a single declarative field in a source file. Pulling in Syft would mean materializing and scanning whole trees at two refs just to diff one line of `go.mod`, so chronicle reads that field straight from git instead.
