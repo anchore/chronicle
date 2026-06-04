@@ -14,6 +14,7 @@ type createConfig struct {
 	SpeculateNextVersion bool                     `yaml:"speculate-next-version" json:"speculate-next-version" mapstructure:"speculate-next-version"` // -n, guess the next version based on issues and PRs
 	RepoPath             string                   `yaml:"repo-path" json:"repo-path" mapstructure:"-"`
 	EnforceV0            options.EnforceV0        `yaml:"enforce-v0" json:"enforce-v0" mapstructure:"enforce-v0"`
+	Toolchain            options.Toolchain        `yaml:"toolchain" json:"toolchain" mapstructure:"toolchain"`
 }
 
 var _ clio.FlagAdder = (*createConfig)(nil)
@@ -26,6 +27,7 @@ func (c *createConfig) DescribeFields(descriptions clio.FieldDescriptionSet) {
 	descriptions.Add(&c.Github, "GitHub-specific configuration options")
 	descriptions.Add(&c.SpeculateNextVersion, "guess the next version based on issues and PRs")
 	descriptions.Add(&c.EnforceV0, "major changes bump minor version for versions < 1.0")
+	descriptions.Add(&c.Toolchain, "toolchain requirement detection options")
 }
 
 func (c *createConfig) AddFlags(flags clio.FlagSet) {
@@ -64,5 +66,6 @@ func defaultCreateConfig() *createConfig {
 		SpeculateNextVersion: false,
 		EnforceV0:            false,
 		Github:               options.DefaultGithubSimmarizer(),
+		Toolchain:            options.DefaultToolchain(),
 	}
 }

@@ -57,3 +57,21 @@ Changes
 
 v0.18.0 → v0.18.1   (patch bump)
 ---
+
+[TestReportSummary_WithToolchain - 1]
+├── ✔ since   latest release → v0.14.0  a3b4c5d  Jan 15 2026
+└── ✔ until   HEAD → v0.18.0  f1e2d3c  May 4 2026
+
+Evidence
+├── ✔ commits         47   (32 associated)
+├── ✔ issues          73   (42 kept)
+├── ✔ pull requests   164  (87 kept)
+└── ✔ toolchain       1    (Go 1.21 → 1.23)
+
+Changes
+├── major   removed=1
+├── minor   added=3 changed=5
+└── patch   fixed=11
+
+v0.18.0 → v0.19.0   (minor bump)
+---

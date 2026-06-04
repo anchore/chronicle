@@ -104,6 +104,55 @@ func TestMarkdownPresenter_Present_NoChanges(t *testing.T) {
 	)
 }
 
+func TestMarkdownPresenter_Present_Toolchain(t *testing.T) {
+	assertEncoderAgainstGoldenSnapshot(t,
+		"Changelog",
+		release.Description{
+			SupportedChanges: []change.TypeTitle{
+				{ChangeType: change.NewType("bug", change.SemVerPatch), Title: "Bug Fixes"},
+			},
+			Release: release.Release{
+				Version: "v0.19.1",
+				Date:    time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			},
+			VCSReferenceURL: "https://github.com/anchore/syft/tree/v0.19.1",
+			VCSChangesURL:   "https://github.com/anchore/syft/compare/v0.19.0...v0.19.1",
+			Changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{change.NewType("bug", change.SemVerPatch)},
+					Text:        "Redirect cursor hide/show to stderr",
+					References:  []change.Reference{{Text: "#456", URL: "https://github.com/anchore/syft/pull/456"}},
+				},
+			},
+			Toolchain: &release.ToolchainData{
+				Updates: []release.ToolchainUpdate{
+					{Tool: "go", Source: "go directive", File: "go.mod", From: "1.21", To: "1.23", Direction: release.ToolchainUpgrade},
+				},
+			},
+		},
+	)
+}
+
+func TestMarkdownPresenter_Present_ToolchainDowngrade(t *testing.T) {
+	assertEncoderAgainstGoldenSnapshot(t,
+		"Changelog",
+		release.Description{
+			SupportedChanges: []change.TypeTitle{},
+			Release: release.Release{
+				Version: "v0.19.1",
+				Date:    time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			},
+			VCSReferenceURL: "https://github.com/anchore/syft/tree/v0.19.1",
+			VCSChangesURL:   "https://github.com/anchore/syft/compare/v0.19.0...v0.19.1",
+			Toolchain: &release.ToolchainData{
+				Updates: []release.ToolchainUpdate{
+					{Tool: "go", Source: "go directive", File: "go.mod", From: "1.23", To: "1.21", Direction: release.ToolchainDowngrade},
+				},
+			},
+		},
+	)
+}
+
 func assertEncoderAgainstGoldenSnapshot(t *testing.T, title string, d release.Description) {
 	t.Helper()
 	var buf bytes.Buffer

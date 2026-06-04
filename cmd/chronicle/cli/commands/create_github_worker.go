@@ -3,12 +3,14 @@ package commands
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/anchore/chronicle/chronicle/event"
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/chronicle/release/releasers/github"
+	"github.com/anchore/chronicle/chronicle/release/toolchain"
 	"github.com/anchore/chronicle/internal/bus"
 	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
@@ -52,12 +54,17 @@ func createChangelogFromGithub(appConfig *createConfig) (*release.Release, *rele
 	rng.Slot("since").Start()
 	rng.Slot("until").Start()
 
-	evidence := bus.PublishTree("evidence", []string{
-		"commits", "issues", "pull requests",
-	})
+	evidenceLeaves := []string{"commits", "issues", "pull requests"}
+	if appConfig.Toolchain.Enabled {
+		// toolchain detection is another signal gathered for the changelog, so it shares the
+		// evidence tree as one more row (only when enabled).
+		evidenceLeaves = append(evidenceLeaves, "toolchain")
+	}
+	evidence := bus.PublishTree("evidence", evidenceLeaves)
 	defer evidence.Close()
 	// same kickoff for evidence — leaves stay running through the GraphQL
-	// fetches until resolveEvidenceLeaves resolves them with their counts.
+	// fetches until resolveEvidenceLeaves resolves them with their counts. The
+	// toolchain leaf (if any) stays pending until detection runs at the end.
 	evidence.Leaf("commits").Start()
 	evidence.Leaf("issues").Start()
 	evidence.Leaf("pull requests").Start()
@@ -92,7 +99,118 @@ func createChangelogFromGithub(appConfig *createConfig) (*release.Release, *rele
 	// surface raw fetch totals and resolve evidence leaves with kept counts.
 	resolveEvidenceLeaves(evidence, summer, description)
 
+	// detect toolchain-requirement changes (opt-in) using the now-resolved range. The result
+	// shares the evidence tree as one more row (nil leaf when detection is disabled).
+	resolveToolchain(appConfig, gitter, startRelease, untilTag, description, evidence.Leaf("toolchain"))
+
 	return startRelease, description, nil
+}
+
+// resolveToolchain runs toolchain detection (when enabled), drives its row in the evidence tree,
+// and attaches the result to the description. Detection is best-effort: any failure is logged and
+// does not abort changelog generation. Reconciliation/downgrade warnings are surfaced to the
+// operator log here. The leaf is nil (a no-op) when detection is disabled.
+func resolveToolchain(appConfig *createConfig, gitter git.Interface, startRelease *release.Release, untilTag string, description *release.Description, leaf *event.Leaf) {
+	cfg := appConfig.Toolchain.ToToolchainConfig()
+	if !cfg.Enabled || description == nil {
+		return
+	}
+
+	leaf.SetStage("inspecting sources")
+
+	sinceRef := appConfig.SinceTag
+	if sinceRef == "" && startRelease != nil {
+		sinceRef = startRelease.Version
+	}
+
+	untilRef := untilTag
+	if untilRef == "" {
+		untilRef = "HEAD"
+		// detection diffs committed objects, so working-tree edits to a manifest are invisible.
+		// when ending at HEAD, warn if a toolchain source file is dirty so a bump that only exists
+		// uncommitted isn't mistaken for "no change".
+		warnOnUncommittedToolchainChanges(gitter, cfg)
+	}
+
+	if sinceRef == "" {
+		// no baseline to diff against (changelog starts at the beginning of git history).
+		leaf.Resolve("—", "no baseline")
+		return
+	}
+
+	data, err := toolchain.Detect(gitter, cfg, sinceRef, untilRef)
+	if err != nil {
+		leaf.Fail(err)
+		log.WithFields("error", err).Warn("toolchain detection failed")
+		return
+	}
+
+	description.Toolchain = data
+	count, note := toolchainLeafSummary(data)
+	leaf.Resolve(count, note)
+	logToolchainWarnings(data)
+}
+
+// toolchainLeafSummary renders the toolchain evidence row: the change count in the count column
+// (matching the other evidence rows) and a human-readable detail in the trailer note — the version
+// transition for a single change, or a downgrade tally for several.
+func toolchainLeafSummary(data *release.ToolchainData) (count, note string) {
+	if data == nil || len(data.Updates) == 0 {
+		return "0", "no change"
+	}
+
+	if len(data.Updates) == 1 {
+		u := data.Updates[0]
+		note = fmt.Sprintf("%s %s → %s", release.ToolLabel(u.Tool), u.From, u.To)
+		if u.Direction == release.ToolchainDowngrade {
+			note += ", downgrade"
+		}
+		return "1", note
+	}
+
+	downgrades := 0
+	for _, u := range data.Updates {
+		if u.Direction == release.ToolchainDowngrade {
+			downgrades++
+		}
+	}
+	if downgrades > 0 {
+		note = fmt.Sprintf("%d downgraded", downgrades)
+	}
+	return fmt.Sprintf("%d", len(data.Updates)), note
+}
+
+// logToolchainWarnings surfaces reconciliation conflicts and downgrades to the operator log,
+// beyond the inline annotations in the rendered changelog.
+func logToolchainWarnings(data *release.ToolchainData) {
+	if data == nil {
+		return
+	}
+	for _, w := range data.Warnings {
+		log.WithFields("tool", w.Tool, "files", strings.Join(w.Files, ", ")).Warn(w.Message)
+	}
+	for _, u := range data.Updates {
+		if u.Direction == release.ToolchainDowngrade {
+			log.WithFields("tool", u.Tool, "file", u.File, "from", u.From, "to", u.To).
+				Warn("toolchain minimum version was downgraded")
+		}
+	}
+}
+
+// warnOnUncommittedToolchainChanges warns when the changelog ends at HEAD but toolchain source
+// files have uncommitted working-tree changes (which the committed-history diff cannot see). The
+// check is best-effort — any failure is logged at trace level and otherwise ignored.
+func warnOnUncommittedToolchainChanges(gitter git.Interface, cfg toolchain.Config) {
+	dirty, err := toolchain.DirtySourceFiles(gitter, cfg)
+	if err != nil {
+		log.WithFields("error", err).Trace("unable to check working tree for uncommitted toolchain changes")
+		return
+	}
+	if len(dirty) == 0 {
+		return
+	}
+	log.WithFields("files", strings.Join(dirty, ", ")).
+		Warn("toolchain detection ends at HEAD but these source files have uncommitted changes; any toolchain version change in them will not appear in the changelog until committed")
 }
 
 // buildChangelogConfig assembles the ChangelogInfoConfig, including an

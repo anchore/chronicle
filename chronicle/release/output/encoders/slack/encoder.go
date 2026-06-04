@@ -43,6 +43,11 @@ func (e *Encoder) Encode(w io.Writer, title string, d release.Description) error
 		out.WriteString("\n\n")
 	}
 
+	if tc := formatToolchain(d.Toolchain); tc != "" {
+		out.WriteString(tc)
+		out.WriteString("\n\n")
+	}
+
 	fmt.Fprintf(&out, "*<%s|Full Changelog>*\n", d.VCSChangesURL)
 
 	_, err = io.WriteString(w, out.String())
@@ -78,6 +83,29 @@ func formatChangeSection(title string, summaries []change.Change) string {
 		result += formatSummary(summary)
 	}
 	return result
+}
+
+// formatToolchain renders the "Toolchain" section in Slack mrkdwn (bold label, bullet lines),
+// mirroring the markdown encoder's section but with Slack's flavor. Reconciliation warnings are
+// not rendered (operator/JSON-facing only).
+func formatToolchain(d *release.ToolchainData) string {
+	lines := d.DisplayLines()
+	if len(lines) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("*Toolchain*\n")
+	for _, l := range lines {
+		fmt.Fprintf(&b, "• %s: %s → %s", escapeMrkdwn(l.Label), escapeMrkdwn(l.From), escapeMrkdwn(l.To))
+		if l.Direction == release.ToolchainDowngrade {
+			b.WriteString(" (downgrade)")
+		}
+		if len(l.Files) > 0 {
+			fmt.Fprintf(&b, " (%s)", escapeMrkdwn(strings.Join(l.Files, ", ")))
+		}
+		b.WriteString("\n")
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 func formatSummary(summary change.Change) string {

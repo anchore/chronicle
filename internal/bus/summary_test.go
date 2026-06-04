@@ -88,6 +88,34 @@ func TestReportSummary_FullBlock(t *testing.T) {
 	snaps.MatchSnapshot(t, out)
 }
 
+func TestReportSummary_WithToolchain(t *testing.T) {
+	resetSummaryCache()
+	t.Cleanup(resetSummaryCache)
+
+	rng := PublishGroup("range", []event.GroupSlotInit{
+		{Name: "since", Label: "since", Intent: "latest release"},
+		{Name: "until", Label: "until", Intent: "HEAD"},
+	})
+	rng.Slot("since").Resolve("v0.14.0", "a3b4c5d", "Jan 15 2026")
+	rng.Slot("until").Resolve("v0.18.0", "f1e2d3c", "May 4 2026")
+
+	// when detection is enabled the toolchain row joins the evidence tree as one more leaf.
+	ev := PublishTree("evidence", []string{"commits", "issues", "pull requests", "toolchain"})
+	ev.Leaf("commits").Resolve("47", "32 associated")
+	ev.Leaf("issues").Resolve("73", "42 kept")
+	ev.Leaf("pull requests").Resolve("164", "87 kept")
+	ev.Leaf("toolchain").Resolve("1", "Go 1.21 → 1.23")
+
+	out := buildSummary(SummaryOpts{
+		Description:     newDescription(),
+		PreviousVersion: "v0.18.0",
+		NextVersion:     "v0.19.0",
+		BumpKind:        change.SemVerMinor,
+	})
+	require.NotEmpty(t, out)
+	snaps.MatchSnapshot(t, out)
+}
+
 func TestReportSummary_NoSpeculation(t *testing.T) {
 	resetSummaryCache()
 	t.Cleanup(resetSummaryCache)

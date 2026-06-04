@@ -13,6 +13,7 @@ type Description struct {
 	PreviousRelease  *Release           // the release this changelog starts from; nil if since the beginning of history
 	Speculated       bool               // true when the version was inferred by the speculator
 	Trunk            *TrunkData         // optional, populated by summarizers that implement TrunkSummarizer
+	Toolchain        *ToolchainData     // optional, populated by the worker when toolchain detection is enabled and a requirement changed
 
 	// raw evidence totals (pre-filter), surfaced for the summary report so it
 	// can show "N (M kept)" trailers. Populated by the worker after the

@@ -21,6 +21,8 @@ const headerTemplate = `{{if .Title }}# {{.Title}}
 
 {{ end }}{{if .Changes }}{{ formatChangeSections .Changes }}
 
+{{ end }}{{if .Toolchain }}{{ formatToolchain .Toolchain }}
+
 {{ end }}**[(Full Changelog)]({{.VCSChangesURL}})**
 `
 
@@ -45,6 +47,7 @@ func (e *Encoder) Encode(w io.Writer, title string, d release.Description) error
 		"formatChangeSections": func(changes change.Changes) string {
 			return formatChangeSections(d.SupportedChanges, changes)
 		},
+		"formatToolchain": formatToolchain,
 	}
 
 	tmpl, err := template.New("markdown").Funcs(funcMap).Parse(headerTemplate)
@@ -83,6 +86,29 @@ func formatChangeSection(title string, summaries []change.Change) string {
 		result += formatSummary(summary)
 	}
 	return result
+}
+
+// formatToolchain renders the "Toolchain" section listing declared toolchain-requirement changes
+// (e.g. a minimum Go version bump). Reconciliation warnings are intentionally not rendered here —
+// they are operator/JSON-facing only.
+func formatToolchain(d *release.ToolchainData) string {
+	lines := d.DisplayLines()
+	if len(lines) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("### Toolchain\n\n")
+	for _, l := range lines {
+		fmt.Fprintf(&b, "- %s: %s → %s", l.Label, l.From, l.To)
+		if l.Direction == release.ToolchainDowngrade {
+			b.WriteString(" (downgrade)")
+		}
+		if len(l.Files) > 0 {
+			fmt.Fprintf(&b, " (%s)", strings.Join(l.Files, ", "))
+		}
+		b.WriteString("\n")
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 func formatSummary(summary change.Change) string {
