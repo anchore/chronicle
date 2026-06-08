@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -153,24 +154,27 @@ func attachDependencyDiff(ctx context.Context, appConfig *createConfig, gitter g
 		sourceName = filepath.Base(appConfig.RepoPath)
 	}
 
-	// kick the UI elements ComputeDiff drives but no longer owns: catalog both
-	// refs now, plus (when annotating) the parallel DB update. The observer fills
-	// in per-ref progress; the parent leaves resolve from the diff post-return.
+	// register each ref's sbom branch leaf so the scan — which publishes its
+	// resolved syft source to the bus from deep inside — can route syft's live
+	// package count onto the right branch. Then kick the spinners.
+	sbomSince := sbomLeaf.Child("since")
+	sbomUntil := sbomLeaf.Child("until")
+	bus.RegisterSBOMLeaf(sinceRef, sbomSince)
+	bus.RegisterSBOMLeaf(untilRef, sbomUntil)
 	sbomLeaf.SetStage("cataloging…")
-	sbomLeaf.Child("since").Start()
-	sbomLeaf.Child("until").Start()
+	sbomSince.Start()
+	sbomUntil.Start()
 	if annotate {
-		vulnLeaf.SetStage("updating db…")
+		vulnLeaf.SetStage("matching…")
 		vulnLeaf.Child("since").Start()
 		vulnLeaf.Child("until").Start()
 	}
 
 	// always keep the grype DB fresh; not user-configurable.
 	scanner := scan.NewScanner(ecosystems, appConfig.Dependencies.Exclude, annotate, true)
-	diff, err := dependency.ComputeDiff(ctx, scanner, dependency.Config{
+	result, err := dependency.ComputeDiff(ctx, scanner, dependency.Config{
 		Target:      source.NewGitTarget(appConfig.RepoPath),
 		Comparer:    scan.NewVersionComparer(),
-		Observer:    dependencyObserver(sbomLeaf, vulnLeaf),
 		SinceRef:    sinceRef,
 		UntilRef:    untilRef,
 		SourceName:  sourceName,
@@ -185,18 +189,23 @@ func attachDependencyDiff(ctx context.Context, appConfig *createConfig, gitter g
 		}
 		return
 	}
-	description.DependencyDiff = diff
+	description.DependencyDiff = &result.Diff
 
-	// resolve the parent leaves from the finished diff (the per-ref children were
-	// resolved live by the observer). The vulnerability rollup is only meaningful
-	// when both refs matched; if either failed, fail the parent rather than show a
-	// hollow 0/0.
-	sbomLeaf.Resolve(diffMetrics(diff)...)
+	// the scan published only its live progress; the authoritative figures come
+	// back here as data, which we render onto the leaves (mirroring how
+	// resolveEvidenceLeaves resolves from the returned description).
+	sbomSince.Resolve(event.Count("package", result.Since.Packages))
+	sbomUntil.Resolve(event.Count("package", result.Until.Packages))
+	sbomLeaf.Resolve(diffMetrics(&result.Diff)...)
 	if annotate {
-		if matchErr := firstLeafErr(vulnLeaf.Child("since"), vulnLeaf.Child("until")); matchErr != nil {
-			vulnLeaf.Fail(matchErr)
+		resolveVulnBranch(vulnLeaf.Child("since"), result.Since)
+		resolveVulnBranch(vulnLeaf.Child("until"), result.Until)
+		// the rollup is only meaningful when both refs matched; if either failed,
+		// fail the parent rather than show a hollow 0/0.
+		if result.Since.VulnsFailed || result.Until.VulnsFailed {
+			vulnLeaf.Fail(errVulnMatchIncomplete)
 		} else {
-			vulnLeaf.Resolve(vulnMetrics(diff)...)
+			vulnLeaf.Resolve(vulnMetrics(&result.Diff)...)
 		}
 	}
 
@@ -208,31 +217,19 @@ func attachDependencyDiff(ctx context.Context, appConfig *createConfig, gitter g
 	description.DependencyRender = &rc
 }
 
-// dependencyObserver adapts ComputeDiff's per-ref progress callbacks onto the
-// sbom/vuln evidence leaves. Each callback touches only its own ref's child leaf
-// (matched by name to the "since"/"until" children), so the parallel scan
-// goroutines never contend; the event leaves are themselves concurrency-safe.
-func dependencyObserver(sbomLeaf, vulnLeaf *event.Leaf) dependency.Observer {
-	return dependency.Observer{
-		SourceResolved: func(ref, srcID string) {
-			bus.RegisterSBOMScanSource(srcID, sbomLeaf.Child(ref))
-		},
-		RefCataloged: func(ref string, packages int) {
-			sbomLeaf.Child(ref).Resolve(event.Count("package", packages))
-		},
-		RefCatalogFailed: func(ref string, err error) {
-			sbomLeaf.Child(ref).Fail(err)
-		},
-		MatchStarted: func(ref string) {
-			vulnLeaf.Child(ref).SetStage("matching…")
-		},
-		RefMatched: func(ref string, vulns int) {
-			vulnLeaf.Child(ref).Resolve(event.Count("vulnerability", vulns))
-		},
-		RefMatchFailed: func(ref string, err error) {
-			vulnLeaf.Child(ref).Fail(err)
-		},
+// errVulnMatchIncomplete fails a vulnerability leaf when matching didn't complete
+// for a ref. The specific cause (DB unavailable, matcher error) is logged by the
+// scanner; the leaf just needs a terminal failed state.
+var errVulnMatchIncomplete = errors.New("vulnerability matching did not complete")
+
+// resolveVulnBranch resolves a vulnerability branch leaf from its ref figures:
+// the distinct match count, or a failure when matching didn't complete.
+func resolveVulnBranch(leaf *event.Leaf, stat dependency.RefStat) {
+	if stat.VulnsFailed {
+		leaf.Fail(errVulnMatchIncomplete)
+		return
 	}
+	leaf.Resolve(event.Count("vulnerability", stat.Vulns))
 }
 
 // diffMetrics is the parent "source sbom" resolved figures: the package changes
@@ -254,16 +251,6 @@ func vulnMetrics(d *dependency.Diff) []event.Metric {
 		event.Count("remediated", d.RemediatedCount()),
 		event.Count("introduced", d.IntroducedCount()),
 	}
-}
-
-// firstLeafErr returns the first failed leaf's error, or nil when none failed.
-func firstLeafErr(leaves ...*event.Leaf) error {
-	for _, l := range leaves {
-		if err := l.Err(); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // dependencyDiffEnabled reports whether the opt-in source-sbom dependency diff

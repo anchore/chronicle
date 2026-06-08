@@ -53,7 +53,7 @@ func TestScanner_Scan_Exclude(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			snap, err := NewScanner([]string{"python"}, tt.exclude, false, false).
-				Scan(context.Background(), root, dependency.SourceInfo{Name: "test", Version: "v0"}, dependency.ScanHooks{})
+				Scan(context.Background(), root, dependency.SourceInfo{Name: "test", Version: "v0"})
 			require.NoError(t, err)
 
 			got := make([]string, 0, len(snap.Packages))

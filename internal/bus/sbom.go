@@ -13,9 +13,17 @@ import (
 // cataloging" task that carries no source identity, so it can't be attributed
 // to a branch on its own. The top-level "cataloging" task, however, does carry
 // the source ID in its context and is published immediately before its package
-// task in the same goroutine. We bridge the two here: the scan registers each
-// ref's source ID against its leaf; the UI enqueues that leaf when it sees the
-// top-level task, then binds the next package task's progress to it (FIFO).
+// task in the same goroutine. We bridge the two here in two steps, so neither
+// the scan nor the UI has to hold the other's handle:
+//
+//   - the UI worker, which owns the leaf tree, registers each ref's branch leaf
+//     against the ref string (RegisterSBOMLeaf);
+//   - the scan, deep in the syft integration, reports the source ID syft
+//     assigned to that ref (LinkSBOMSource) — identifiers only, no leaf.
+//
+// LinkSBOMSource joins the two into a source-ID → leaf map. The UI then enqueues
+// that leaf when it sees the top-level task and binds the next package task's
+// progress to it (FIFO).
 //
 // Best-effort by design: the since/until refs catalog concurrently, so if both
 // top-level tasks happen to be published before either package task, the FIFO
@@ -24,23 +32,38 @@ import (
 // pair them precisely; only serializing cataloging or an upstream syft change
 // could, and neither is worth it. This affects only the live count shown
 // mid-scan — each branch is resolved with its own authoritative count once its
-// catalog completes (see report.scanRef), so the final display is always correct.
+// catalog completes (the worker resolves it from the returned diff), so the
+// final display is always correct.
 var (
 	sbomMu        sync.Mutex
-	sbomLeafBySrc = map[string]*event.Leaf{}
+	sbomLeafByRef = map[string]*event.Leaf{} // ref (SourceInfo.Version) -> branch leaf
+	sbomLeafBySrc = map[string]*event.Leaf{} // syft source ID -> branch leaf
 	sbomBindQueue []*event.Leaf
 )
 
-// RegisterSBOMScanSource records that the syft source identified by srcID
-// corresponds to the given branch leaf. Called by the scan once GetSource
-// resolves, before cataloging begins.
-func RegisterSBOMScanSource(srcID string, leaf *event.Leaf) {
-	if leaf == nil || srcID == "" {
+// RegisterSBOMLeaf records the branch leaf that should show the live cataloging
+// count for the given scan ref (the SourceInfo.Version handed to the scanner).
+// Called by the UI worker that owns the leaf tree, before scanning begins.
+func RegisterSBOMLeaf(ref string, leaf *event.Leaf) {
+	if leaf == nil || ref == "" {
 		return
 	}
 	sbomMu.Lock()
 	defer sbomMu.Unlock()
-	sbomLeafBySrc[srcID] = leaf
+	sbomLeafByRef[ref] = leaf
+}
+
+// LinkSBOMSource records that syft resolved the given ref to srcID, linking the
+// source ID to whatever branch leaf was registered for that ref. Called by the
+// scan once GetSource resolves, before cataloging begins — it carries only
+// identifiers, so the scan stays free of any UI handle.
+func LinkSBOMSource(ref, srcID string) {
+	if ref == "" || srcID == "" {
+		return
+	}
+	sbomMu.Lock()
+	defer sbomMu.Unlock()
+	sbomLeafBySrc[srcID] = sbomLeafByRef[ref]
 }
 
 // EnqueueSBOMBind queues the leaf for the source identified by srcID to receive

@@ -220,6 +220,19 @@ type Snapshot struct {
 	Vulns    map[PackageKey][]Vulnerability // nil/empty when annotation disabled
 }
 
+// DistinctVulns counts the distinct vulnerability IDs matched across the
+// snapshot's packages — distinct because a single CVE can match several
+// packages. Returns 0 when the snapshot was not annotated.
+func (s Snapshot) DistinctVulns() int {
+	ids := make(map[string]struct{})
+	for _, vs := range s.Vulns {
+		for _, v := range vs {
+			ids[v.ID] = struct{}{}
+		}
+	}
+	return len(ids)
+}
+
 // PackageKey is the identity used to index packages and vulnerabilities across
 // the two snapshots.
 type PackageKey struct{ Type, Name string }

@@ -17,9 +17,12 @@ func TestSBOMPackageProgressBinding(t *testing.T) {
 	since := sbom.Child("since")
 	until := sbom.Child("until")
 
-	// the scan registers each ref's source ID against its branch leaf.
-	RegisterSBOMScanSource("src-since", since)
-	RegisterSBOMScanSource("src-until", until)
+	// the worker registers each ref's branch leaf; the scan then links the syft
+	// source ID syft assigned to that ref.
+	RegisterSBOMLeaf("since-ref", since)
+	RegisterSBOMLeaf("until-ref", until)
+	LinkSBOMSource("since-ref", "src-since")
+	LinkSBOMSource("until-ref", "src-until")
 
 	// syft publishes the top-level cataloging task (carrying the source ID),
 	// then the package-cataloging task (the live count) right after. When the

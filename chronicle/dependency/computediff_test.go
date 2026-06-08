@@ -40,7 +40,7 @@ require github.com/google/uuid v1.6.0
 	repoDir := t.TempDir()
 	sinceSha, _ := buildGoModRepo(t, repoDir, goModBase, goModBumped)
 
-	diff, err := dependency.ComputeDiff(context.Background(),
+	result, err := dependency.ComputeDiff(context.Background(),
 		scan.NewScanner(nil, nil, false, false),
 		dependency.Config{
 			Target:   source.NewGitTarget(repoDir),
@@ -49,13 +49,13 @@ require github.com/google/uuid v1.6.0
 			UntilRef: "HEAD",
 		})
 	require.NoError(t, err)
-	require.NotNil(t, diff)
+	require.NotNil(t, result)
 
 	// find the change for the bumped dependency; assert it is an Updated change
 	// with the expected from/to versions. We assert on the specific package
 	// rather than the total count, since syft may also catalog the main module.
 	var got *dependency.PackageChange
-	changes := diff.Changes()
+	changes := result.Diff.Changes()
 	for i := range changes {
 		if changes[i].Name == "github.com/google/uuid" {
 			got = &changes[i]

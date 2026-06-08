@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/anchore/chronicle/chronicle/dependency"
+	"github.com/anchore/chronicle/internal/bus"
 	"github.com/anchore/chronicle/internal/log"
 	"github.com/anchore/clio"
 	"github.com/anchore/grype/grype"
@@ -84,15 +85,13 @@ func NewScanner(ecosystems, excludePaths []string, annotate, autoUpdate bool) de
 
 // Scan catalogs dir and, when the scanner is annotating, waits for the shared DB
 // and matches vulnerabilities, returning the per-ref Snapshot. A catalog failure
-// is fatal (returned as an error); a DB-load or match failure degrades to a
-// packages-only Snapshot and is reported via hooks.OnMatchFailed.
-func (s *scanner) Scan(ctx context.Context, dir string, info dependency.SourceInfo, hooks dependency.ScanHooks) (dependency.Snapshot, error) {
-	cat, err := s.catalog(ctx, dir, info, hooks)
+// is fatal (returned as an error); a DB-load or match failure is non-fatal —
+// logged here and degraded to a packages-only Snapshot (nil Vulns), which the
+// caller surfaces as a failed vuln branch.
+func (s *scanner) Scan(ctx context.Context, dir string, info dependency.SourceInfo) (dependency.Snapshot, error) {
+	cat, err := s.catalog(ctx, dir, info)
 	if err != nil {
 		return dependency.Snapshot{}, err
-	}
-	if hooks.OnCataloged != nil {
-		hooks.OnCataloged(len(cat.packages))
 	}
 	snap := dependency.Snapshot{Packages: cat.packages}
 
@@ -104,25 +103,15 @@ func (s *scanner) Scan(ctx context.Context, dir string, info dependency.SourceIn
 	// matching needs both this ref's catalog (done) and the shared DB.
 	db, err := s.waitDB(ctx)
 	if err != nil {
-		if hooks.OnMatchFailed != nil {
-			hooks.OnMatchFailed(err)
-		}
-		return snap, nil // packages-only for this ref; vuln annotation skipped
-	}
-	if hooks.OnMatchStart != nil {
-		hooks.OnMatchStart()
+		log.WithFields("error", err, "ref", info.Version).Warn("vulnerability DB unavailable; skipping vulnerability match")
+		return snap, nil
 	}
 	vulns, err := s.match(ctx, db, cat)
 	if err != nil {
-		if hooks.OnMatchFailed != nil {
-			hooks.OnMatchFailed(err)
-		}
+		log.WithFields("error", err, "ref", info.Version).Warn("unable to match vulnerabilities; skipping")
 		return snap, nil
 	}
 	snap.Vulns = vulns
-	if hooks.OnMatched != nil {
-		hooks.OnMatched(distinctVulnCount(vulns))
-	}
 	return snap, nil
 }
 
@@ -157,8 +146,9 @@ func loadDB(autoUpdate bool) (*vulnDB, error) {
 }
 
 // catalog turns a materialized dir into packages (plus the SBOM that match
-// consumes), firing hooks.OnSourceID once syft has resolved the source.
-func (s *scanner) catalog(ctx context.Context, dir string, info dependency.SourceInfo, hooks dependency.ScanHooks) (*catalog, error) {
+// consumes), linking the resolved syft source to the bus so the UI can attribute
+// live cataloging progress to the right ref.
+func (s *scanner) catalog(ctx context.Context, dir string, info dependency.SourceInfo) (*catalog, error) {
 	if len(s.excludePaths) > 0 {
 		// syft resolves symlinks when indexing the tree but derives exclusion
 		// roots from filepath.Abs (no symlink resolution), so when the scan dir
@@ -191,11 +181,11 @@ func (s *scanner) catalog(ctx context.Context, dir string, info dependency.Sourc
 	if err != nil {
 		return nil, fmt.Errorf("unable to create source from %q: %w", dir, err)
 	}
-	// surface the source ID before cataloging so the caller can attribute the
-	// live progress syft is about to publish to the right UI element.
-	if hooks.OnSourceID != nil {
-		hooks.OnSourceID(string(src.ID()))
-	}
+	// link the source ID before cataloging so the UI can attribute the live
+	// progress syft is about to publish to this ref's branch leaf. Published from
+	// here (deep in the integration) rather than handed back up through the
+	// Scanner contract — the core stays free of any UI concern.
+	bus.LinkSBOMSource(info.Version, string(src.ID()))
 	defer func() {
 		if cerr := src.Close(); cerr != nil {
 			// non-fatal: the source is a temp dir owned by the caller's cleanup.
@@ -228,17 +218,6 @@ func (s *scanner) match(ctx context.Context, db *vulnDB, cat *catalog) (map[depe
 		return nil, nil
 	}
 	return matchSBOM(ctx, db.provider, cat.sb)
-}
-
-// distinctVulnCount counts the distinct vulnerability IDs matched on a ref.
-func distinctVulnCount(vulns map[dependency.PackageKey][]dependency.Vulnerability) int {
-	ids := make(map[string]struct{})
-	for _, vs := range vulns {
-		for _, v := range vs {
-			ids[v.ID] = struct{}{}
-		}
-	}
-	return len(ids)
 }
 
 // mapPackages folds syft's package collection into the pure dependency.Package
