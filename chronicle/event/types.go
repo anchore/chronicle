@@ -27,10 +27,10 @@ const (
 	// interleave with the live TUI on stderr.
 	CLIReportType partybus.EventType = cliTypePrefix + "-report"
 
-	// CLISummaryType carries the post-run recap block destined for stderr
-	// (range / evidence / changes-by-type / version transition). Distinct from
-	// CLIReportType so it can be routed to a different stream without running
-	// through the magenta notification style.
+	// CLISummaryType carries the raw figures for the post-run recap block (repo
+	// identity, change tally, version transition) as an event.Summary. The UI
+	// renders it — alongside the range/evidence groups it already received —
+	// into the recap block shown on stderr post-teardown.
 	CLISummaryType partybus.EventType = cliTypePrefix + "-summary"
 
 	// CLINotificationType carries short status messages for stderr, rendered

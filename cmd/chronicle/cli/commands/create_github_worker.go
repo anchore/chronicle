@@ -1,20 +1,27 @@
 package commands
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"strconv"
-	"time"
+	"path/filepath"
+	"strings"
 
+	"github.com/anchore/chronicle/chronicle/dependency"
+	"github.com/anchore/chronicle/chronicle/dependency/render"
+	"github.com/anchore/chronicle/chronicle/dependency/scan"
+	"github.com/anchore/chronicle/chronicle/dependency/source"
 	"github.com/anchore/chronicle/chronicle/event"
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/chronicle/release/releasers/github"
+	"github.com/anchore/chronicle/cmd/chronicle/cli/options"
 	"github.com/anchore/chronicle/internal/bus"
 	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
 )
 
-func createChangelogFromGithub(appConfig *createConfig) (*release.Release, *release.Description, error) {
+func createChangelogFromGithub(ctx context.Context, appConfig *createConfig) (*release.Release, *release.Description, error) {
 	// pre-flight: the trunk format encodes commit-level data that is only
 	// populated when consider-pr-merge-commits is enabled. Fail fast before
 	// any GitHub API work if the combination is invalid.
@@ -52,15 +59,8 @@ func createChangelogFromGithub(appConfig *createConfig) (*release.Release, *rele
 	rng.Slot("since").Start()
 	rng.Slot("until").Start()
 
-	evidence := bus.PublishTree("evidence", []string{
-		"commits", "issues", "pull requests",
-	})
+	evidence := publishEvidenceTree(appConfig)
 	defer evidence.Close()
-	// same kickoff for evidence — leaves stay running through the GraphQL
-	// fetches until resolveEvidenceLeaves resolves them with their counts.
-	evidence.Leaf("commits").Start()
-	evidence.Leaf("issues").Start()
-	evidence.Leaf("pull requests").Start()
 
 	changeTypeTitles := getGithubSupportedChanges(appConfig)
 
@@ -98,7 +98,195 @@ func createChangelogFromGithub(appConfig *createConfig) (*release.Release, *rele
 	// surface raw fetch totals and resolve evidence leaves with kept counts.
 	resolveEvidenceLeaves(evidence, summer, description)
 
+	// optional source-scan dependency diff. Non-fatal: a changelog must not
+	// fail because grype isn't ready or syft hit a snag.
+	attachDependencyDiff(ctx, appConfig, gitter, untilTag, description, evidence.Leaf("source sbom"), evidence.Leaf("vulnerabilities"))
+
 	return startRelease, description, nil
+}
+
+// attachDependencyDiff runs the opt-in dependency diff between the resolved
+// since/until endpoints and attaches it to the description. Any failure (no DB,
+// syft error, unresolvable ref) is logged and swallowed so changelog generation
+// continues unaffected.
+func attachDependencyDiff(ctx context.Context, appConfig *createConfig, gitter git.Interface, untilTag string, description *release.Description, sbomLeaf, vulnLeaf *event.Leaf) {
+	if description == nil {
+		return
+	}
+
+	// the feature is enabled when at least one ecosystem is requested.
+	ecosystems := splitEcosystems(appConfig.Dependencies.Ecosystems)
+	if len(ecosystems) == 0 {
+		return
+	}
+
+	// since: prefer the previous release tag; otherwise the first commit so the
+	// diff spans the whole history.
+	sinceRef := ""
+	if description.PreviousRelease != nil {
+		sinceRef = description.PreviousRelease.Version
+	}
+	if sinceRef == "" {
+		sha, err := gitter.FirstCommit()
+		if err != nil {
+			log.WithFields("error", err).Warn("unable to resolve since ref for dependency diff; skipping")
+			return
+		}
+		sinceRef = sha
+	}
+
+	// until: the resolved end tag, else HEAD.
+	untilRef := untilTag
+	if untilRef == "" {
+		untilRef = "HEAD"
+	}
+
+	if appConfig.Dependencies.OnlyVulnerable && !appConfig.Dependencies.AnnotateVulnerabilities {
+		log.Warn("dependencies.only-vulnerable has no effect without annotate-vulnerabilities; showing all changes")
+	}
+
+	annotate := appConfig.Dependencies.AnnotateVulnerabilities
+
+	// name the syft source after the project so artifact IDs are stable across the
+	// tmpdir each ref is materialized into; fall back to the repo dir name.
+	sourceName := bus.Repo() // "owner/repo"
+	if sourceName == "" {
+		sourceName = filepath.Base(appConfig.RepoPath)
+	}
+
+	// register each ref's sbom branch leaf so the scan — which publishes its
+	// resolved syft source to the bus from deep inside — can route syft's live
+	// package count onto the right branch. Then kick the spinners.
+	sbomSince := sbomLeaf.Child("since")
+	sbomUntil := sbomLeaf.Child("until")
+	bus.RegisterSBOMLeaf(sinceRef, sbomSince)
+	bus.RegisterSBOMLeaf(untilRef, sbomUntil)
+	sbomLeaf.SetStage("cataloging…")
+	sbomSince.Start()
+	sbomUntil.Start()
+	if annotate {
+		vulnLeaf.SetStage("matching…")
+		vulnLeaf.Child("since").Start()
+		vulnLeaf.Child("until").Start()
+	}
+
+	// always keep the grype DB fresh; not user-configurable.
+	scanner := scan.NewScanner(ecosystems, appConfig.Dependencies.Exclude, annotate, true)
+	result, err := dependency.ComputeDiff(ctx, scanner, dependency.Config{
+		Target:      source.NewGitTarget(appConfig.RepoPath),
+		Comparer:    scan.NewVersionComparer(),
+		SinceRef:    sinceRef,
+		UntilRef:    untilRef,
+		SourceName:  sourceName,
+		Annotate:    annotate,
+		MinSeverity: appConfig.Dependencies.MinSeverity,
+	})
+	if err != nil {
+		log.WithFields("error", err).Warn("unable to compute dependency diff; continuing without it")
+		sbomLeaf.Fail(err)
+		if annotate {
+			vulnLeaf.Fail(err)
+		}
+		return
+	}
+	description.DependencyDiff = &result.Diff
+
+	// the scan published only its live progress; the authoritative figures come
+	// back here as data, which we render onto the leaves (mirroring how
+	// resolveEvidenceLeaves resolves from the returned description).
+	sbomSince.Resolve(event.Count("package", result.Since.Packages))
+	sbomUntil.Resolve(event.Count("package", result.Until.Packages))
+	sbomLeaf.Resolve(diffMetrics(&result.Diff)...)
+	if annotate {
+		resolveVulnBranch(vulnLeaf.Child("since"), result.Since)
+		resolveVulnBranch(vulnLeaf.Child("until"), result.Until)
+		// the rollup is only meaningful when both refs matched; if either failed,
+		// fail the parent rather than show a hollow 0/0.
+		if result.Since.VulnsFailed || result.Until.VulnsFailed {
+			vulnLeaf.Fail(errVulnMatchIncomplete)
+		} else {
+			vulnLeaf.Resolve(vulnMetrics(&result.Diff)...)
+		}
+	}
+
+	// presentation travels alongside the data, not inside it. only-vulnerable is
+	// a render-time filter and only meaningful once annotation has populated the
+	// vuln deltas, so gate it on AnnotateVulnerabilities.
+	rc := dependencyRenderConfig(appConfig.Dependencies)
+	rc.OnlyVulnerable = appConfig.Dependencies.OnlyVulnerable && appConfig.Dependencies.AnnotateVulnerabilities
+	description.DependencyRender = &rc
+}
+
+// errVulnMatchIncomplete fails a vulnerability leaf when matching didn't complete
+// for a ref. The specific cause (DB unavailable, matcher error) is logged by the
+// scanner; the leaf just needs a terminal failed state.
+var errVulnMatchIncomplete = errors.New("vulnerability matching did not complete")
+
+// resolveVulnBranch resolves a vulnerability branch leaf from its ref figures:
+// the distinct match count, or a failure when matching didn't complete.
+func resolveVulnBranch(leaf *event.Leaf, stat dependency.RefStat) {
+	if stat.VulnsFailed {
+		leaf.Fail(errVulnMatchIncomplete)
+		return
+	}
+	leaf.Resolve(event.Count("vulnerability", stat.Vulns))
+}
+
+// diffMetrics is the parent "source sbom" resolved figures: the package changes
+// broken down by kind, rendered by the UI as a breakdown.
+func diffMetrics(d *dependency.Diff) []event.Metric {
+	t := d.Totals()
+	return []event.Metric{
+		event.Count("added", t.Added),
+		event.Count("removed", t.Removed),
+		event.Count("updated", t.Updated),
+		event.Count("downgraded", t.Downgraded),
+	}
+}
+
+// vulnMetrics is the parent "vulnerabilities" resolved figures: the net effect of
+// the diff on vulnerabilities, rendered by the UI as a breakdown.
+func vulnMetrics(d *dependency.Diff) []event.Metric {
+	return []event.Metric{
+		event.Count("remediated", d.RemediatedCount()),
+		event.Count("introduced", d.IntroducedCount()),
+	}
+}
+
+// dependencyDiffEnabled reports whether the opt-in source-sbom dependency diff
+// will run — i.e. at least one ecosystem was requested. Mirrors the guard in
+// attachDependencyDiff so the evidence tree can reserve the "source sbom" leaf.
+func dependencyDiffEnabled(appConfig *createConfig) bool {
+	return len(splitEcosystems(appConfig.Dependencies.Ecosystems)) > 0
+}
+
+// splitEcosystems normalizes the --dependencies values: each entry may itself
+// be comma-separated, so flatten, trim, and drop blanks.
+func splitEcosystems(raw []string) []string {
+	var out []string
+	for _, entry := range raw {
+		for _, part := range strings.Split(entry, ",") {
+			if p := strings.TrimSpace(part); p != "" {
+				out = append(out, p)
+			}
+		}
+	}
+	return out
+}
+
+// dependencyRenderConfig maps the cmd-layer dependency options onto the core
+// render config consumed by the encoders. Each action is a comma-separated
+// fallback list (e.g. "collapsed,list"); an empty/invalid value leaves nil so
+// ModesFor resolves the per-kind default.
+func dependencyRenderConfig(d options.Dependencies) render.Config {
+	return render.Config{
+		Actions: map[dependency.ChangeKind][]render.Mode{
+			dependency.Updated:    render.ParseModes(d.Actions.Updated),
+			dependency.Downgraded: render.ParseModes(d.Actions.Downgraded),
+			dependency.Added:      render.ParseModes(d.Actions.Added),
+			dependency.Removed:    render.ParseModes(d.Actions.Removed),
+		},
+	}
 }
 
 // buildChangelogConfig assembles the ChangelogInfoConfig, including an
@@ -123,6 +311,37 @@ func buildChangelogConfig(appConfig *createConfig, untilTag string, titles []cha
 	}
 }
 
+// publishEvidenceTree builds and publishes the "evidence" tree (commits, issues,
+// PRs) and kicks each base leaf into the running state so spinners show during
+// the GraphQL fetches. When the dependency diff is enabled it adds a "source
+// sbom" leaf with since/until branches (driven later via the ComputeDiff
+// observer), plus a sibling "vulnerabilities" leaf when annotation is on. The
+// caller owns Close.
+func publishEvidenceTree(appConfig *createConfig) *event.Tree {
+	evidenceSpecs := []event.LeafSpec{
+		{Name: "commits"},
+		{Name: "issues"},
+		{Name: "pull requests"},
+	}
+	if dependencyDiffEnabled(appConfig) {
+		evidenceSpecs = append(evidenceSpecs, event.LeafSpec{
+			Name:     "source sbom",
+			Children: []string{"since", "until"},
+		})
+		if appConfig.Dependencies.AnnotateVulnerabilities {
+			evidenceSpecs = append(evidenceSpecs, event.LeafSpec{
+				Name:     "vulnerabilities",
+				Children: []string{"since", "until"},
+			})
+		}
+	}
+	evidence := bus.PublishTreeSpec("evidence", evidenceSpecs)
+	evidence.Leaf("commits").Start()
+	evidence.Leaf("issues").Start()
+	evidence.Leaf("pull requests").Start()
+	return evidence
+}
+
 // resolveEvidenceLeaves copies fetch totals onto the description and resolves
 // the three evidence leaves. The trailer reports how many of the fetched items
 // were *dropped* — i.e., not associated with the release directly or
@@ -137,10 +356,12 @@ func resolveEvidenceLeaves(evidence *event.Tree, summer *github.Summarizer, desc
 	}
 
 	// commits is always resolved with its count: it is the signal we acted on
-	// (zero commits is what drove the short-circuit).
-	associatedCommits := summer.AssociatedCommits()
-	evidence.Leaf("commits").Resolve(strconv.Itoa(commitTotal),
-		droppedTrailer(commitTotal, associatedCommits))
+	// (zero commits is what drove the short-circuit). The dropped trailer (how
+	// many fetched items aren't associated with the release) is raw — the UI
+	// decides whether and how to show it.
+	commits := evidence.Leaf("commits")
+	commits.Resolve(event.Num(commitTotal))
+	commits.SetDropped(commitTotal - summer.AssociatedCommits())
 
 	// when there were no commits in scope the issue/PR fetches were skipped, so
 	// mark those leaves as skipped rather than resolved-with-zero — a zero count
@@ -151,22 +372,13 @@ func resolveEvidenceLeaves(evidence *event.Tree, summer *github.Summarizer, desc
 		return
 	}
 
-	issuesKept := summer.IssuesKept()
-	prsKept := summer.PRsKept()
-	evidence.Leaf("issues").Resolve(strconv.Itoa(issueTotal),
-		droppedTrailer(issueTotal, issuesKept))
-	evidence.Leaf("pull requests").Resolve(strconv.Itoa(prTotal),
-		droppedTrailer(prTotal, prsKept))
-}
+	issues := evidence.Leaf("issues")
+	issues.Resolve(event.Num(issueTotal))
+	issues.SetDropped(issueTotal - summer.IssuesKept())
 
-// droppedTrailer formats the "(N dropped)" parenthetical, returning empty when
-// nothing was dropped (so the row renders without any trailer).
-func droppedTrailer(total, kept int) string {
-	dropped := total - kept
-	if dropped <= 0 {
-		return ""
-	}
-	return fmt.Sprintf("%d dropped", dropped)
+	prs := evidence.Leaf("pull requests")
+	prs.Resolve(event.Num(prTotal))
+	prs.SetDropped(prTotal - summer.PRsKept())
 }
 
 // publishRangeGroup constructs the user-visible "range" bracket group with the
@@ -192,55 +404,39 @@ func publishRangeGroup(appConfig *createConfig) *event.Group {
 // failed one when at least the date or sha is known.
 func resolveRangeSlots(rng *event.Group, gitter git.Interface, sinceTag, untilTag string, desc *release.Description) {
 	// since: prefer a tag lookup; fall back to whatever PreviousRelease carries.
+	// Values are raw (tag, full sha, timestamp); the UI shortens the sha and
+	// formats the date.
 	switch {
 	case sinceTag != "":
 		if t, err := gitter.SearchForTag(sinceTag); err == nil && t != nil {
-			rng.Slot("since").Resolve(t.Name, shortSha(t.Commit), formatDate(t.Timestamp))
+			rng.Slot("since").Resolve(event.Text(t.Name), event.SHA(t.Commit), event.Date(t.Timestamp))
 		} else {
-			rng.Slot("since").Resolve(sinceTag, formatDate(time.Time{}))
+			rng.Slot("since").Resolve(event.Text(sinceTag))
 		}
 	case desc != nil && desc.PreviousRelease != nil:
 		ver := desc.PreviousRelease.Version
 		if t, err := gitter.SearchForTag(ver); err == nil && t != nil {
-			rng.Slot("since").Resolve(ver, shortSha(t.Commit), formatDate(desc.PreviousRelease.Date))
+			rng.Slot("since").Resolve(event.Text(ver), event.SHA(t.Commit), event.Date(desc.PreviousRelease.Date))
 		} else {
-			rng.Slot("since").Resolve(ver, formatDate(desc.PreviousRelease.Date))
+			rng.Slot("since").Resolve(event.Text(ver), event.Date(desc.PreviousRelease.Date))
 		}
 	default:
 		// no prior release: since the beginning of git history.
 		if sha, err := gitter.FirstCommit(); err == nil {
-			rng.Slot("since").Resolve(shortSha(sha))
+			rng.Slot("since").Resolve(event.SHA(sha))
 		}
 	}
 
 	// until: prefer the resolved tag; otherwise show HEAD.
 	if untilTag != "" {
 		if t, err := gitter.SearchForTag(untilTag); err == nil && t != nil {
-			rng.Slot("until").Resolve(t.Name, shortSha(t.Commit), formatDate(t.Timestamp))
+			rng.Slot("until").Resolve(event.Text(t.Name), event.SHA(t.Commit), event.Date(t.Timestamp))
 		} else {
-			rng.Slot("until").Resolve(untilTag)
+			rng.Slot("until").Resolve(event.Text(untilTag))
 		}
 	} else if sha, err := gitter.HeadTagOrCommit(); err == nil {
-		rng.Slot("until").Resolve(shortSha(sha))
+		rng.Slot("until").Resolve(event.SHA(sha))
 	}
-}
-
-// shortSha returns the leading 7 chars of a commit sha (the conventional
-// short form), or the input if shorter.
-func shortSha(sha string) string {
-	if len(sha) > 7 {
-		return sha[:7]
-	}
-	return sha
-}
-
-// formatDate renders a timestamp in the compact form used in the summary
-// trailer (e.g. "Jan 15 2026"). Empty time renders as "".
-func formatDate(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-	return t.Format("Jan 2 2006")
 }
 
 // checkTrunkPrerequisites returns an error when the trunk output format is

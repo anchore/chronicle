@@ -246,3 +246,124 @@ The default value for `github.changes` is:
 - name: unknown
   title: Additional Changes
 ```
+
+## Dependency scanning
+
+Chronicle can diff the dependency graph between the `since` and `until` refs and render the results as a `### Dependencies` section in the changelog. Each changed package is reported as added, updated, downgraded, or removed. With vulnerability annotation enabled, chronicle also notes which CVEs/GHSAs were remediated or introduced by each change.
+
+This feature is **opt-in**: it runs only when you request one or more ecosystems.
+
+### Enabling
+
+Pass `--dependencies` with the ecosystem(s) to scan. The ecosystem value is a [syft cataloger selection](https://github.com/anchore/syft) expression — `language` (all language ecosystems), or a specific one like `go`, `python`, `javascript`, `java`, `ruby`, `rust`, `php`, `dotnet`. The flag is repeatable and accepts comma-separated values:
+
+```bash
+chronicle --dependencies go
+chronicle --dependencies go,python
+chronicle --dependencies language
+```
+
+Scoping to an ecosystem keeps the section focused: `--dependencies go` reports only Go modules, not the GitHub Actions, OS packages, or other manifests syft can also find in the tree.
+
+To annotate each change with the CVEs/GHSAs it remediated or introduced, add `--vulnerabilities` (this downloads/loads the grype vulnerability DB — see below):
+
+```bash
+chronicle --dependencies go --vulnerabilities
+```
+
+### Example output
+
+By default each change kind is **collapsed** — a count that expands to a compact
+list — so the section stays small (this renders as a `<details>` block on
+GitHub). Each entry is the package name, the version transition (long Go
+pseudo-versions are shortened to a 7-char commit hash), and any vulnerability
+note in italics:
+
+````
+### Dependencies
+
+23 dependency changes (12 updated, 8 added, 3 removed). 47 vulnerabilities remediated.
+
+<details>
+<summary>Updated (12 packages)</summary>
+
+- **golang.org/x/net** `v0.17.0 → v0.23.0` *(remediated CVE-2023-44487, CVE-2023-39325)*
+- **github.com/google/pprof** `v0.0.0-6f57359 → v0.0.0-6e76a2b`
+- **github.com/foo/bar** `v1.2.0 → v1.1.0` *(⚠ reintroduces CVE-2024-12345)*
+</details>
+
+<details>
+<summary>Added (8 packages)</summary>
+
+- **github.com/new/dep** `v0.4.0`
+</details>
+````
+
+Set an action to `list` for an always-expanded list, or `summary` for a count
+only. When more than one ecosystem is present, changes are grouped into
+`#### Go`, `#### Python`, … subsections under the `### Dependencies` header.
+Vulnerability notes appear only when `--vulnerabilities` is set.
+
+### Configuration
+
+All dependency options live under the `dependencies:` key. Default values are shown:
+
+```yaml
+dependencies:
+  # ecosystems to scan (syft cataloger selection, e.g. language, go, python).
+  # the feature is enabled when this is non-empty. "language" selects all
+  # language ecosystems. same as --dependencies (repeatable / comma-separated).
+  ecosystems: []
+
+  # paths to exclude from the scan (e.g. vendored or test trees), as syft
+  # exclude patterns. each pattern must start with "./", "*/", or "**/" and is
+  # matched relative to the repo root — e.g. ./vendor, **/testdata, */examples.
+  exclude: []
+
+  # annotate dependency changes with known vulnerability information
+  # same as --vulnerabilities. requires at least one ecosystem above (there is
+  # nothing to annotate without a dependency diff).
+  annotate-vulnerabilities: false
+
+  # only show dependency changes that remediated or introduced a vulnerability
+  # (a security-focused view). requires annotate-vulnerabilities; no effect
+  # without it. (config-only, no flag)
+  only-vulnerable: false
+
+  # minimum vulnerability severity to include in annotations (e.g. low, medium, high, critical)
+  # empty string includes all severities (config-only, no flag)
+  min-severity: ""
+
+  # how each change kind is displayed. each value is a comma-separated list of
+  # fallback modes; the encoder uses the first one it supports. modes:
+  #   hide      - omit the kind
+  #   summary   - count only, e.g. "Added (20 packages)"
+  #   list      - a full bullet list (markdown and slack)
+  #   collapsed - a bullet list inside a <details> block (markdown/GitHub only)
+  # e.g. "collapsed,list" collapses in markdown but enumerates in slack (which
+  # cannot collapse). a bare "collapsed" degrades to "list" where unsupported.
+  actions:
+    updated:    collapsed,list
+    downgraded: collapsed,list
+    added:      collapsed,list
+    removed:    collapsed,list
+```
+
+When `only-vulnerable` is active the per-kind headers note that the count is the
+vuln-affected subset — e.g. `Updated (11 packages with vulnerability changes)` —
+so it is clearly distinct from the full totals in the summary line. Each listed
+package's vulnerability note shows the 🟢-flagged remediated IDs and any
+🔴-flagged (re)introduced IDs, with each ID linked to its data source.
+
+### Vulnerability database
+
+When `annotate-vulnerabilities` is enabled, chronicle uses grype's vulnerability database. The DB is stored in grype's default cache directory (`~/.cache/grype/db/...`), so if you already use the grype CLI the cache is shared between them.
+
+- **First run**: the DB is downloaded on demand (hundreds of MB) and requires network access.
+- **Subsequent runs**: chronicle reads from the local cache and checks for DB updates on each run (matching grype's default behavior).
+
+### Limitations
+
+- **Source/declared dependencies only.** The scan reads `go.mod`, lockfiles, and vendored manifests — it does not see base-image or OS packages. A base-image bump that removes OS-level CVEs will not appear in this section.
+- **First-run download cost.** The initial DB download is several hundred megabytes and requires network access; subsequent runs use the local grype cache.
+- **Annotation adds runtime cost.** Enabling `annotate-vulnerabilities` loads the vulnerability DB and runs two grype match passes (one for each ref), which increases wall-clock time compared to a plain dependency diff.

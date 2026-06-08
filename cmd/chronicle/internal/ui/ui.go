@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/wagoodman/go-partybus"
 
+	"github.com/anchore/bubbly"
 	"github.com/anchore/bubbly/bubbles/frame"
 	"github.com/anchore/chronicle/chronicle/event"
 	handler "github.com/anchore/chronicle/cmd/chronicle/cli/ui"
@@ -34,23 +35,30 @@ type UI struct {
 	quiet          bool
 	subscription   partybus.Unsubscribable
 	finalizeEvents []partybus.Event
+	recap          recap
 
 	version string
 	repo    string
 
-	handler *handler.Handler
-	frame   tea.Model
+	handler  *handler.Handler
+	handlers *bubbly.HandlerCollection
+	frame    tea.Model
 }
 
 func New(version, repo string, _, quiet bool) *UI {
 	h := handler.New()
+	// chronicle's own handler is the only one: it consumes syft/grype cataloging
+	// events itself (rolling the package count onto the source-sbom branches)
+	// rather than letting syft/grype render their own multi-row TUI here.
+	handlers := bubbly.NewHandlerCollection(h)
 	return &UI{
-		handler: h,
-		frame:   frame.New(),
-		running: &sync.WaitGroup{},
-		quiet:   quiet,
-		version: version,
-		repo:    repo,
+		handler:  h,
+		handlers: handlers,
+		frame:    frame.New(),
+		running:  &sync.WaitGroup{},
+		quiet:    quiet,
+		version:  version,
+		repo:     repo,
 	}
 }
 
@@ -119,7 +127,7 @@ func (m *UI) Teardown(force bool) error {
 		})
 	}
 
-	postUIEvents(m.quiet, m.finalizeEvents...)
+	postUIEvents(m.quiet, m.recap.render(), m.finalizeEvents...)
 	return nil
 }
 
@@ -142,7 +150,7 @@ func (m *UI) RespondsTo() []partybus.EventType {
 		event.CLISummaryType,
 		event.CLINotificationType,
 		event.CLIExitType,
-	}, m.handler.RespondsTo()...)
+	}, m.handlers.RespondsTo()...)
 }
 
 func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -169,10 +177,17 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case partybus.Event:
+		// collect the raw groups/trees/summary figures for the post-teardown
+		// recap block (rendered by cli/ui once the live area is gone).
+		m.recap.observe(msg)
+
 		switch msg.Type {
-		case event.CLIReportType, event.CLISummaryType, event.CLINotificationType:
+		case event.CLIReportType, event.CLINotificationType:
 			// stash for post-teardown emission; they don't drive the frame.
 			m.finalizeEvents = append(m.finalizeEvents, msg)
+			return m, nil
+		case event.CLISummaryType:
+			// observed above for the recap; nothing to render live.
 			return m, nil
 
 		case event.CLIExitType, clio.ExitEventType:
@@ -195,7 +210,7 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 		}
 
-		newModels, cmd := m.handler.Handle(msg)
+		newModels, cmd := m.handlers.Handle(msg)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}

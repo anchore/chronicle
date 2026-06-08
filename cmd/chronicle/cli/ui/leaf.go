@@ -46,8 +46,8 @@ func (l leaf) View() string {
 
 	switch l.data.State() {
 	case event.SlotResolved:
-		b.WriteString(resolvedStyle.Render(l.data.Count()))
-		if note := l.data.Note(); note != "" {
+		b.WriteString(resolvedStyle.Render(formatMetrics(l.data.Metrics())))
+		if note := droppedText(l.data.Dropped()); note != "" {
 			b.WriteString("   ")
 			b.WriteString(dimStyle.Render("(" + note + ")"))
 		}
@@ -59,7 +59,7 @@ func (l leaf) View() string {
 			b.WriteString(dimStyle.Render(err.Error()))
 		}
 	case event.SlotRunning:
-		if cur := l.data.Stage.Current; cur != "" {
+		if cur := l.data.RunningDetail(); cur != "" {
 			b.WriteString(dimStyle.Render(cur))
 		} else {
 			b.WriteString(dimStyle.Render("waiting"))

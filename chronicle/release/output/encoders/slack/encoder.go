@@ -11,6 +11,8 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/anchore/chronicle/chronicle/dependency"
+	"github.com/anchore/chronicle/chronicle/dependency/render"
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 )
@@ -37,6 +39,11 @@ func (e *Encoder) Encode(w io.Writer, title string, d release.Description) error
 
 	if sections := formatChangeSections(d.SupportedChanges, d.Changes, d.ConventionalCommitTypes); sections != "" {
 		out.WriteString(sections)
+		out.WriteString("\n\n")
+	}
+
+	if deps := formatDependencies(d.DependencyDiff, d.DependencyRender); deps != "" {
+		out.WriteString(deps)
 		out.WriteString("\n\n")
 	}
 
@@ -154,6 +161,20 @@ func renderRef(ref change.Reference) string {
 	}
 }
 
+// backtick wraps a string in inline-code backticks; used to style each version
+// token in a transition while leaving the → arrow as plain text.
+func backtick(s string) string { return "`" + s + "`" }
+
+// vulnLink renders a vulnerability ID as a Slack link to its data source
+// (grype's primary reference URL), falling back to the escaped bare ID when
+// grype supplied no URL.
+func vulnLink(v dependency.Vulnerability) string {
+	if v.DataSource == "" {
+		return escapeMrkdwn(v.ID)
+	}
+	return fmt.Sprintf("<%s|%s>", v.DataSource, escapeMrkdwn(v.ID))
+}
+
 // mrkdwnEscaper escapes the only three characters Slack reserves in mrkdwn
 // text. & must be listed first so its replacement isn't re-escaped; NewReplacer
 // scans left-to-right without re-scanning, so this is single-pass safe.
@@ -164,6 +185,97 @@ var mrkdwnEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 // the `<url|text>` link wrappers we build, only to the text inside them.
 func escapeMrkdwn(s string) string {
 	return mrkdwnEscaper.Replace(s)
+}
+
+// formatDependencies renders the dependency diff as a Slack mrkdwn block,
+// mirroring the markdown encoder's section but with `*bold*` labels and `•`
+// bullets. Returns "" when there is nothing to show.
+func formatDependencies(diff *dependency.Diff, rc *render.Config) string {
+	if diff == nil || diff.Totals().Total() == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("*Dependencies*\n\n")
+	// summary reports the full totals; enumeration honors OnlyVulnerable. Slack
+	// never collapses, so its change lists always render expanded with inline
+	// vulnerability annotations — no separate vulnerabilities rollup (that only
+	// earns its place above collapsed markdown sections).
+	sb.WriteString(render.SummaryLine(*diff) + "\n")
+
+	// group the visible changes by ecosystem; flat for a single ecosystem,
+	// otherwise a bold ecosystem label per group (slack has no header levels).
+	// The change kinds render as a subordinate bullet list under the
+	// *Dependencies* header.
+	groups := render.GroupByEcosystem(rc.VisibleChanges(diff.Changes()))
+	multi := len(groups) > 1
+	for _, g := range groups {
+		if multi {
+			sb.WriteString("\n*" + escapeMrkdwn(g.Title) + "*\n")
+		} else {
+			sb.WriteString("\n")
+		}
+		sb.WriteString(formatEcosystemActions(g.Changes, rc))
+	}
+
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+// actionOrder is the order change kinds render within an ecosystem.
+var actionOrder = []struct {
+	kind  dependency.ChangeKind
+	label string
+}{
+	{dependency.Updated, "Updated"},
+	{dependency.Downgraded, "Downgraded"},
+	{dependency.Added, "Added"},
+	{dependency.Removed, "Removed"},
+}
+
+// formatEcosystemActions renders the per-change-kind bullets for one ecosystem's
+// changes. Slack has no <details> or tables, so "collapsed" falls through to the
+// configured fallback (list or summary). Each kind is a bullet; in list mode its
+// packages render as indented sub-bullets.
+func formatEcosystemActions(changes []dependency.PackageChange, rc *render.Config) string {
+	var sb strings.Builder
+	for _, a := range actionOrder {
+		mode := rc.ResolveDisplay(a.kind, false) // slack cannot collapse
+		if mode == render.ModeHide {
+			continue
+		}
+
+		var subset []dependency.PackageChange
+		for _, c := range changes {
+			if c.Kind == a.kind {
+				subset = append(subset, c)
+			}
+		}
+		if len(subset) == 0 {
+			continue
+		}
+
+		// the kind is a bullet subordinate to the *Dependencies* header.
+		fmt.Fprintf(&sb, "• %s (%s)\n", a.label, rc.PackageCountLabel(len(subset)))
+		if mode != render.ModeList {
+			continue
+		}
+		for _, c := range subset {
+			sb.WriteString("    " + dependencyChangeLine(c) + "\n")
+		}
+	}
+	return sb.String()
+}
+
+// dependencyChangeLine renders a single change as a Slack bullet: the package
+// name, the version transition in code, and any vulnerability note in bold
+// parentheses (mirroring the markdown list, in Slack mrkdwn — `*x*` is bold).
+func dependencyChangeLine(c dependency.PackageChange) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "• %s %s", escapeMrkdwn(c.Name), render.VersionTransitionWith(c, backtick))
+	if note := render.VulnNoteWith(c, vulnLink); note != "" {
+		sb.WriteString(" *(" + note + ")*")
+	}
+	return sb.String()
 }
 
 func endsWithPunctuation(s string) bool {

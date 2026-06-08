@@ -9,6 +9,11 @@ import (
 	"github.com/anchore/chronicle/chronicle/event"
 )
 
+const (
+	branchMid  = "├──" // a non-last item's branch glyph
+	branchLast = "└──" // the last item's branch glyph
+)
+
 // treeGroup renders a header line followed by N child leaf models stacked with
 // tree prefixes (├── for non-last positions, └── for the last). Same expire
 // protocol as bracketGroup.
@@ -18,8 +23,10 @@ type treeGroup struct {
 	expired bool
 }
 
-// NewTreeGroup constructs the bubbletea model for an *event.Tree. The
-// spinner is the shared singleton owned by the top-level UI.
+// NewTreeGroup constructs the bubbletea model for an *event.Tree, flattening
+// leaves and their (one level of) children into a stack of rows with the right
+// tree-drawing prefixes. The spinner is the shared singleton owned by the
+// top-level UI.
 func NewTreeGroup(t *event.Tree, sp *spinner.Model) tea.Model {
 	if t == nil {
 		return &treeGroup{}
@@ -30,27 +37,64 @@ func NewTreeGroup(t *event.Tree, sp *spinner.Model) tea.Model {
 		leaves: make([]*leaf, 0, len(names)),
 	}
 
-	nameWidth := 0
+	// top-level leaves align against each other; children align against their
+	// own siblings (a deeper indent makes cross-level alignment meaningless).
+	topWidth := 0
 	for _, n := range names {
-		if l := len(n); l > nameWidth {
-			nameWidth = l
+		if l := len(n); l > topWidth {
+			topWidth = l
 		}
 	}
 
 	for i, n := range names {
-		l := newLeaf(t.Leaf(n), sp)
-		l.SetPrefix(treePrefix(i, len(names)))
-		l.SetNameWidth(nameWidth)
-		tg.leaves = append(tg.leaves, l)
+		parent := t.Leaf(n)
+		parentLast := i == len(names)-1
+
+		pl := newLeaf(parent, sp)
+		pl.SetPrefix(treePrefix(i, len(names)))
+		pl.SetNameWidth(topWidth)
+		tg.leaves = append(tg.leaves, pl)
+
+		children := parent.Children()
+		if len(children) == 0 {
+			continue
+		}
+		childWidth := 0
+		for _, c := range children {
+			if l := len(c.Name()); l > childWidth {
+				childWidth = l
+			}
+		}
+		for j, c := range children {
+			cl := newLeaf(c, sp)
+			cl.SetPrefix(childPrefix(parentLast, j, len(children)))
+			cl.SetNameWidth(childWidth)
+			tg.leaves = append(tg.leaves, cl)
+		}
 	}
 	return tg
 }
 
 func treePrefix(i, n int) string {
 	if i == n-1 {
-		return "└──"
+		return branchLast
 	}
-	return "├──"
+	return branchMid
+}
+
+// childPrefix builds a nested child's prefix: a continuation column under the
+// parent ("│   " when the parent has rows below it, else "    ") followed by
+// the child's own branch glyph.
+func childPrefix(parentLast bool, j, n int) string {
+	cont := "│   "
+	if parentLast {
+		cont = "    "
+	}
+	branch := branchMid
+	if j == n-1 {
+		branch = branchLast
+	}
+	return cont + branch
 }
 
 func (t *treeGroup) Init() tea.Cmd {

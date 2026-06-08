@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -52,12 +53,12 @@ func NextVersion(app clio.Application) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// ensure errors are printed to stderr since most output is redirected to CHANGELOG.md more often than not
 			cmd.SetErr(os.Stderr)
-			return runNextVersion(cfg)
+			return runNextVersion(cmd.Context(), cfg)
 		},
 	}, cfg)
 }
 
-func runNextVersion(cfg *nextVersion) error {
+func runNextVersion(ctx context.Context, cfg *nextVersion) error {
 	// cobra prints its own one-line deprecation header on stderr; we additionally
 	// log a warning with a concrete replacement command so it shows up alongside
 	// other chronicle log lines and points at the exact migration.
@@ -68,7 +69,7 @@ func runNextVersion(cfg *nextVersion) error {
 		RepoPath:             cfg.RepoPath,
 		SpeculateNextVersion: true,
 	}
-	_, description, err := selectWorker(cfg.RepoPath)(appConfig)
+	_, description, err := selectWorker(cfg.RepoPath)(ctx, appConfig)
 	if err != nil {
 		return err
 	}

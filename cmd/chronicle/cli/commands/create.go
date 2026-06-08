@@ -1,11 +1,15 @@
 package commands
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 
+	"github.com/anchore/chronicle/chronicle/dependency"
+	"github.com/anchore/chronicle/chronicle/event"
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/internal/bus"
@@ -35,7 +39,10 @@ Create a changelog representing the changes from tag v0.14.0 until v0.18.0 (for 
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// ensure errors are printed to stderr since most output is redirected to CHANGELOG.md more often than not
 			cmd.SetErr(os.Stderr)
-			return runCreate(appConfig)
+			// cmd.Context() is the clio-provided context cancelled on SIGINT, so
+			// threading it lets a Ctrl-C interrupt the (network-bound) dependency
+			// scan rather than detaching it on context.Background().
+			return runCreate(cmd.Context(), appConfig)
 		},
 	}, appConfig)
 }
@@ -67,7 +74,7 @@ func repoPathArgs(cfg *createConfig) cobra.PositionalArgs {
 	}
 }
 
-func runCreate(appConfig *createConfig) error {
+func runCreate(ctx context.Context, appConfig *createConfig) error {
 	// fast-fail on misconfigured -o values before the worker hits the
 	// network; sink construction (which creates temp files) is still deferred
 	// until after the worker succeeds so failures don't leak temp files.
@@ -75,7 +82,19 @@ func runCreate(appConfig *createConfig) error {
 		return err
 	}
 
-	startRelease, description, err := selectWorker(appConfig.RepoPath)(appConfig)
+	// vulnerability annotation operates on the dependency diff, so it has
+	// nothing to act on without an ecosystem (syft cataloger selector) to scan.
+	if appConfig.Dependencies.AnnotateVulnerabilities && len(splitEcosystems(appConfig.Dependencies.Ecosystems)) == 0 {
+		return errors.New("--vulnerabilities requires at least one dependency ecosystem to scan; set --dependencies (e.g. --dependencies language)")
+	}
+
+	// fail loudly on a misspelled min-severity rather than silently treating it
+	// as "no filter" (which is how the annotator interprets an unknown value).
+	if !dependency.ValidSeverity(appConfig.Dependencies.MinSeverity) {
+		return fmt.Errorf("invalid dependencies.min-severity %q; valid values: negligible, low, medium, high, critical", appConfig.Dependencies.MinSeverity)
+	}
+
+	startRelease, description, err := selectWorker(appConfig.RepoPath)(ctx, appConfig)
 	if err != nil {
 		return err
 	}
@@ -101,10 +120,10 @@ func runCreate(appConfig *createConfig) error {
 	// boundary just for a status line.
 	notifyFileSinks(appConfig, description)
 
-	// emit the post-teardown summary block. PreviousVersion / NextVersion are
-	// derived from what the worker resolved; ReportSummary skips the version
-	// transition line when NextVersion is empty (speculation off).
-	bus.ReportSummary(summaryOpts(startRelease, description, appConfig.SpeculateNextVersion))
+	// publish the raw figures for the post-teardown recap block. The UI renders
+	// it; NextVersion empty means speculation was off and the UI omits the
+	// version-transition line.
+	bus.PublishSummary(summaryEvent(startRelease, description, appConfig.SpeculateNextVersion))
 
 	return nil
 }
@@ -132,24 +151,36 @@ func notifyFileSinks(appConfig *createConfig, description *release.Description) 
 	}
 }
 
-// summaryOpts builds the SummaryOpts for the final report. NextVersion is
-// only set when speculation produced a version distinct from the previous
-// release; that gate ensures the version transition line is omitted in
-// modes where it would be misleading.
-func summaryOpts(startRelease *release.Release, desc *release.Description, speculate bool) bus.SummaryOpts {
-	opts := bus.SummaryOpts{Description: desc}
+// summaryEvent flattens the resolved release into the raw figures the UI needs
+// for the recap block: the repo identity, a per-change-type tally, and the
+// version transition. NextVersion is only set when speculation produced a
+// version distinct from the previous release; that gate ensures the UI omits
+// the version-transition line in modes where it would be misleading.
+func summaryEvent(startRelease *release.Release, desc *release.Description, speculate bool) event.Summary {
+	s := event.Summary{Repo: bus.Repo()}
 	if startRelease != nil {
-		opts.PreviousVersion = startRelease.Version
+		s.PreviousVersion = startRelease.Version
+	}
+	if desc != nil {
+		// emit every supported change type with its raw count (including zeros);
+		// the UI decides which tiers to show and how.
+		for _, tt := range desc.SupportedChanges {
+			s.Changes = append(s.Changes, event.SummaryChange{
+				Name:  tt.ChangeType.Name,
+				Kind:  tt.ChangeType.Kind,
+				Count: len(desc.Changes.ByChangeType(tt.ChangeType)),
+			})
+		}
 	}
 	if speculate && desc != nil && desc.Speculated {
-		opts.NextVersion = desc.Version
-		opts.BumpKind = change.Significance(desc.Changes)
+		s.NextVersion = desc.Version
+		s.BumpKind = change.Significance(desc.Changes)
 	}
-	return opts
+	return s
 }
 
 //nolint:revive
-func selectWorker(repo string) func(*createConfig) (*release.Release, *release.Description, error) {
+func selectWorker(repo string) func(context.Context, *createConfig) (*release.Release, *release.Description, error) {
 	// TODO: we only support github, but this is the spot to add support for other providers such as GitLab or Bitbucket or other VCSs altogether, such as subversion.
 	return createChangelogFromGithub
 }
