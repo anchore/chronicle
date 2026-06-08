@@ -8,14 +8,16 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/anchore/chronicle/chronicle/dependency"
 )
 
-// TestScanner_Catalog_Exclude exercises the syft exclude wiring end-to-end: a
-// scan tree with a root manifest and two nested ones, scanned under various
-// exclude patterns. It deliberately passes the raw t.TempDir() (which on macOS
-// lives behind the /var → /private/var symlink) so it also covers Catalog's
+// TestScanner_Scan_Exclude exercises the syft exclude wiring end-to-end: a scan
+// tree with a root manifest and two nested ones, scanned under various exclude
+// patterns. It deliberately passes the raw t.TempDir() (which on macOS lives
+// behind the /var → /private/var symlink) so it also covers the scanner's
 // symlink canonicalization — without which the excludes silently match nothing.
-func TestScanner_Catalog_Exclude(t *testing.T) {
+func TestScanner_Scan_Exclude(t *testing.T) {
 	root := t.TempDir()
 	writeManifest(t, filepath.Join(root, "requirements.txt"), "rootdep==1.0.0")
 	writeManifest(t, filepath.Join(root, "vendor", "requirements.txt"), "vendordep==2.0.0")
@@ -50,12 +52,12 @@ func TestScanner_Catalog_Exclude(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cat, err := NewScanner([]string{"python"}, tt.exclude).
-				Catalog(context.Background(), root, SourceInfo{Name: "test", Version: "v0"}, Hooks{})
+			snap, err := NewScanner([]string{"python"}, tt.exclude, false, false).
+				Scan(context.Background(), root, dependency.SourceInfo{Name: "test", Version: "v0"}, dependency.ScanHooks{})
 			require.NoError(t, err)
 
-			got := make([]string, 0, len(cat.Packages))
-			for _, p := range cat.Packages {
+			got := make([]string, 0, len(snap.Packages))
+			for _, p := range snap.Packages {
 				got = append(got, p.Name)
 			}
 			sort.Strings(got)

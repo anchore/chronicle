@@ -8,7 +8,7 @@ import (
 // grypeVersionComparer implements dependency.VersionComparer using grype's
 // ecosystem-aware version package, so update-vs-downgrade is decided correctly
 // per package type (semver, deb, rpm, go, python, …) rather than by string
-// comparison. Lives here because it touches grype; report injects it into
+// comparison. Lives here because it touches grype; ComputeDiff injects it into
 // dependency.Compare.
 type grypeVersionComparer struct{}
 

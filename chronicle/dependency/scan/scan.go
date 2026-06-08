@@ -4,6 +4,7 @@ package scan
 // turns a materialized source directory into a dependency.Snapshot: a syft
 // catalog of packages plus (optionally) a grype match of vulnerabilities. The
 // pure diff/annotate logic in the parent package never touches these libraries.
+// It implements dependency.Scanner, which ComputeDiff injects.
 
 import (
 	"context"
@@ -26,50 +27,34 @@ import (
 	"github.com/anchore/syft/syft/source"
 )
 
-// Hooks lets the caller observe scan milestones. All fields are optional.
-type Hooks struct {
-	// OnSourceID fires once syft has resolved the source, before cataloging
-	// begins, with the source's stable ID. The caller uses it to attribute the
-	// live cataloging progress syft publishes on the bus to the right UI element.
-	OnSourceID func(srcID string)
+// catalog is the syft side of a scan: the resolved packages plus the opaque SBOM
+// retained for a later vulnerability match. Cataloging (syft) and DB loading
+// (grype) are independent, so a scan overlaps them and only joins them in match.
+type catalog struct {
+	packages []dependency.Package
+	sb       *sbom.SBOM // consumed by match
 }
 
-// SourceInfo names the materialized source so syft derives a stable artifact ID
-// (and emits no "no explicit name and version" warning) instead of deriving one
-// from the throwaway tmpdir path. Name is the project, Version is the ref.
-type SourceInfo struct {
-	Name    string
-	Version string
-}
-
-// Catalog is the syft side of a scan: the resolved packages plus the opaque
-// SBOM retained for a later vulnerability match. Cataloging (syft) and DB
-// loading (grype) are independent, so the orchestrator runs them in parallel
-// and only joins them in Match.
-type Catalog struct {
-	Packages []dependency.Package
-	sb       *sbom.SBOM // opaque to callers; consumed by Match
-}
-
-// VulnDB is an opaque handle to a loaded grype vulnerability database, so the
-// orchestrator can pass it between the load and match phases without importing
-// grype itself (scan stays the only package that does).
-type VulnDB struct {
+// vulnDB is an opaque handle to a loaded grype vulnerability database, shared
+// from the background load to each ref's match so scan stays the only package
+// that imports grype.
+type vulnDB struct {
 	provider vulnerability.Provider
 }
 
-// Scanner turns a materialized directory into packages (Catalog) and, given a
-// loaded DB, into vulnerability matches (Match). The two phases are split so
-// they can be driven and rendered independently.
-type Scanner interface {
-	Catalog(ctx context.Context, dir string, info SourceInfo, hooks Hooks) (*Catalog, error)
-	Match(ctx context.Context, db *VulnDB, cat *Catalog) (map[dependency.PackageKey][]dependency.Vulnerability, error)
-}
-
-// scanner is the syft+grype implementation.
+// scanner is the syft+grype implementation of dependency.Scanner. When built to
+// annotate it loads the vulnerability DB once in the background (overlapping
+// cataloging) and shares it across every Scan, so the two sides never drift.
 type scanner struct {
 	ecosystems   []string // syft cataloger selection expressions (e.g. "language", "go")
 	excludePaths []string // syft exclude patterns (each must start with ./, */, or **/)
+
+	// DB load state, populated only when annotating. dbReady is closed once the
+	// background load finishes; db/dbErr are then safe to read. nil dbReady means
+	// not annotating, so Scan returns packages only.
+	dbReady chan struct{}
+	db      *vulnDB
+	dbErr   error
 }
 
 // getSourceMu serializes syft.GetSource across concurrent ref scans. GetSource
@@ -82,17 +67,83 @@ var getSourceMu sync.Mutex
 // expressions that scope cataloging (e.g. ["language"] or ["go"]); empty means
 // syft's default directory catalogers. excludePaths are syft exclude patterns
 // that prune directories from the scan (each must start with ./, */, or **/);
-// empty means scan everything.
-func NewScanner(ecosystems, excludePaths []string) Scanner {
-	return &scanner{ecosystems: ecosystems, excludePaths: excludePaths}
+// empty means scan everything. When annotate is set the grype DB load starts
+// immediately in the background (honoring autoUpdate) so it overlaps cataloging;
+// otherwise no DB is touched and Scan returns packages only.
+func NewScanner(ecosystems, excludePaths []string, annotate, autoUpdate bool) dependency.Scanner {
+	s := &scanner{ecosystems: ecosystems, excludePaths: excludePaths}
+	if annotate {
+		s.dbReady = make(chan struct{})
+		go func() {
+			s.db, s.dbErr = loadDB(autoUpdate)
+			close(s.dbReady)
+		}()
+	}
+	return s
 }
 
-// LoadDB curates the grype vulnerability DB, reusing grype's own cache location
+// Scan catalogs dir and, when the scanner is annotating, waits for the shared DB
+// and matches vulnerabilities, returning the per-ref Snapshot. A catalog failure
+// is fatal (returned as an error); a DB-load or match failure degrades to a
+// packages-only Snapshot and is reported via hooks.OnMatchFailed.
+func (s *scanner) Scan(ctx context.Context, dir string, info dependency.SourceInfo, hooks dependency.ScanHooks) (dependency.Snapshot, error) {
+	cat, err := s.catalog(ctx, dir, info, hooks)
+	if err != nil {
+		return dependency.Snapshot{}, err
+	}
+	if hooks.OnCataloged != nil {
+		hooks.OnCataloged(len(cat.packages))
+	}
+	snap := dependency.Snapshot{Packages: cat.packages}
+
+	// not annotating: packages-only, no DB touched.
+	if s.dbReady == nil {
+		return snap, nil
+	}
+
+	// matching needs both this ref's catalog (done) and the shared DB.
+	db, err := s.waitDB(ctx)
+	if err != nil {
+		if hooks.OnMatchFailed != nil {
+			hooks.OnMatchFailed(err)
+		}
+		return snap, nil // packages-only for this ref; vuln annotation skipped
+	}
+	if hooks.OnMatchStart != nil {
+		hooks.OnMatchStart()
+	}
+	vulns, err := s.match(ctx, db, cat)
+	if err != nil {
+		if hooks.OnMatchFailed != nil {
+			hooks.OnMatchFailed(err)
+		}
+		return snap, nil
+	}
+	snap.Vulns = vulns
+	if hooks.OnMatched != nil {
+		hooks.OnMatched(distinctVulnCount(vulns))
+	}
+	return snap, nil
+}
+
+// waitDB blocks until the background DB load finishes (or ctx is cancelled), then
+// returns the shared DB and any load error. dbReady is closed only after db/dbErr
+// are written, so a clean wait happens-after that write and is race-free; on
+// cancellation it returns ctx.Err() without touching them.
+func (s *scanner) waitDB(ctx context.Context) (*vulnDB, error) {
+	select {
+	case <-s.dbReady:
+		return s.db, s.dbErr
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// loadDB curates the grype vulnerability DB, reusing grype's own cache location
 // (id="grype" => ~/.cache/grype/db/...) so chronicle shares the grype CLI's DB
-// rather than maintaining a separate one. Call once per run and reuse the
-// returned handle for both the since and until matches so the two sides never
-// drift against different DBs.
-func LoadDB(autoUpdate bool) (*VulnDB, error) {
+// rather than maintaining a separate one. Called once per scanner; the returned
+// handle is reused for every ref so the sides never drift against different DBs.
+func loadDB(autoUpdate bool) (*vulnDB, error) {
 	distCfg := distribution.DefaultConfig()
 	// seed installation config with grype's identity (NOT chronicle's) so the
 	// cache dir resolves to grype's existing location.
@@ -102,10 +153,12 @@ func LoadDB(autoUpdate bool) (*VulnDB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to load vulnerability DB: %w", err)
 	}
-	return &VulnDB{provider: provider}, nil
+	return &vulnDB{provider: provider}, nil
 }
 
-func (s *scanner) Catalog(ctx context.Context, dir string, info SourceInfo, hooks Hooks) (*Catalog, error) {
+// catalog turns a materialized dir into packages (plus the SBOM that match
+// consumes), firing hooks.OnSourceID once syft has resolved the source.
+func (s *scanner) catalog(ctx context.Context, dir string, info dependency.SourceInfo, hooks dependency.ScanHooks) (*catalog, error) {
 	if len(s.excludePaths) > 0 {
 		// syft resolves symlinks when indexing the tree but derives exclusion
 		// roots from filepath.Abs (no symlink resolution), so when the scan dir
@@ -165,16 +218,27 @@ func (s *scanner) Catalog(ctx context.Context, dir string, info SourceInfo, hook
 		return nil, fmt.Errorf("unable to catalog packages: %w", err)
 	}
 
-	return &Catalog{Packages: mapPackages(sb), sb: sb}, nil
+	return &catalog{packages: mapPackages(sb), sb: sb}, nil
 }
 
-// Match runs grype over a previously produced catalog. A nil db or catalog
-// yields no matches (packages-only).
-func (s *scanner) Match(ctx context.Context, db *VulnDB, cat *Catalog) (map[dependency.PackageKey][]dependency.Vulnerability, error) {
+// match runs grype over a previously produced catalog. A nil db or catalog yields
+// no matches (packages-only).
+func (s *scanner) match(ctx context.Context, db *vulnDB, cat *catalog) (map[dependency.PackageKey][]dependency.Vulnerability, error) {
 	if db == nil || db.provider == nil || cat == nil {
 		return nil, nil
 	}
 	return matchSBOM(ctx, db.provider, cat.sb)
+}
+
+// distinctVulnCount counts the distinct vulnerability IDs matched on a ref.
+func distinctVulnCount(vulns map[dependency.PackageKey][]dependency.Vulnerability) int {
+	ids := make(map[string]struct{})
+	for _, vs := range vulns {
+		for _, v := range vs {
+			ids[v.ID] = struct{}{}
+		}
+	}
+	return len(ids)
 }
 
 // mapPackages folds syft's package collection into the pure dependency.Package

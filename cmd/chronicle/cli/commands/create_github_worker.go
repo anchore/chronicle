@@ -3,11 +3,13 @@ package commands
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/anchore/chronicle/chronicle/dependency"
 	"github.com/anchore/chronicle/chronicle/dependency/render"
-	"github.com/anchore/chronicle/chronicle/dependency/report"
+	"github.com/anchore/chronicle/chronicle/dependency/scan"
+	"github.com/anchore/chronicle/chronicle/dependency/source"
 	"github.com/anchore/chronicle/chronicle/event"
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
@@ -142,21 +144,61 @@ func attachDependencyDiff(ctx context.Context, appConfig *createConfig, gitter g
 		log.Warn("dependencies.only-vulnerable has no effect without annotate-vulnerabilities; showing all changes")
 	}
 
-	cfg := report.Config{
-		Ecosystems:              ecosystems,
-		ExcludePaths:            appConfig.Dependencies.Exclude,
-		AnnotateVulnerabilities: appConfig.Dependencies.AnnotateVulnerabilities,
-		AutoUpdateDB:            true, // always keep the grype DB fresh; not user-configurable
-		MinSeverity:             appConfig.Dependencies.MinSeverity,
-		SourceName:              bus.Repo(), // "owner/repo"; report falls back to the repo dir name when empty
+	annotate := appConfig.Dependencies.AnnotateVulnerabilities
+
+	// name the syft source after the project so artifact IDs are stable across the
+	// tmpdir each ref is materialized into; fall back to the repo dir name.
+	sourceName := bus.Repo() // "owner/repo"
+	if sourceName == "" {
+		sourceName = filepath.Base(appConfig.RepoPath)
 	}
 
-	diff, err := report.Run(ctx, appConfig.RepoPath, sinceRef, untilRef, cfg, sbomLeaf, vulnLeaf)
+	// kick the UI elements ComputeDiff drives but no longer owns: catalog both
+	// refs now, plus (when annotating) the parallel DB update. The observer fills
+	// in per-ref progress; the parent leaves resolve from the diff post-return.
+	sbomLeaf.SetStage("cataloging…")
+	sbomLeaf.Child("since").Start()
+	sbomLeaf.Child("until").Start()
+	if annotate {
+		vulnLeaf.SetStage("updating db…")
+		vulnLeaf.Child("since").Start()
+		vulnLeaf.Child("until").Start()
+	}
+
+	// always keep the grype DB fresh; not user-configurable.
+	scanner := scan.NewScanner(ecosystems, appConfig.Dependencies.Exclude, annotate, true)
+	diff, err := dependency.ComputeDiff(ctx, scanner, dependency.Config{
+		Target:      source.NewGitTarget(appConfig.RepoPath),
+		Comparer:    scan.NewVersionComparer(),
+		Observer:    dependencyObserver(sbomLeaf, vulnLeaf),
+		SinceRef:    sinceRef,
+		UntilRef:    untilRef,
+		SourceName:  sourceName,
+		Annotate:    annotate,
+		MinSeverity: appConfig.Dependencies.MinSeverity,
+	})
 	if err != nil {
 		log.WithFields("error", err).Warn("unable to compute dependency diff; continuing without it")
+		sbomLeaf.Fail(err)
+		if annotate {
+			vulnLeaf.Fail(err)
+		}
 		return
 	}
 	description.DependencyDiff = diff
+
+	// resolve the parent leaves from the finished diff (the per-ref children were
+	// resolved live by the observer). The vulnerability rollup is only meaningful
+	// when both refs matched; if either failed, fail the parent rather than show a
+	// hollow 0/0.
+	sbomLeaf.Resolve(diffMetrics(diff)...)
+	if annotate {
+		if matchErr := firstLeafErr(vulnLeaf.Child("since"), vulnLeaf.Child("until")); matchErr != nil {
+			vulnLeaf.Fail(matchErr)
+		} else {
+			vulnLeaf.Resolve(vulnMetrics(diff)...)
+		}
+	}
 
 	// presentation travels alongside the data, not inside it. only-vulnerable is
 	// a render-time filter and only meaningful once annotation has populated the
@@ -164,6 +206,64 @@ func attachDependencyDiff(ctx context.Context, appConfig *createConfig, gitter g
 	rc := dependencyRenderConfig(appConfig.Dependencies)
 	rc.OnlyVulnerable = appConfig.Dependencies.OnlyVulnerable && appConfig.Dependencies.AnnotateVulnerabilities
 	description.DependencyRender = &rc
+}
+
+// dependencyObserver adapts ComputeDiff's per-ref progress callbacks onto the
+// sbom/vuln evidence leaves. Each callback touches only its own ref's child leaf
+// (matched by name to the "since"/"until" children), so the parallel scan
+// goroutines never contend; the event leaves are themselves concurrency-safe.
+func dependencyObserver(sbomLeaf, vulnLeaf *event.Leaf) dependency.Observer {
+	return dependency.Observer{
+		SourceResolved: func(ref, srcID string) {
+			bus.RegisterSBOMScanSource(srcID, sbomLeaf.Child(ref))
+		},
+		RefCataloged: func(ref string, packages int) {
+			sbomLeaf.Child(ref).Resolve(event.Count("package", packages))
+		},
+		RefCatalogFailed: func(ref string, err error) {
+			sbomLeaf.Child(ref).Fail(err)
+		},
+		MatchStarted: func(ref string) {
+			vulnLeaf.Child(ref).SetStage("matching…")
+		},
+		RefMatched: func(ref string, vulns int) {
+			vulnLeaf.Child(ref).Resolve(event.Count("vulnerability", vulns))
+		},
+		RefMatchFailed: func(ref string, err error) {
+			vulnLeaf.Child(ref).Fail(err)
+		},
+	}
+}
+
+// diffMetrics is the parent "source sbom" resolved figures: the package changes
+// broken down by kind, rendered by the UI as a breakdown.
+func diffMetrics(d *dependency.Diff) []event.Metric {
+	t := d.Totals()
+	return []event.Metric{
+		event.Count("added", t.Added),
+		event.Count("removed", t.Removed),
+		event.Count("updated", t.Updated),
+		event.Count("downgraded", t.Downgraded),
+	}
+}
+
+// vulnMetrics is the parent "vulnerabilities" resolved figures: the net effect of
+// the diff on vulnerabilities, rendered by the UI as a breakdown.
+func vulnMetrics(d *dependency.Diff) []event.Metric {
+	return []event.Metric{
+		event.Count("remediated", d.RemediatedCount()),
+		event.Count("introduced", d.IntroducedCount()),
+	}
+}
+
+// firstLeafErr returns the first failed leaf's error, or nil when none failed.
+func firstLeafErr(leaves ...*event.Leaf) error {
+	for _, l := range leaves {
+		if err := l.Err(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // dependencyDiffEnabled reports whether the opt-in source-sbom dependency diff
@@ -227,8 +327,9 @@ func buildChangelogConfig(appConfig *createConfig, untilTag string, titles []cha
 // publishEvidenceTree builds and publishes the "evidence" tree (commits, issues,
 // PRs) and kicks each base leaf into the running state so spinners show during
 // the GraphQL fetches. When the dependency diff is enabled it adds a "source
-// sbom" leaf with since/until branches (driven later by report.Run), plus a
-// sibling "vulnerabilities" leaf when annotation is on. The caller owns Close.
+// sbom" leaf with since/until branches (driven later via the ComputeDiff
+// observer), plus a sibling "vulnerabilities" leaf when annotation is on. The
+// caller owns Close.
 func publishEvidenceTree(appConfig *createConfig) *event.Tree {
 	evidenceSpecs := []event.LeafSpec{
 		{Name: "commits"},

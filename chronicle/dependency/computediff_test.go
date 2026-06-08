@@ -1,4 +1,4 @@
-package report
+package dependency_test
 
 import (
 	"context"
@@ -11,14 +11,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/anchore/chronicle/chronicle/dependency"
+	"github.com/anchore/chronicle/chronicle/dependency/scan"
+	"github.com/anchore/chronicle/chronicle/dependency/source"
 )
 
-// TestRun_PackagesOnly is an end-to-end test of the dependency-diff feature in
-// packages-only mode (no vulnerability annotation, so no DB/network). It builds
-// a real git repo with a go.mod, bumps a dependency version across two commits,
-// then asserts Run reports the bump as an Updated change. This exercises the
-// full materialize → syft catalog → Compare pipeline with real syft.
-func TestRun_PackagesOnly(t *testing.T) {
+// TestComputeDiff_PackagesOnly is an end-to-end test of the dependency-diff
+// feature in packages-only mode (no vulnerability annotation, so no DB/network).
+// It builds a real git repo with a go.mod, bumps a dependency version across two
+// commits, then asserts ComputeDiff reports the bump as an Updated change. This
+// exercises the full materialize → syft catalog → Compare pipeline with real
+// syft, wired through the injected Scanner/Target/Comparer seam. It lives in an
+// external test package so it can import dependency/scan (which imports
+// dependency) without an import cycle.
+func TestComputeDiff_PackagesOnly(t *testing.T) {
 	const goModBase = `module example.com/testrepo
 
 go 1.21
@@ -35,9 +40,14 @@ require github.com/google/uuid v1.6.0
 	repoDir := t.TempDir()
 	sinceSha, _ := buildGoModRepo(t, repoDir, goModBase, goModBumped)
 
-	diff, err := Run(context.Background(), repoDir, sinceSha, "HEAD", Config{
-		AnnotateVulnerabilities: false,
-	}, nil, nil)
+	diff, err := dependency.ComputeDiff(context.Background(),
+		scan.NewScanner(nil, nil, false, false),
+		dependency.Config{
+			Target:   source.NewGitTarget(repoDir),
+			Comparer: scan.NewVersionComparer(),
+			SinceRef: sinceSha,
+			UntilRef: "HEAD",
+		})
 	require.NoError(t, err)
 	require.NotNil(t, diff)
 
@@ -59,9 +69,9 @@ require github.com/google/uuid v1.6.0
 	require.Equal(t, "v1.6.0", got.ToVersion)
 }
 
-// buildGoModRepo initializes a git repo at dir with two commits: the first
-// writes baseGoMod, the second writes bumpedGoMod. It returns the first and
-// second commit SHAs.
+// buildGoModRepo initializes a git repo at dir with two commits: the first writes
+// baseGoMod, the second writes bumpedGoMod. It returns the first and second
+// commit SHAs.
 func buildGoModRepo(t *testing.T, dir, baseGoMod, bumpedGoMod string) (firstSha, secondSha string) {
 	t.Helper()
 
