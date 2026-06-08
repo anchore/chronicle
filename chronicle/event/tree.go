@@ -17,8 +17,8 @@ type Leaf struct {
 	mu       sync.Mutex
 	name     string
 	state    SlotState
-	count    string
-	note     string
+	metrics  []Metric // raw resolved figures; the UI formats them
+	dropped  int      // optional "(N dropped)" secondary; 0 renders nothing
 	err      error
 	children []*Leaf
 
@@ -218,24 +218,28 @@ func (l *Leaf) State() SlotState {
 	return l.state
 }
 
-// Count returns the resolved count string (e.g. "47").
-func (l *Leaf) Count() string {
+// Metrics returns the resolved figures (e.g. [{"", 47}] or [{"added", 10}, …]).
+// The UI decides how they appear.
+func (l *Leaf) Metrics() []Metric {
 	if l == nil {
-		return ""
+		return nil
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.count
+	out := make([]Metric, len(l.metrics))
+	copy(out, l.metrics)
+	return out
 }
 
-// Note returns the resolved trailer note (e.g. "32 associated").
-func (l *Leaf) Note() string {
+// Dropped returns the raw count of fetched items not associated with the
+// release, which the UI renders as a dim "(N dropped)" trailer. 0 means none.
+func (l *Leaf) Dropped() int {
 	if l == nil {
-		return ""
+		return 0
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.note
+	return l.dropped
 }
 
 // Err returns the failure error, if any.
@@ -260,18 +264,30 @@ func (l *Leaf) Start() {
 	l.mu.Unlock()
 }
 
-// Resolve sets the resolved count string and an optional trailer note. The leaf
-// model is responsible for formatting (e.g. dim parens around the note).
-func (l *Leaf) Resolve(count, note string) {
+// Resolve sets the leaf's resolved figures. The UI formats them: a single
+// unnamed metric renders as a bare number, a single named metric as a
+// pluralized count ("142 packages"), and several as a "name=count" breakdown.
+func (l *Leaf) Resolve(metrics ...Metric) {
 	if l == nil {
 		return
 	}
 	l.mu.Lock()
-	l.count = count
-	l.note = note
+	l.metrics = append(l.metrics[:0], metrics...)
 	l.state = SlotResolved
 	l.mu.Unlock()
 	l.SetCompleted()
+}
+
+// SetDropped records how many fetched items were dropped (not associated with
+// the release). The UI renders it as a dim "(N dropped)" trailer; 0 renders
+// nothing. Independent of Resolve, so call order does not matter.
+func (l *Leaf) SetDropped(n int) {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	l.dropped = n
+	l.mu.Unlock()
 }
 
 // Skip marks the leaf as intentionally not run — e.g. the analysis

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -126,8 +127,8 @@ func TestBracketGroup_Snapshot_Resolved(t *testing.T) {
 		{Name: "since", Label: "since", Intent: "latest release"},
 		{Name: "until", Label: "until", Intent: "HEAD"},
 	})
-	g.Slot("since").Resolve("v0.14.0", "a3b4c5d", "Jan 15 2026")
-	g.Slot("until").Resolve("v0.18.0", "f1e2d3c", "May 4 2026")
+	g.Slot("since").Resolve(event.Text("v0.14.0"), event.SHA("a3b4c5d"), event.Date(time.Date(2026, time.January, 15, 0, 0, 0, 0, time.UTC)))
+	g.Slot("until").Resolve(event.Text("v0.18.0"), event.SHA("f1e2d3c"), event.Date(time.Date(2026, time.May, 4, 0, 0, 0, 0, time.UTC)))
 
 	bg := buildBracketGroup(g)
 	snaps.MatchSnapshot(t, bg.View())
@@ -144,9 +145,15 @@ func TestTreeGroup_Snapshot_Resolving(t *testing.T) {
 
 func TestTreeGroup_Snapshot_Resolved(t *testing.T) {
 	tr := event.NewTree("evidence", []string{"commits", "issues", "pull requests"})
-	tr.Leaf("commits").Resolve("47", "32 associated")
-	tr.Leaf("issues").Resolve("73", "42 kept")
-	tr.Leaf("pull requests").Resolve("164", "87 kept")
+	commits := tr.Leaf("commits")
+	commits.Resolve(event.Num(47))
+	commits.SetDropped(15)
+	issues := tr.Leaf("issues")
+	issues.Resolve(event.Num(73))
+	issues.SetDropped(31)
+	prs := tr.Leaf("pull requests")
+	prs.Resolve(event.Num(164))
+	prs.SetDropped(77)
 
 	tg := buildTreeGroup(tr)
 	snaps.MatchSnapshot(t, tg.View())
@@ -156,7 +163,7 @@ func TestTreeGroup_Snapshot_Skipped(t *testing.T) {
 	// HEAD sits on the previous release: commits resolve to zero and the issue
 	// and PR fetches are skipped entirely (no count, distinct mark).
 	tr := event.NewTree("evidence", []string{"commits", "issues", "pull requests"})
-	tr.Leaf("commits").Resolve("0", "")
+	tr.Leaf("commits").Resolve(event.Num(0))
 	tr.Leaf("issues").Skip()
 	tr.Leaf("pull requests").Skip()
 
@@ -171,9 +178,11 @@ func TestTreeGroup_Snapshot_NestedSBOM_Scanning(t *testing.T) {
 		{Name: "pull requests"},
 		{Name: "source sbom", Children: []string{"since", "until"}},
 	})
-	tr.Leaf("commits").Resolve("47", "32 associated")
-	tr.Leaf("issues").Resolve("73", "")
-	tr.Leaf("pull requests").Resolve("164", "")
+	commits := tr.Leaf("commits")
+	commits.Resolve(event.Num(47))
+	commits.SetDropped(15)
+	tr.Leaf("issues").Resolve(event.Num(73))
+	tr.Leaf("pull requests").Resolve(event.Num(164))
 
 	// source sbom mid-scan: parent shows the cataloging stage, branches show the
 	// live package count syft is reporting.
@@ -193,14 +202,16 @@ func TestTreeGroup_Snapshot_NestedSBOM_Resolved(t *testing.T) {
 		{Name: "pull requests"},
 		{Name: "source sbom", Children: []string{"since", "until"}},
 	})
-	tr.Leaf("commits").Resolve("47", "32 associated")
-	tr.Leaf("issues").Resolve("73", "")
-	tr.Leaf("pull requests").Resolve("164", "")
+	commits := tr.Leaf("commits")
+	commits.Resolve(event.Num(47))
+	commits.SetDropped(15)
+	tr.Leaf("issues").Resolve(event.Num(73))
+	tr.Leaf("pull requests").Resolve(event.Num(164))
 
 	sbom := tr.Leaf("source sbom")
-	sbom.Child("since").Resolve("142 packages", "")
-	sbom.Child("until").Resolve("156 packages", "")
-	sbom.Resolve("added=10 removed=12 updated=2 downgraded=3", "")
+	sbom.Child("since").Resolve(event.Count("package", 142))
+	sbom.Child("until").Resolve(event.Count("package", 156))
+	sbom.Resolve(event.Count("added", 10), event.Count("removed", 12), event.Count("updated", 2), event.Count("downgraded", 3))
 
 	tg := buildTreeGroup(tr)
 	snaps.MatchSnapshot(t, tg.View())
@@ -214,21 +225,23 @@ func TestTreeGroup_Snapshot_SBOMAndVulnerabilities(t *testing.T) {
 		{Name: "source sbom", Children: []string{"since", "until"}},
 		{Name: "vulnerabilities", Children: []string{"since", "until"}},
 	})
-	tr.Leaf("commits").Resolve("47", "32 associated")
-	tr.Leaf("issues").Resolve("73", "")
-	tr.Leaf("pull requests").Resolve("164", "")
+	commits := tr.Leaf("commits")
+	commits.Resolve(event.Num(47))
+	commits.SetDropped(15)
+	tr.Leaf("issues").Resolve(event.Num(73))
+	tr.Leaf("pull requests").Resolve(event.Num(164))
 
 	// sbom cataloging finished; vulnerability matching still running while the
 	// db (which loaded in parallel) is now feeding the match.
 	sbom := tr.Leaf("source sbom")
-	sbom.Child("since").Resolve("142 packages", "")
-	sbom.Child("until").Resolve("156 packages", "")
-	sbom.Resolve("added=10 removed=12 updated=2 downgraded=3", "")
+	sbom.Child("since").Resolve(event.Count("package", 142))
+	sbom.Child("until").Resolve(event.Count("package", 156))
+	sbom.Resolve(event.Count("added", 10), event.Count("removed", 12), event.Count("updated", 2), event.Count("downgraded", 3))
 
 	vuln := tr.Leaf("vulnerabilities")
 	vuln.SetStage("matching…")
 	vuln.Child("since").SetStage("matching…")
-	vuln.Child("until").Resolve("7 vulnerabilities", "")
+	vuln.Child("until").Resolve(event.Count("vulnerability", 7))
 
 	tg := buildTreeGroup(tr)
 	snaps.MatchSnapshot(t, tg.View())

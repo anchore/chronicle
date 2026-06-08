@@ -44,12 +44,16 @@ func newChronicleSpinner() spinner.Model {
 	return s
 }
 
+// headerRange is the group key whose section is rendered as the project title
+// ("Project: OWNER/REPO") rather than a bolded header.
+const headerRange = "range"
+
 // displayHeader maps an internal cache key (e.g. "range", "evidence") to the
 // label rendered in the live TUI. The "range" group is suppressed here — the
 // handler injects "Project: OWNER/REPO" as the title instead. Other headers
 // are title-cased and bolded so they stand out as section dividers.
 func displayHeader(name string) string {
-	if name == "range" || name == "" {
+	if name == headerRange || name == "" {
 		return ""
 	}
 	return boldStyle.Render(strings.ToUpper(name[:1]) + name[1:])

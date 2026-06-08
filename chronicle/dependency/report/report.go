@@ -105,10 +105,10 @@ func Run(ctx context.Context, repoPath, sinceRef, untilRef string, cfg Config, s
 			MinSeverity: cfg.MinSeverity,
 		})
 		if loader.err == nil {
-			vulnLeaf.Resolve(vulnRollup(diff), "")
+			vulnLeaf.Resolve(vulnMetrics(diff)...)
 		}
 	}
-	sbomLeaf.Resolve(diffRollup(diff), "")
+	sbomLeaf.Resolve(diffMetrics(diff)...)
 
 	return &diff, nil
 }
@@ -193,7 +193,7 @@ func scanRef(ctx context.Context, target source.Target, scanner scan.Scanner, so
 		sbomBranch.Fail(err)
 		return dependency.Snapshot{}, fmt.Errorf("unable to catalog ref: %w", err)
 	}
-	sbomBranch.Resolve(fmt.Sprintf("%d packages", len(cat.Packages)), "")
+	sbomBranch.Resolve(event.Count("package", len(cat.Packages)))
 	snap := dependency.Snapshot{Packages: cat.Packages}
 
 	if !annotate {
@@ -213,34 +213,38 @@ func scanRef(ctx context.Context, target source.Target, scanner scan.Scanner, so
 		return snap, nil
 	}
 	snap.Vulns = vulns
-	vulnBranch.Resolve(vulnCountLabel(vulns), "")
+	vulnBranch.Resolve(event.Count("vulnerability", distinctVulnCount(vulns)))
 	return snap, nil
 }
 
-// vulnRollup is the parent "vulnerabilities" resolved label: the net effect of
-// the diff on vulnerabilities.
-func vulnRollup(d dependency.Diff) string {
-	return fmt.Sprintf("remediated=%d introduced=%d", d.RemediatedCount(), d.IntroducedCount())
+// vulnMetrics is the parent "vulnerabilities" resolved figures: the net effect
+// of the diff on vulnerabilities, rendered by the UI as a breakdown.
+func vulnMetrics(d dependency.Diff) []event.Metric {
+	return []event.Metric{
+		event.Count("remediated", d.RemediatedCount()),
+		event.Count("introduced", d.IntroducedCount()),
+	}
 }
 
-// vulnCountLabel is a vuln branch's resolved label: the count of distinct
-// vulnerabilities matched on that ref.
-func vulnCountLabel(vulns map[dependency.PackageKey][]dependency.Vulnerability) string {
+// distinctVulnCount counts the distinct vulnerability IDs matched on a ref.
+func distinctVulnCount(vulns map[dependency.PackageKey][]dependency.Vulnerability) int {
 	ids := make(map[string]struct{})
 	for _, vs := range vulns {
 		for _, v := range vs {
 			ids[v.ID] = struct{}{}
 		}
 	}
-	if len(ids) == 1 {
-		return "1 vulnerability"
-	}
-	return fmt.Sprintf("%d vulnerabilities", len(ids))
+	return len(ids)
 }
 
-// diffRollup is the parent "source sbom" resolved label: a breakdown of the
-// package changes by kind.
-func diffRollup(d dependency.Diff) string {
+// diffMetrics is the parent "source sbom" resolved figures: the package changes
+// broken down by kind, rendered by the UI as a breakdown.
+func diffMetrics(d dependency.Diff) []event.Metric {
 	t := d.Totals()
-	return fmt.Sprintf("added=%d removed=%d updated=%d downgraded=%d", t.Added, t.Removed, t.Updated, t.Downgraded)
+	return []event.Metric{
+		event.Count("added", t.Added),
+		event.Count("removed", t.Removed),
+		event.Count("updated", t.Updated),
+		event.Count("downgraded", t.Downgraded),
+	}
 }

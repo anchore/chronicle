@@ -37,7 +37,6 @@ func PublishTask(titles event.Title, context string, total int) *event.ManualSta
 // so worker code can call Slot()/Close() unconditionally as no-ops.
 func PublishGroup(header string, slots []event.GroupSlotInit) *event.Group {
 	g := event.NewGroup(header, slots)
-	registerGroup(g)
 	publish(partybus.Event{
 		Type:   event.GroupTaskType,
 		Source: header,
@@ -61,7 +60,6 @@ func PublishTree(header string, names []string) *event.Tree {
 // each carry child leaves one level deep (e.g. "source sbom" → since/until).
 func PublishTreeSpec(header string, specs []event.LeafSpec) *event.Tree {
 	t := event.NewTreeWithChildren(header, specs)
-	registerTree(t)
 	publish(partybus.Event{
 		Type:   event.TreeTaskType,
 		Source: header,
@@ -88,13 +86,14 @@ func Report(report string) {
 	})
 }
 
-// Summary emits the post-run recap block destined for stderr. Distinct from
-// Report so it can be routed to a different stream without running through
-// the magenta notification style.
-func Summary(text string) {
+// PublishSummary emits the raw figures for the post-run recap block. The UI
+// renders them (alongside the range/evidence groups it already received) into
+// the recap shown on stderr post-teardown. Carrying data rather than a
+// pre-rendered string keeps all presentation in the UI layer.
+func PublishSummary(s event.Summary) {
 	publish(partybus.Event{
 		Type:  event.CLISummaryType,
-		Value: text,
+		Value: s,
 	})
 }
 

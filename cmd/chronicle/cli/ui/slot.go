@@ -54,11 +54,11 @@ func (s slot) View() string {
 	switch s.data.State() {
 	case event.SlotResolved:
 		b.WriteString(intent)
-		if vals := s.data.Values(); len(vals) > 0 {
+		if text := formatValues(s.data.Values()); text != "" {
 			b.WriteString(" ")
 			b.WriteString(dimStyle.Render(arrow))
 			b.WriteString(" ")
-			b.WriteString(resolvedStyle.Render(strings.Join(vals, "  ")))
+			b.WriteString(resolvedStyle.Render(text))
 		}
 	case event.SlotFailed:
 		if err := s.data.Err(); err != nil {

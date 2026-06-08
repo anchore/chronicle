@@ -260,7 +260,7 @@ func TestNilSafety(t *testing.T) {
 
 	// nil slot methods do not panic
 	var s *Slot
-	require.NotPanics(t, func() { s.Resolve("v1") })
+	require.NotPanics(t, func() { s.Resolve(Text("v1")) })
 	require.NotPanics(t, func() { s.Fail(nil) })
 	require.NotPanics(t, func() { s.Start() })
 	require.NotPanics(t, func() { s.SetStage("x") })
@@ -279,14 +279,15 @@ func TestNilSafety(t *testing.T) {
 
 	// nil leaf methods do not panic
 	var l *Leaf
-	require.NotPanics(t, func() { l.Resolve("1", "n") })
+	require.NotPanics(t, func() { l.Resolve(Num(1)) })
+	require.NotPanics(t, func() { l.SetDropped(1) })
 	require.NotPanics(t, func() { l.Fail(nil) })
 	require.NotPanics(t, func() { l.Skip() })
 	require.NotPanics(t, func() { l.Start() })
 	require.NotPanics(t, func() { l.SetStage("x") })
 	require.Equal(t, "", l.Name())
-	require.Equal(t, "", l.Count())
-	require.Equal(t, "", l.Note())
+	require.Nil(t, l.Metrics())
+	require.Equal(t, 0, l.Dropped())
 	require.Equal(t, SlotPending, l.State())
 	require.Nil(t, l.Err())
 }
@@ -298,9 +299,9 @@ func TestLeaf_Skip(t *testing.T) {
 	l.Skip()
 
 	require.Equal(t, SlotSkipped, l.State())
-	// a skipped leaf carries no count or note
-	require.Equal(t, "", l.Count())
-	require.Equal(t, "", l.Note())
+	// a skipped leaf carries no metrics or dropped count
+	require.Empty(t, l.Metrics())
+	require.Equal(t, 0, l.Dropped())
 }
 
 func TestTree_Close_preservesSkipped(t *testing.T) {

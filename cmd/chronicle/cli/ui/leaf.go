@@ -46,8 +46,8 @@ func (l leaf) View() string {
 
 	switch l.data.State() {
 	case event.SlotResolved:
-		b.WriteString(resolvedStyle.Render(l.data.Count()))
-		if note := l.data.Note(); note != "" {
+		b.WriteString(resolvedStyle.Render(formatMetrics(l.data.Metrics())))
+		if note := droppedText(l.data.Dropped()); note != "" {
 			b.WriteString("   ")
 			b.WriteString(dimStyle.Render("(" + note + ")"))
 		}

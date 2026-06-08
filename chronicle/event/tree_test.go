@@ -41,10 +41,10 @@ func TestLeaf_RunningDetail_LiveTakesPrecedence(t *testing.T) {
 	since.BindLive(stagedString("142 packages"))
 	assert.Equal(t, "142 packages", since.RunningDetail())
 
-	// after resolving, the resolved count is authoritative and live is ignored.
-	since.Resolve("142 packages", "")
+	// after resolving, the resolved metric is authoritative and live is ignored.
+	since.Resolve(Count("package", 142))
 	assert.Equal(t, SlotResolved, since.State())
-	assert.Equal(t, "142 packages", since.Count())
+	assert.Equal(t, []Metric{{Name: "package", Count: 142}}, since.Metrics())
 }
 
 func TestTree_Close_ResolvesChildren(t *testing.T) {

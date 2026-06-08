@@ -38,7 +38,7 @@ func (c *channelPublisher) drain() []partybus.Event {
 func TestHelpers_NoPublisher_NoOps(t *testing.T) {
 	// pre-condition: no publisher set
 	Set(nil)
-	resetSummaryCache()
+	resetIdentity()
 
 	// PublishGroup must return non-nil even without a publisher
 	g := PublishGroup("range", []event.GroupSlotInit{
@@ -47,7 +47,7 @@ func TestHelpers_NoPublisher_NoOps(t *testing.T) {
 	})
 	require.NotNil(t, g)
 	require.NotPanics(t, func() {
-		g.Slot("since").Resolve("v0.1.0", "abc1234")
+		g.Slot("since").Resolve(event.Text("v0.1.0"), event.SHA("abc1234"))
 		g.Slot("until").Fail(nil)
 		g.Close()
 	})
@@ -56,7 +56,7 @@ func TestHelpers_NoPublisher_NoOps(t *testing.T) {
 	tr := PublishTree("evidence", []string{"commits", "issues"})
 	require.NotNil(t, tr)
 	require.NotPanics(t, func() {
-		tr.Leaf("commits").Resolve("47", "32 associated")
+		tr.Leaf("commits").Resolve(event.Num(47))
 		tr.Close()
 	})
 
@@ -78,7 +78,7 @@ func TestHelpers_PublishesCorrectEventTypes(t *testing.T) {
 	pub := newChannelPublisher(16)
 	Set(pub)
 	defer Set(nil)
-	resetSummaryCache()
+	resetIdentity()
 
 	g := PublishGroup("range", []event.GroupSlotInit{{Name: "since", Label: "since"}})
 	require.NotNil(t, g)

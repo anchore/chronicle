@@ -35,6 +35,7 @@ type UI struct {
 	quiet          bool
 	subscription   partybus.Unsubscribable
 	finalizeEvents []partybus.Event
+	recap          recap
 
 	version string
 	repo    string
@@ -126,7 +127,7 @@ func (m *UI) Teardown(force bool) error {
 		})
 	}
 
-	postUIEvents(m.quiet, m.finalizeEvents...)
+	postUIEvents(m.quiet, m.recap.render(), m.finalizeEvents...)
 	return nil
 }
 
@@ -176,10 +177,17 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case partybus.Event:
+		// collect the raw groups/trees/summary figures for the post-teardown
+		// recap block (rendered by cli/ui once the live area is gone).
+		m.recap.observe(msg)
+
 		switch msg.Type {
-		case event.CLIReportType, event.CLISummaryType, event.CLINotificationType:
+		case event.CLIReportType, event.CLINotificationType:
 			// stash for post-teardown emission; they don't drive the frame.
 			m.finalizeEvents = append(m.finalizeEvents, msg)
+			return m, nil
+		case event.CLISummaryType:
+			// observed above for the recap; nothing to render live.
 			return m, nil
 
 		case event.CLIExitType, clio.ExitEventType:

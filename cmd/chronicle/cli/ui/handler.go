@@ -102,12 +102,11 @@ func (m *Handler) handleGroupTask(e partybus.Event) ([]tea.Model, tea.Cmd) {
 		return nil, nil
 	}
 	// the "range" group renders as the top-level project section: its title
-	// is "Project: OWNER/REPO" with the bracket pair as its tree.
+	// is "Project: OWNER/REPO" (rendered by projectTitle, the same one the recap
+	// uses) with the bracket pair as its tree.
 	title := ""
-	if g.Header == "range" {
-		if repo := bus.Repo(); repo != "" {
-			title = boldStyle.Render("Project: " + repo)
-		}
+	if g.Header == headerRange {
+		title = projectTitle(bus.Repo())
 	}
 	return []tea.Model{NewBracketGroup(g, title, m.state.Spinner)}, nil
 }

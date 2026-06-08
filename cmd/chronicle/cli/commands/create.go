@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/anchore/chronicle/chronicle/dependency"
+	"github.com/anchore/chronicle/chronicle/event"
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/internal/bus"
@@ -119,10 +120,10 @@ func runCreate(ctx context.Context, appConfig *createConfig) error {
 	// boundary just for a status line.
 	notifyFileSinks(appConfig, description)
 
-	// emit the post-teardown summary block. PreviousVersion / NextVersion are
-	// derived from what the worker resolved; ReportSummary skips the version
-	// transition line when NextVersion is empty (speculation off).
-	bus.ReportSummary(summaryOpts(startRelease, description, appConfig.SpeculateNextVersion))
+	// publish the raw figures for the post-teardown recap block. The UI renders
+	// it; NextVersion empty means speculation was off and the UI omits the
+	// version-transition line.
+	bus.PublishSummary(summaryEvent(startRelease, description, appConfig.SpeculateNextVersion))
 
 	return nil
 }
@@ -150,20 +151,32 @@ func notifyFileSinks(appConfig *createConfig, description *release.Description) 
 	}
 }
 
-// summaryOpts builds the SummaryOpts for the final report. NextVersion is
-// only set when speculation produced a version distinct from the previous
-// release; that gate ensures the version transition line is omitted in
-// modes where it would be misleading.
-func summaryOpts(startRelease *release.Release, desc *release.Description, speculate bool) bus.SummaryOpts {
-	opts := bus.SummaryOpts{Description: desc}
+// summaryEvent flattens the resolved release into the raw figures the UI needs
+// for the recap block: the repo identity, a per-change-type tally, and the
+// version transition. NextVersion is only set when speculation produced a
+// version distinct from the previous release; that gate ensures the UI omits
+// the version-transition line in modes where it would be misleading.
+func summaryEvent(startRelease *release.Release, desc *release.Description, speculate bool) event.Summary {
+	s := event.Summary{Repo: bus.Repo()}
 	if startRelease != nil {
-		opts.PreviousVersion = startRelease.Version
+		s.PreviousVersion = startRelease.Version
+	}
+	if desc != nil {
+		// emit every supported change type with its raw count (including zeros);
+		// the UI decides which tiers to show and how.
+		for _, tt := range desc.SupportedChanges {
+			s.Changes = append(s.Changes, event.SummaryChange{
+				Name:  tt.ChangeType.Name,
+				Kind:  tt.ChangeType.Kind,
+				Count: len(desc.Changes.ByChangeType(tt.ChangeType)),
+			})
+		}
 	}
 	if speculate && desc != nil && desc.Speculated {
-		opts.NextVersion = desc.Version
-		opts.BumpKind = change.Significance(desc.Changes)
+		s.NextVersion = desc.Version
+		s.BumpKind = change.Significance(desc.Changes)
 	}
-	return opts
+	return s
 }
 
 //nolint:revive

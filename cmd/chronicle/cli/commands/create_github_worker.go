@@ -3,9 +3,7 @@ package commands
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/anchore/chronicle/chronicle/dependency"
 	"github.com/anchore/chronicle/chronicle/dependency/render"
@@ -270,10 +268,12 @@ func resolveEvidenceLeaves(evidence *event.Tree, summer *github.Summarizer, desc
 	}
 
 	// commits is always resolved with its count: it is the signal we acted on
-	// (zero commits is what drove the short-circuit).
-	associatedCommits := summer.AssociatedCommits()
-	evidence.Leaf("commits").Resolve(strconv.Itoa(commitTotal),
-		droppedTrailer(commitTotal, associatedCommits))
+	// (zero commits is what drove the short-circuit). The dropped trailer (how
+	// many fetched items aren't associated with the release) is raw — the UI
+	// decides whether and how to show it.
+	commits := evidence.Leaf("commits")
+	commits.Resolve(event.Num(commitTotal))
+	commits.SetDropped(commitTotal - summer.AssociatedCommits())
 
 	// when there were no commits in scope the issue/PR fetches were skipped, so
 	// mark those leaves as skipped rather than resolved-with-zero — a zero count
@@ -284,22 +284,13 @@ func resolveEvidenceLeaves(evidence *event.Tree, summer *github.Summarizer, desc
 		return
 	}
 
-	issuesKept := summer.IssuesKept()
-	prsKept := summer.PRsKept()
-	evidence.Leaf("issues").Resolve(strconv.Itoa(issueTotal),
-		droppedTrailer(issueTotal, issuesKept))
-	evidence.Leaf("pull requests").Resolve(strconv.Itoa(prTotal),
-		droppedTrailer(prTotal, prsKept))
-}
+	issues := evidence.Leaf("issues")
+	issues.Resolve(event.Num(issueTotal))
+	issues.SetDropped(issueTotal - summer.IssuesKept())
 
-// droppedTrailer formats the "(N dropped)" parenthetical, returning empty when
-// nothing was dropped (so the row renders without any trailer).
-func droppedTrailer(total, kept int) string {
-	dropped := total - kept
-	if dropped <= 0 {
-		return ""
-	}
-	return fmt.Sprintf("%d dropped", dropped)
+	prs := evidence.Leaf("pull requests")
+	prs.Resolve(event.Num(prTotal))
+	prs.SetDropped(prTotal - summer.PRsKept())
 }
 
 // publishRangeGroup constructs the user-visible "range" bracket group with the
@@ -325,55 +316,39 @@ func publishRangeGroup(appConfig *createConfig) *event.Group {
 // failed one when at least the date or sha is known.
 func resolveRangeSlots(rng *event.Group, gitter git.Interface, sinceTag, untilTag string, desc *release.Description) {
 	// since: prefer a tag lookup; fall back to whatever PreviousRelease carries.
+	// Values are raw (tag, full sha, timestamp); the UI shortens the sha and
+	// formats the date.
 	switch {
 	case sinceTag != "":
 		if t, err := gitter.SearchForTag(sinceTag); err == nil && t != nil {
-			rng.Slot("since").Resolve(t.Name, shortSha(t.Commit), formatDate(t.Timestamp))
+			rng.Slot("since").Resolve(event.Text(t.Name), event.SHA(t.Commit), event.Date(t.Timestamp))
 		} else {
-			rng.Slot("since").Resolve(sinceTag, formatDate(time.Time{}))
+			rng.Slot("since").Resolve(event.Text(sinceTag))
 		}
 	case desc != nil && desc.PreviousRelease != nil:
 		ver := desc.PreviousRelease.Version
 		if t, err := gitter.SearchForTag(ver); err == nil && t != nil {
-			rng.Slot("since").Resolve(ver, shortSha(t.Commit), formatDate(desc.PreviousRelease.Date))
+			rng.Slot("since").Resolve(event.Text(ver), event.SHA(t.Commit), event.Date(desc.PreviousRelease.Date))
 		} else {
-			rng.Slot("since").Resolve(ver, formatDate(desc.PreviousRelease.Date))
+			rng.Slot("since").Resolve(event.Text(ver), event.Date(desc.PreviousRelease.Date))
 		}
 	default:
 		// no prior release: since the beginning of git history.
 		if sha, err := gitter.FirstCommit(); err == nil {
-			rng.Slot("since").Resolve(shortSha(sha))
+			rng.Slot("since").Resolve(event.SHA(sha))
 		}
 	}
 
 	// until: prefer the resolved tag; otherwise show HEAD.
 	if untilTag != "" {
 		if t, err := gitter.SearchForTag(untilTag); err == nil && t != nil {
-			rng.Slot("until").Resolve(t.Name, shortSha(t.Commit), formatDate(t.Timestamp))
+			rng.Slot("until").Resolve(event.Text(t.Name), event.SHA(t.Commit), event.Date(t.Timestamp))
 		} else {
-			rng.Slot("until").Resolve(untilTag)
+			rng.Slot("until").Resolve(event.Text(untilTag))
 		}
 	} else if sha, err := gitter.HeadTagOrCommit(); err == nil {
-		rng.Slot("until").Resolve(shortSha(sha))
+		rng.Slot("until").Resolve(event.SHA(sha))
 	}
-}
-
-// shortSha returns the leading 7 chars of a commit sha (the conventional
-// short form), or the input if shorter.
-func shortSha(sha string) string {
-	if len(sha) > 7 {
-		return sha[:7]
-	}
-	return sha
-}
-
-// formatDate renders a timestamp in the compact form used in the summary
-// trailer (e.g. "Jan 15 2026"). Empty time renders as "".
-func formatDate(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-	return t.Format("Jan 2 2006")
 }
 
 // checkTrunkPrerequisites returns an error when the trunk output format is
