@@ -34,3 +34,177 @@
 **[(Full Changelog)](https://github.com/anchore/syft/compare/v0.19.0...v0.19.1)**
 
 ---
+
+[TestMarkdownPresenter_Present_DependencyDiff - 1]
+# v0.20.0
+
+### Bug Fixes
+
+- some bug fix
+
+### Dependencies
+
+4 dependency changes (1 updated, 1 downgraded, 1 added, 1 removed). 3 vulnerabilities remediated and 1 vulnerability introduced.
+
+**🟢 Remediated (3)**
+
+- [CVE-2022-0001](https://nvd.nist.gov/vuln/detail/CVE-2022-0001) (medium) — github.com/old/dep
+- CVE-2023-39325 (high) — golang.org/x/net
+- [CVE-2023-44487](https://nvd.nist.gov/vuln/detail/CVE-2023-44487) (high) — golang.org/x/net
+
+**🔴 Introduced (1)**
+
+- [CVE-2024-12345](https://nvd.nist.gov/vuln/detail/CVE-2024-12345) (critical) — github.com/foo/bar
+
+<details>
+<summary>Updated (1 package)</summary>
+
+- golang.org/x/net `v0.17.0` → `v0.23.0` **(🟢 remediated CVE-2023-39325, [CVE-2023-44487](https://nvd.nist.gov/vuln/detail/CVE-2023-44487))**
+</details>
+
+<details>
+<summary>Downgraded (1 package)</summary>
+
+- github.com/foo/bar `v1.2.0` → `v1.1.0` **(🔴 reintroduces [CVE-2024-12345](https://nvd.nist.gov/vuln/detail/CVE-2024-12345))**
+</details>
+
+<details>
+<summary>Added (1 package)</summary>
+
+- github.com/new/dep `v0.4.0`
+</details>
+
+<details>
+<summary>Removed (1 package)</summary>
+
+- github.com/old/dep `v0.9.0` **(🟢 remediated [CVE-2022-0001](https://nvd.nist.gov/vuln/detail/CVE-2022-0001))**
+</details>
+
+**[(Full Changelog)](https://github.com/anchore/syft/compare/v0.19.0...v0.20.0)**
+
+---
+
+[TestMarkdownPresenter_Present_DependencyDiff_MultiEcosystem - 1]
+# v0.20.0
+
+### Dependencies
+
+4 dependency changes (2 updated, 1 downgraded, 1 added).
+
+#### Go
+
+**Updated (1 package)**
+
+- golang.org/x/net `v0.17.0` → `v0.23.0`
+
+**Added (1 package)**
+
+- github.com/new/dep `v0.4.0`
+
+#### JavaScript
+
+**Updated (1 package)**
+
+- left-pad `1.2.0` → `1.3.0`
+
+#### Python
+
+**Downgraded (1 package)**
+
+- requests `2.31.0` → `2.30.0`
+
+**[(Full Changelog)](https://example.com/compare)**
+
+---
+
+[TestMarkdownPresenter_Present_DependencyDiff_CollapsiblePURL - 1]
+# v0.20.0
+
+### Dependencies
+
+2 dependency changes.
+
+<details>
+<summary>Updated (1 package)</summary>
+
+- pkg:golang/golang.org/x/net@v0.23.0
+</details>
+
+**Added** (1 package)
+
+**[(Full Changelog)](https://example.com/compare)**
+
+---
+
+[TestMarkdownPresenter_Present_DependencyDiff_CollapsedWithVulns - 1]
+# v0.20.0
+
+### Dependencies
+
+2 dependency changes (1 updated, 1 added). 2 vulnerabilities remediated.
+
+**🟢 Remediated (2)**
+
+- [CVE-2023-39325](https://nvd.nist.gov/vuln/detail/CVE-2023-39325) — golang.org/x/net
+- [CVE-2023-44487](https://nvd.nist.gov/vuln/detail/CVE-2023-44487) — golang.org/x/net
+
+<details>
+<summary>Updated (1 package)</summary>
+
+- golang.org/x/net `v0.17.0` → `v0.23.0` **(🟢 remediated [CVE-2023-39325](https://nvd.nist.gov/vuln/detail/CVE-2023-39325), [CVE-2023-44487](https://nvd.nist.gov/vuln/detail/CVE-2023-44487))**
+</details>
+
+**Added (1 package)**
+
+**[(Full Changelog)](https://example.com/compare)**
+
+---
+
+[TestMarkdownPresenter_Present_OnlyVulnerable_NoCollapse - 1]
+# v0.20.0
+
+### Dependencies
+
+4 dependency changes (2 updated, 1 added, 1 removed). 2 vulnerabilities remediated and 1 vulnerability introduced.
+
+**Updated (1 package with vulnerability changes)**
+
+- golang.org/x/net `v0.17.0` → `v0.23.0` **(🟢 remediated [CVE-2023-44487](https://nvd.nist.gov/vuln/detail/CVE-2023-44487))**
+
+**Added (1 package with vulnerability changes)**
+
+- github.com/new/dep `v0.4.0` **(🔴 introduces [CVE-2024-99999](https://nvd.nist.gov/vuln/detail/CVE-2024-99999))**
+
+**Removed (1 package with vulnerability changes)**
+
+- github.com/old/dep `v0.9.0` **(🟢 remediated [CVE-2022-0001](https://nvd.nist.gov/vuln/detail/CVE-2022-0001))**
+
+**[(Full Changelog)](https://example.com/compare)**
+
+---
+
+[TestMarkdownPresenter_Present_DependencyDiff_ShowRemaining - 1]
+# v0.20.0
+
+### Dependencies
+
+1 dependency change (1 updated). 1 vulnerability remediated.
+
+**🟢 Remediated (1)**
+
+- [CVE-2023-44487](https://nvd.nist.gov/vuln/detail/CVE-2023-44487) (high) — golang.org/x/net
+
+**🟡 Remaining (2)**
+
+- [CVE-2021-1111](https://nvd.nist.gov/vuln/detail/CVE-2021-1111) (critical) — github.com/legacy/lib, golang.org/x/net
+- CVE-2021-2222 (medium) — github.com/legacy/lib
+
+<details>
+<summary>Updated (1 package)</summary>
+
+- golang.org/x/net `v0.17.0` → `v0.23.0` **(🟢 remediated [CVE-2023-44487](https://nvd.nist.gov/vuln/detail/CVE-2023-44487))**
+</details>
+
+**[(Full Changelog)](https://example.com/compare)**
+
+---

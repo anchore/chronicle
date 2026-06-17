@@ -12,10 +12,13 @@ import (
 	"github.com/anchore/chronicle/internal/log"
 )
 
-// postUIEvents flushes accumulated finalize events after the UI has torn down:
-//   - CLISummaryType  → stderr (the post-run recap block)
+// postUIEvents flushes accumulated output after the UI has torn down:
+//   - summary (pre-rendered recap block) → stderr
 //   - CLINotificationType → stderr in magenta (transient status)
 //   - CLIReportType   → stdout (the changelog product; bytes the user piped)
+//
+// The recap block arrives pre-rendered (cli/ui owns its presentation; the UI
+// just collected the raw groups/figures and rendered them here at teardown).
 //
 // Order matters: in TTY mode where stdout and stderr land in the same
 // terminal, we want the recap block + status notes (stderr) to appear above
@@ -25,8 +28,8 @@ import (
 // Routing reports through this function (rather than letting the worker
 // write directly to os.Stdout) is what keeps stdout clean while bubbletea
 // is alive on stderr.
-func postUIEvents(quiet bool, events ...partybus.Event) {
-	writeSummaries(os.Stderr, events...)
+func postUIEvents(quiet bool, summary string, events ...partybus.Event) {
+	writeSummary(os.Stderr, summary)
 
 	if !quiet {
 		writeNotifications(os.Stderr, events...)
@@ -55,26 +58,14 @@ func writeReports(w *os.File, events ...partybus.Event) {
 	_, _ = fmt.Fprint(w, strings.Join(reports, "\n"))
 }
 
-func writeSummaries(w *os.File, events ...partybus.Event) {
-	var blocks []string
-	for _, e := range events {
-		if e.Type != event.CLISummaryType {
-			continue
-		}
-		source, summary, err := event.ParseCLISummaryType(e)
-		if err != nil {
-			log.WithFields("error", err).
-				Warnf("failed to gather summary for %q", source)
-			continue
-		}
-		blocks = append(blocks, strings.TrimRight(summary, "\n ")+"\n")
-	}
-	if len(blocks) == 0 {
+func writeSummary(w *os.File, summary string) {
+	summary = strings.TrimRight(summary, "\n ")
+	if summary == "" {
 		return
 	}
 	// trailing blank line separates the summary block from whatever comes
 	// next on the same stream (the changelog product on stdout in TTY mode).
-	_, _ = fmt.Fprint(w, strings.Join(blocks, "\n")+"\n")
+	_, _ = fmt.Fprint(w, summary+"\n\n")
 }
 
 func writeNotifications(w *os.File, events ...partybus.Event) {

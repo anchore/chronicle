@@ -8,8 +8,10 @@ import (
 	"github.com/gkampitakis/go-snaps/snaps"
 	"github.com/stretchr/testify/require"
 
+	"github.com/anchore/chronicle/chronicle/dependency"
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
+	"github.com/anchore/chronicle/chronicle/release/render"
 )
 
 func TestMarkdownPresenter_Present(t *testing.T) {
@@ -99,6 +101,221 @@ func TestMarkdownPresenter_Present_NoChanges(t *testing.T) {
 			VCSChangesURL:   "https://github.com/anchore/syft/compare/v0.19.0...v0.19.1",
 			Changes:         []change.Change{},
 			Notice:          "notice!",
+		},
+	)
+}
+
+func TestMarkdownPresenter_Present_DependencyDiff(t *testing.T) {
+	// exercises Updated (with remediated), Downgraded (with reintroduction),
+	// Added (no annotation), and Removed (with remediated) change kinds. The
+	// rollup counts derive from the per-change Vuln deltas (3 unique remediated,
+	// 1 introduced).
+	diff := dependency.NewDiff([]dependency.PackageChange{
+		{
+			Name:        "golang.org/x/net",
+			Type:        "go-module",
+			FromVersion: "v0.17.0",
+			ToVersion:   "v0.23.0",
+			Kind:        dependency.Updated,
+			Vuln: &dependency.VulnDelta{
+				Remediated: []dependency.Vulnerability{
+					{ID: "CVE-2023-44487", Severity: "high", DataSource: "https://nvd.nist.gov/vuln/detail/CVE-2023-44487"},
+					// no DataSource: exercises the bare-ID fallback (unlinked).
+					{ID: "CVE-2023-39325", Severity: "high"},
+				},
+			},
+		},
+		{
+			Name:        "github.com/foo/bar",
+			Type:        "go-module",
+			FromVersion: "v1.2.0",
+			ToVersion:   "v1.1.0",
+			Kind:        dependency.Downgraded,
+			Vuln: &dependency.VulnDelta{
+				Introduced: []dependency.Vulnerability{
+					{ID: "CVE-2024-12345", Severity: "critical", DataSource: "https://nvd.nist.gov/vuln/detail/CVE-2024-12345"},
+				},
+			},
+		},
+		{
+			Name:      "github.com/new/dep",
+			Type:      "go-module",
+			ToVersion: "v0.4.0",
+			Kind:      dependency.Added,
+		},
+		{
+			Name:        "github.com/old/dep",
+			Type:        "go-module",
+			FromVersion: "v0.9.0",
+			Kind:        dependency.Removed,
+			Vuln: &dependency.VulnDelta{
+				Remediated: []dependency.Vulnerability{
+					{ID: "CVE-2022-0001", Severity: "medium", DataSource: "https://nvd.nist.gov/vuln/detail/CVE-2022-0001"},
+				},
+			},
+		},
+	})
+
+	assertEncoderAgainstGoldenSnapshot(t,
+		`{{ .Version }}`,
+		release.Description{
+			SupportedChanges: []change.TypeTitle{
+				{ChangeType: change.NewType("bug", change.SemVerPatch), Title: "Bug Fixes"},
+			},
+			Release: release.Release{
+				Version: "v0.20.0",
+				Date:    time.Date(2024, time.January, 15, 12, 0, 0, 0, time.UTC),
+			},
+			VCSChangesURL: "https://github.com/anchore/syft/compare/v0.19.0...v0.20.0",
+			Changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{change.NewType("bug", change.SemVerPatch)},
+					Text:        "fix: some bug fix",
+				},
+			},
+			DependencyDiff: &diff,
+		},
+	)
+}
+
+func TestMarkdownPresenter_Present_DependencyDiff_MultiEcosystem(t *testing.T) {
+	// multiple ecosystems render as #### subsections; here every action is set
+	// to list so the tables are visible under each ecosystem.
+	allList := render.Config{
+		Actions: map[dependency.ChangeKind][]render.Mode{
+			dependency.Updated:    {render.ModeList},
+			dependency.Downgraded: {render.ModeList},
+			dependency.Added:      {render.ModeList},
+			dependency.Removed:    {render.ModeList},
+		},
+	}
+	diff := dependency.NewDiff([]dependency.PackageChange{
+		{Name: "golang.org/x/net", Type: "go-module", FromVersion: "v0.17.0", ToVersion: "v0.23.0", Kind: dependency.Updated},
+		{Name: "github.com/new/dep", Type: "go-module", ToVersion: "v0.4.0", Kind: dependency.Added},
+		{Name: "left-pad", Type: "npm", FromVersion: "1.2.0", ToVersion: "1.3.0", Kind: dependency.Updated},
+		{Name: "requests", Type: "python", FromVersion: "2.31.0", ToVersion: "2.30.0", Kind: dependency.Downgraded},
+	})
+	assertEncoderAgainstGoldenSnapshot(t,
+		`{{ .Version }}`,
+		release.Description{
+			Release:          release.Release{Version: "v0.20.0"},
+			VCSChangesURL:    "https://example.com/compare",
+			DependencyDiff:   &diff,
+			DependencyRender: &allList,
+		},
+	)
+}
+
+func TestMarkdownPresenter_Present_DependencyDiff_CollapsedWithVulns(t *testing.T) {
+	// collapsed wraps the table in <details>; the vulnerability note appears
+	// because the diff carries vulnerability data (2 unique remediated).
+	cfg := render.Config{
+		Actions: map[dependency.ChangeKind][]render.Mode{
+			dependency.Updated: {render.ModeCollapsed},
+			dependency.Added:   {render.ModeSummary},
+		},
+	}
+	diff := dependency.NewDiff([]dependency.PackageChange{
+		{
+			Name: "golang.org/x/net", Type: "go-module", FromVersion: "v0.17.0", ToVersion: "v0.23.0", Kind: dependency.Updated,
+			Vuln: &dependency.VulnDelta{Remediated: []dependency.Vulnerability{{ID: "CVE-2023-44487", DataSource: "https://nvd.nist.gov/vuln/detail/CVE-2023-44487"}, {ID: "CVE-2023-39325", DataSource: "https://nvd.nist.gov/vuln/detail/CVE-2023-39325"}}},
+		},
+		{Name: "github.com/new/dep", Type: "go-module", ToVersion: "v0.4.0", Kind: dependency.Added},
+	})
+	assertEncoderAgainstGoldenSnapshot(t,
+		`{{ .Version }}`,
+		release.Description{
+			Release:          release.Release{Version: "v0.20.0"},
+			VCSChangesURL:    "https://example.com/compare",
+			DependencyDiff:   &diff,
+			DependencyRender: &cfg,
+		},
+	)
+}
+
+func TestMarkdownPresenter_Present_OnlyVulnerable_NoCollapse(t *testing.T) {
+	// mirrors the md-pretty path: NoCollapse (can't collapse) + OnlyVulnerable,
+	// with Added/Removed explicitly set to collapsed,summary. With collapse
+	// unavailable they fall through to a bare summary header and would render
+	// empty; OnlyVulnerable must upgrade that to a list so the vulnerable
+	// added/removed packages show.
+	cfg := render.Config{
+		OnlyVulnerable: true,
+		Actions: map[dependency.ChangeKind][]render.Mode{
+			dependency.Added:   {render.ModeCollapsed, render.ModeSummary},
+			dependency.Removed: {render.ModeCollapsed, render.ModeSummary},
+		},
+	}
+	diff := dependency.NewDiff([]dependency.PackageChange{
+		{
+			Name: "golang.org/x/net", Type: "go-module", FromVersion: "v0.17.0", ToVersion: "v0.23.0", Kind: dependency.Updated,
+			Vuln: &dependency.VulnDelta{Remediated: []dependency.Vulnerability{{ID: "CVE-2023-44487", DataSource: "https://nvd.nist.gov/vuln/detail/CVE-2023-44487"}}},
+		},
+		// a non-vulnerable update: must be filtered out entirely by OnlyVulnerable.
+		{Name: "github.com/quiet/dep", Type: "go-module", FromVersion: "v1.0.0", ToVersion: "v1.1.0", Kind: dependency.Updated},
+		{
+			Name: "github.com/new/dep", Type: "go-module", ToVersion: "v0.4.0", Kind: dependency.Added,
+			Vuln: &dependency.VulnDelta{Introduced: []dependency.Vulnerability{{ID: "CVE-2024-99999", DataSource: "https://nvd.nist.gov/vuln/detail/CVE-2024-99999"}}},
+		},
+		{
+			Name: "github.com/old/dep", Type: "go-module", FromVersion: "v0.9.0", Kind: dependency.Removed,
+			Vuln: &dependency.VulnDelta{Remediated: []dependency.Vulnerability{{ID: "CVE-2022-0001", DataSource: "https://nvd.nist.gov/vuln/detail/CVE-2022-0001"}}},
+		},
+	})
+
+	var buf bytes.Buffer
+	require.NoError(t, (&Encoder{NoCollapse: true}).Encode(&buf, `{{ .Version }}`, release.Description{
+		Release:          release.Release{Version: "v0.20.0"},
+		VCSChangesURL:    "https://example.com/compare",
+		DependencyDiff:   &diff,
+		DependencyRender: &cfg,
+	}))
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestMarkdownPresenter_Present_DependencyDiff_ShowRemaining(t *testing.T) {
+	// ShowRemaining surfaces the carried-over vulnerabilities (Diff.Remaining)
+	// as a "🟡 Remaining" rollup group. Here updated is collapsed (so the
+	// remediated rollup also shows), and the remaining set spans both a changed
+	// package and an unchanged one — CVE-2021-1111 appears on two packages and
+	// must collapse to one listing naming both.
+	cfg := render.Config{
+		ShowRemaining: true,
+		Actions: map[dependency.ChangeKind][]render.Mode{
+			dependency.Updated: {render.ModeCollapsed},
+		},
+	}
+	diff := dependency.NewDiff([]dependency.PackageChange{
+		{
+			Name: "golang.org/x/net", Type: "go-module", FromVersion: "v0.17.0", ToVersion: "v0.23.0", Kind: dependency.Updated,
+			Vuln: &dependency.VulnDelta{Remediated: []dependency.Vulnerability{{ID: "CVE-2023-44487", Severity: "high", DataSource: "https://nvd.nist.gov/vuln/detail/CVE-2023-44487"}}},
+		},
+	})
+	diff.Remaining = []dependency.PackageVulns{
+		{
+			Package: dependency.Package{Name: "github.com/legacy/lib", Type: "go-module"},
+			Vulns: []dependency.Vulnerability{
+				{ID: "CVE-2021-1111", Severity: "critical", DataSource: "https://nvd.nist.gov/vuln/detail/CVE-2021-1111"},
+				// no DataSource: exercises the bare-ID fallback (unlinked).
+				{ID: "CVE-2021-2222", Severity: "medium"},
+			},
+		},
+		{
+			Package: dependency.Package{Name: "golang.org/x/net", Type: "go-module"},
+			Vulns: []dependency.Vulnerability{
+				{ID: "CVE-2021-1111", Severity: "critical", DataSource: "https://nvd.nist.gov/vuln/detail/CVE-2021-1111"},
+			},
+		},
+	}
+	diff.RemainingCount = 2
+
+	assertEncoderAgainstGoldenSnapshot(t,
+		`{{ .Version }}`,
+		release.Description{
+			Release:          release.Release{Version: "v0.20.0"},
+			VCSChangesURL:    "https://example.com/compare",
+			DependencyDiff:   &diff,
+			DependencyRender: &cfg,
 		},
 	)
 }

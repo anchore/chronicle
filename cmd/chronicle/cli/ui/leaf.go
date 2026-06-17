@@ -46,8 +46,8 @@ func (l leaf) View() string {
 
 	switch l.data.State() {
 	case event.SlotResolved:
-		b.WriteString(resolvedStyle.Render(l.data.Count()))
-		if note := l.data.Note(); note != "" {
+		b.WriteString(resolvedStyle.Render(formatMetrics(l.data.Metrics())))
+		if note := droppedText(l.data.Dropped()); note != "" {
 			b.WriteString("   ")
 			b.WriteString(dimStyle.Render("(" + note + ")"))
 		}
@@ -59,7 +59,7 @@ func (l leaf) View() string {
 			b.WriteString(dimStyle.Render(err.Error()))
 		}
 	case event.SlotRunning:
-		if cur := l.data.Stage.Current; cur != "" {
+		if cur := l.data.RunningDetail(); cur != "" {
 			b.WriteString(dimStyle.Render(cur))
 		} else {
 			b.WriteString(dimStyle.Render("waiting"))
@@ -71,17 +71,8 @@ func (l leaf) View() string {
 }
 
 func (l leaf) markView() string {
-	switch l.data.State() {
-	case event.SlotResolved:
-		return okMarkStyle.Render(checkMark)
-	case event.SlotFailed:
-		return failStyle.Render(xMark)
-	case event.SlotSkipped:
-		return dimStyle.Render(skipMark)
-	case event.SlotRunning:
-		if l.sp != nil {
-			return l.sp.View()
-		}
+	if l.data.State() == event.SlotRunning && l.sp != nil {
+		return l.sp.View()
 	}
-	return dimStyle.Render(dotMark)
+	return staticMark(l.data.State())
 }

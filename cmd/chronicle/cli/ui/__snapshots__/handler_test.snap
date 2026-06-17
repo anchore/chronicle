@@ -21,9 +21,9 @@ Evidence
 
 [TestTreeGroup_Snapshot_Resolved - 1]
 Evidence
-├── ✔ commits         47   (32 associated)
-├── ✔ issues          73   (42 kept)
-└── ✔ pull requests   164   (87 kept)
+├── ✔ commits         47   (15 dropped)
+├── ✔ issues          73   (31 dropped)
+└── ✔ pull requests   164   (77 dropped)
 
 ---
 
@@ -32,5 +32,41 @@ Evidence
 ├── ✔ commits         0
 ├── ⊘ issues          skipped
 └── ⊘ pull requests   skipped
+
+---
+
+[TestTreeGroup_Snapshot_NestedSBOM_Scanning - 1]
+Evidence
+├── ✔ commits         47   (15 dropped)
+├── ✔ issues          73
+├── ✔ pull requests   164
+└── ⠋ source sbom     cataloging…
+    ├── ⠋ since   142 packages
+    └── ⠋ until   156 packages
+
+---
+
+[TestTreeGroup_Snapshot_NestedSBOM_Resolved - 1]
+Evidence
+├── ✔ commits         47   (15 dropped)
+├── ✔ issues          73
+├── ✔ pull requests   164
+└── ✔ source sbom     added=10 removed=12 updated=2 downgraded=3
+    ├── ✔ since   142 packages
+    └── ✔ until   156 packages
+
+---
+
+[TestTreeGroup_Snapshot_SBOMAndVulnerabilities - 1]
+Evidence
+├── ✔ commits           47   (15 dropped)
+├── ✔ issues            73
+├── ✔ pull requests     164
+├── ✔ source sbom       added=10 removed=12 updated=2 downgraded=3
+│   ├── ✔ since   142 packages
+│   └── ✔ until   156 packages
+└── ⠋ vulnerabilities   matching…
+    ├── ⠋ since   matching…
+    └── ✔ until   7 vulnerabilities
 
 ---

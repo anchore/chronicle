@@ -1,6 +1,10 @@
 package release
 
-import "github.com/anchore/chronicle/chronicle/release/change"
+import (
+	"github.com/anchore/chronicle/chronicle/dependency"
+	"github.com/anchore/chronicle/chronicle/release/change"
+	"github.com/anchore/chronicle/chronicle/release/render"
+)
 
 // Description contains all the data and metadata about a release that is pertinent to a changelog.
 type Description struct {
@@ -18,6 +22,19 @@ type Description struct {
 	PreviousRelease         *Release   // the release this changelog starts from; nil if since the beginning of history
 	Speculated              bool       // true when the version was inferred by the speculator
 	Trunk                   *TrunkData // optional, populated by summarizers that implement TrunkSummarizer
+
+	// DependencyDiff is the optional source-scan SBOM diff between the since and
+	// until refs. Nil when the dependencies feature is disabled. Kept separate
+	// from Changes/SupportedChanges so it renders independently of the
+	// label-driven change sections.
+	DependencyDiff *dependency.Diff
+
+	// DependencyRender carries the display preferences for DependencyDiff. It
+	// travels alongside the data rather than inside it, so the diff stays pure
+	// data and the prose encoders receive their presentation config explicitly.
+	// Nil means encoders apply render.DefaultConfig(). Excluded from JSON: it is
+	// presentation, not part of the serialized changelog artifact.
+	DependencyRender *render.Config `json:"-"`
 
 	// raw evidence totals (pre-filter), surfaced for the summary report so it
 	// can show "N (M kept)" trailers. Populated by the worker after the

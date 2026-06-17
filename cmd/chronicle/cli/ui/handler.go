@@ -13,6 +13,8 @@ import (
 	"github.com/anchore/chronicle/chronicle/event"
 	"github.com/anchore/chronicle/internal/bus"
 	"github.com/anchore/chronicle/internal/log"
+	syftEvent "github.com/anchore/syft/syft/event"
+	"github.com/anchore/syft/syft/event/monitor"
 )
 
 var _ bubbly.EventHandler = (*Handler)(nil)
@@ -52,6 +54,10 @@ func New() *Handler {
 		event.TaskType:      h.handleTask,
 		event.GroupTaskType: h.handleGroupTask,
 		event.TreeTaskType:  h.handleTreeTask,
+		// react to syft's cataloging events ourselves (rather than rendering
+		// syft's own multi-row TUI) so the live package count rolls up onto the
+		// source-sbom branch leaves.
+		syftEvent.CatalogerTaskStarted: h.handleSyftCatalogerTask,
 	})
 
 	return h
@@ -96,12 +102,11 @@ func (m *Handler) handleGroupTask(e partybus.Event) ([]tea.Model, tea.Cmd) {
 		return nil, nil
 	}
 	// the "range" group renders as the top-level project section: its title
-	// is "Project: OWNER/REPO" with the bracket pair as its tree.
+	// is "Project: OWNER/REPO" (rendered by projectTitle, the same one the recap
+	// uses) with the bracket pair as its tree.
 	title := ""
-	if g.Header == "range" {
-		if repo := bus.Repo(); repo != "" {
-			title = boldStyle.Render("Project: " + repo)
-		}
+	if g.Header == headerRange {
+		title = projectTitle(bus.Repo())
 	}
 	return []tea.Model{NewBracketGroup(g, title, m.state.Spinner)}, nil
 }
@@ -113,4 +118,27 @@ func (m *Handler) handleTreeTask(e partybus.Event) ([]tea.Model, tea.Cmd) {
 		return nil, nil
 	}
 	return []tea.Model{NewTreeGroup(t, m.state.Spinner)}, nil
+}
+
+// handleSyftCatalogerTask consumes syft's cataloging events and routes the live
+// package count onto the matching source-sbom branch leaf, instead of letting
+// syft render its own rows. The top-level "cataloging" task carries the source
+// ID in its context; the "package-cataloging" task that syft publishes right
+// after carries the live "N packages" stage but no source ID, so we pair the
+// two via the bus's bind queue. All other cataloger sub-tasks are ignored. It
+// produces no UI model of its own.
+func (m *Handler) handleSyftCatalogerTask(e partybus.Event) ([]tea.Model, tea.Cmd) {
+	gt, ok := e.Source.(monitor.GenericTask)
+	if !ok {
+		return nil, nil
+	}
+	switch gt.ID {
+	case monitor.TopLevelCatalogingTaskID:
+		bus.EnqueueSBOMBind(gt.Context)
+	case monitor.PackageCatalogingTaskID:
+		if p, ok := e.Value.(progress.StagedProgressable); ok {
+			bus.BindSBOMPackageProgress(p)
+		}
+	}
+	return nil, nil
 }

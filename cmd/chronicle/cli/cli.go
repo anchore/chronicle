@@ -8,6 +8,8 @@ import (
 	"github.com/anchore/chronicle/cmd/chronicle/internal/ui"
 	"github.com/anchore/chronicle/internal/bus"
 	"github.com/anchore/clio"
+	"github.com/anchore/grype/grype"
+	"github.com/anchore/syft/syft"
 )
 
 func New(id clio.Identification) clio.Application {
@@ -24,7 +26,7 @@ func New(id clio.Identification) clio.Application {
 				}
 
 				return clio.NewUICollection(
-					ui.New(id.Version, "", false, cfg.Log.Quiet),
+					ui.New(cfg.Log.Quiet),
 					noUI,
 				), nil
 			},
@@ -36,6 +38,10 @@ func New(id clio.Identification) clio.Application {
 				chronicle.SetBus(state.Bus)
 				chronicle.SetLogger(state.Logger)
 				bus.Set(state.Bus)
+				syft.SetBus(state.Bus)
+				syft.SetLogger(state.Logger.Nested("library", "syft"))
+				grype.SetBus(state.Bus)
+				grype.SetLogger(state.Logger.Nested("library", "grype"))
 				return nil
 			},
 		)

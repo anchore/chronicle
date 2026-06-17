@@ -38,7 +38,7 @@ type Slot struct {
 	label  string
 	intent string
 	state  SlotState
-	values []string // raw value segments (e.g. "v0.14.0", "a3b4c5d", "Jan 15 2026")
+	values []Value // raw value segments (tag, sha, date); the UI formats them
 	err    error
 }
 
@@ -160,13 +160,13 @@ func (s *Slot) State() SlotState {
 }
 
 // Values returns the raw resolved value segments. The UI model owns formatting.
-func (s *Slot) Values() []string {
+func (s *Slot) Values() []Value {
 	if s == nil {
 		return nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := make([]string, len(s.values))
+	out := make([]Value, len(s.values))
 	copy(out, s.values)
 	return out
 }
@@ -196,7 +196,7 @@ func (s *Slot) Start() {
 
 // Resolve sets the bright resolved value as raw segments (e.g. tag, sha, date).
 // The slot model is responsible for join/format/styling.
-func (s *Slot) Resolve(values ...string) {
+func (s *Slot) Resolve(values ...Value) {
 	if s == nil {
 		return
 	}
