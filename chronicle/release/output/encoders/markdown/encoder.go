@@ -181,7 +181,7 @@ func toolchainRollup(tc *release.ToolchainData) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "**Toolchains (%d)**\n\n", len(lines))
 	for _, l := range lines {
-		fmt.Fprintf(&sb, "- %s minimum version: %s → %s", l.Label, l.From, l.To)
+		fmt.Fprintf(&sb, "- %s minimum version: `%s` → `%s`", l.Label, l.From, l.To)
 		if l.Direction == release.ToolchainDowngrade {
 			sb.WriteString(" (downgrade)")
 		}

@@ -220,7 +220,7 @@
 
 **Toolchains (1)**
 
-- Go minimum version: 1.21 → 1.23
+- Go minimum version: `1.21` → `1.23`
 
 **[(Full Changelog)](https://github.com/anchore/syft/compare/v0.19.0...v0.19.1)**
 
@@ -233,7 +233,7 @@
 
 **Toolchains (1)**
 
-- Go minimum version: 1.23 → 1.21 (downgrade)
+- Go minimum version: `1.23` → `1.21` (downgrade)
 
 **[(Full Changelog)](https://github.com/anchore/syft/compare/v0.19.0...v0.19.1)**
 
@@ -252,7 +252,7 @@
 
 **Toolchains (1)**
 
-- Go minimum version: 1.21 → 1.23
+- Go minimum version: `1.21` → `1.23`
 
 <details>
 <summary>Updated (1 package)</summary>

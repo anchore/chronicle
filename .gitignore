@@ -12,6 +12,9 @@ bin/
 /bin
 /.bin
 /build
+
+# compiled go-make binary (built on demand by `go run -C .make .`)
+/.make/.make
 .mise.toml
 .tool/
 /bin
