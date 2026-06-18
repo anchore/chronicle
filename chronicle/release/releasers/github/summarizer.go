@@ -35,9 +35,13 @@ type Config struct {
 	IncludeUnlabeledIssues          bool
 	IncludeUnlabeledPRs             bool
 	ExcludeLabels                   []string
-	ChangeTypesByLabel              change.TypeSet
-	IssuesRequireLinkedPR           bool
-	ConsiderPRMergeCommits          bool
+	// ExcludeAuthors drops PRs authored by any of these logins (case-insensitive,
+	// "[bot]" suffix ignored). Used to suppress dependency-bot PRs when the
+	// dependencies section already reports those bumps.
+	ExcludeAuthors         []string
+	ChangeTypesByLabel     change.TypeSet
+	IssuesRequireLinkedPR  bool
+	ConsiderPRMergeCommits bool
 
 	// InferChangeTypeFromTitle, when true, infers a change type from a PR's
 	// conventional-commit title prefix when the PR carries no change-type label.
@@ -808,6 +812,7 @@ func changesFromUnlabeledPRs(config Config, allMergedPRs []ghPullRequest, sinceT
 		// a PR whose change type was inferred from its title is carried by the
 		// standard (typed) PR path; exclude it here so it isn't counted twice.
 		prsWithoutChangeType(config),
+		prsWithoutAuthor(config.ExcludeAuthors...),
 	}
 
 	filters = append(filters, standardChronologicalPrFilters(config, sinceTag, untilTag, includeCommits)...)
@@ -951,6 +956,7 @@ func standardQualitativePrFilters(config Config) []prFilter {
 		// or (when enabled) an inferred conventional-commit title prefix.
 		prsWithChangeTypes(config),
 		prsWithoutLabel(config.ExcludeLabels...),
+		prsWithoutAuthor(config.ExcludeAuthors...),
 		// Merged PRs linked to closed issues should be hidden so that the closed issue title takes precedence over the pr title
 		prsWithoutClosedLinkedIssue(),
 		// Merged PRs with open issues indicates a partial implementation. When the last PR is merged for the issue

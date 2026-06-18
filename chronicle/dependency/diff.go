@@ -53,16 +53,16 @@ type VersionComparer interface {
 // Display preferences live separately (render.Config), not here.
 type Diff struct {
 	Changes         []PackageChange
-	Totals          ChangeTotals
-	RemediatedCount int // unique vuln IDs across all changes' Remediated
-	IntroducedCount int // unique vuln IDs across all changes' Introduced
+	Totals          ChangeTotals `json:"-"`
+	RemediatedCount int          `json:"-"` // unique vuln IDs across all changes' Remediated
+	IntroducedCount int          `json:"-"` // unique vuln IDs across all changes' Introduced
 	// RemainingCount is the unique vuln IDs present at BOTH since and until —
 	// carried over, neither remediated (gone at until) nor introduced (new at
 	// until) — across every package in the latest scan, not just the changed
 	// ones. Unlike the two counts above it is not derivable from Changes (it
 	// spans unchanged packages too), so annotate sets it from the scans rather
 	// than NewDiff deriving it. Zero on an unannotated diff.
-	RemainingCount int
+	RemainingCount int `json:"-"`
 
 	// Since and Until are the scans that were compared, retained so callers
 	// can derive per-ref scan figures (package and vulnerability counts, match
@@ -95,10 +95,10 @@ type ChangeTotals struct {
 type PackageChange struct {
 	Name        string
 	Type        string // syft package type; render maps it to an ecosystem label
-	FromVersion string // "" for Added
-	ToVersion   string // "" for Removed
+	FromVersion string `json:",omitempty"` // "" for Added
+	ToVersion   string `json:",omitempty"` // "" for Removed
 	Kind        ChangeKind
-	Vuln        *VulnDelta // nil unless annotated
+	Vuln        *VulnDelta `json:",omitempty"` // nil unless annotated
 }
 
 // ComputeDiff diffs the dependency graph between cfg.SinceRef and cfg.UntilRef.

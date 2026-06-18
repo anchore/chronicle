@@ -201,6 +201,57 @@ func Test_prsWithoutLabel(t *testing.T) {
 	}
 }
 
+func Test_prsWithoutAuthor(t *testing.T) {
+	tests := []struct {
+		name    string
+		pr      ghPullRequest
+		authors []string
+		keep    bool
+	}{
+		{
+			name:    "matches bot login with [bot] suffix",
+			authors: []string{"dependabot"},
+			pr:      ghPullRequest{Author: "dependabot[bot]"},
+			keep:    false,
+		},
+		{
+			name:    "matches bare login",
+			authors: []string{"dependabot"},
+			pr:      ghPullRequest{Author: "dependabot"},
+			keep:    false,
+		},
+		{
+			name:    "match is case-insensitive",
+			authors: []string{"Dependabot"},
+			pr:      ghPullRequest{Author: "dependabot[bot]"},
+			keep:    false,
+		},
+		{
+			name:    "matches any of several authors",
+			authors: []string{"dependabot", "renovate"},
+			pr:      ghPullRequest{Author: "renovate[bot]"},
+			keep:    false,
+		},
+		{
+			name:    "does not match a normal author",
+			authors: []string{"dependabot", "renovate"},
+			pr:      ghPullRequest{Author: "octocat"},
+			keep:    true,
+		},
+		{
+			name:    "empty author list keeps everything",
+			authors: nil,
+			pr:      ghPullRequest{Author: "dependabot[bot]"},
+			keep:    true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.keep, prsWithoutAuthor(test.authors...)(test.pr))
+		})
+	}
+}
+
 func Test_prsWithoutClosedLinkedIssue(t *testing.T) {
 	tests := []struct {
 		name string
