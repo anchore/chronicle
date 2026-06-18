@@ -147,6 +147,35 @@ func TestGitTarget_Materialize(t *testing.T) {
 	}
 }
 
+// TestGitTarget_Materialize_LenientBranchConfig is a regression test for repos
+// whose .git/config carries a branch whose `merge` value go-git's validator
+// rejects (e.g. a tracking ref that is not under refs/heads/). Real git tolerates
+// these; go-git's strict open fails with "branch config: invalid merge". Opening
+// must route through internal/git's lenient opener so materialization still works.
+func TestGitTarget_Materialize_LenientBranchConfig(t *testing.T) {
+	repoPath, firstHash, _ := buildTestRepo(t)
+
+	// append a branch whose merge value go-git's validator rejects.
+	cfgPath := filepath.Join(repoPath, ".git", "config")
+	b, err := os.ReadFile(cfgPath)
+	require.NoError(t, err)
+	b = append(b, []byte("\n[branch \"weird\"]\n\tremote = origin\n\tmerge = refs/pull/123/head\n")...)
+	require.NoError(t, os.WriteFile(cfgPath, b, 0o644))
+
+	// sanity check: a strict go-git open reproduces the failure the lenient path fixes.
+	_, plainErr := gogit.PlainOpenWithOptions(repoPath, &gogit.PlainOpenOptions{EnableDotGitCommonDir: true})
+	require.Error(t, plainErr)
+
+	target := NewGitTarget(repoPath)
+	dir, cleanup, err := target.Materialize(context.Background(), firstHash)
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, cleanup()) })
+
+	gotBytes, err := os.ReadFile(filepath.Join(dir, "hello.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "hello world\n", string(gotBytes))
+}
+
 // TestGitTarget_Materialize_ResolvesTags is a regression test for bare tag-name
 // resolution: ResolveRevision alone does not find refs/tags/<name> (especially
 // annotated tags), so Materialize must resolve tags explicitly. This is the

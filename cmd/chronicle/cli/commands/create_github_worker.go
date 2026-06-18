@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/anchore/chronicle/chronicle/dependency"
 	"github.com/anchore/chronicle/chronicle/dependency/scan"
 	"github.com/anchore/chronicle/chronicle/dependency/source"
+	"github.com/anchore/chronicle/chronicle/dependency/toolchain"
 	"github.com/anchore/chronicle/chronicle/event"
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
@@ -108,13 +111,34 @@ func createChangelogFromGithub(ctx context.Context, appConfig *createConfig) (*r
 	// surface raw fetch totals and resolve evidence leaves with kept counts.
 	resolveEvidenceLeaves(evidence, summer, description)
 
+	// enrich the description with the two opt-in diffs (toolchain + dependencies),
+	// joined before returning so the description is fully populated.
+	enrichDescription(ctx, appConfig, gitter, startRelease, untilTag, description, evidence, dbRefresh, vulnLeaf)
+
+	return startRelease, description, nil
+}
+
+// enrichDescription runs the two opt-in, description-enriching diffs concurrently.
+// Toolchain detection only reads go.mod (etc.) at the two refs, so it is independent of
+// the much heavier dependency scan and writes a separate field of the description; running
+// it concurrently hides its latency behind the scan. Each gitter call opens its own repo
+// handle, so the shared gitter is safe to use from both. Joined before returning.
+func enrichDescription(ctx context.Context, appConfig *createConfig, gitter git.Interface, startRelease *release.Release, untilTag string, description *release.Description, evidence *event.Tree, dbRefresh <-chan *scan.DB, vulnLeaf *event.Leaf) {
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		// detect toolchain-requirement changes (opt-in) using the now-resolved range. The result
+		// shares the evidence tree as one more row (nil leaf when detection is disabled) and is
+		// rendered as a rollup within the Dependencies section.
+		resolveToolchain(appConfig, gitter, startRelease, untilTag, description, evidence.Leaf("toolchain"))
+	})
+
 	// optional source-scan dependency diff. Non-fatal: a changelog must not
 	// fail because grype isn't ready or syft hit a snag. Await the DB refresh
 	// kicked off above (parallel with the fetch) and hand the loaded DB to the scan.
 	db := awaitVulnDB(dbRefresh)
 	attachDependencyDiff(ctx, appConfig, gitter, untilTag, description, db, evidence.Leaf("source sbom"), vulnLeaf)
 
-	return startRelease, description, nil
+	wg.Wait()
 }
 
 // attachDependencyDiff runs the opt-in dependency diff between the resolved
@@ -273,7 +297,7 @@ func resolveDependencyRefs(description *release.Description, gitter git.Interfac
 
 	untilRef = untilTag
 	if untilRef == "" {
-		untilRef = "HEAD"
+		untilRef = "HEAD" //nolint:goconst // git ref literal; clearer inline than named
 	}
 	return sinceRef, untilRef, true
 }
@@ -374,6 +398,143 @@ func dependencyRenderConfig(d options.Dependencies) render.Config {
 	}
 }
 
+// toolchainConfig builds the toolchain detection config from the dependencies options. Detection
+// rides on the dependencies feature: it runs only when --dependencies is active and the
+// detect-toolchain toggle is on, and only covers the activated ecosystems that have a detector.
+// The standard ignore globs are extended with the dependencies `exclude` list so both features
+// skip the same vendored/test trees.
+func toolchainConfig(appConfig *createConfig) toolchain.Config {
+	if !appConfig.Dependencies.Enabled() || !appConfig.Dependencies.DetectToolchain {
+		return toolchain.Config{}
+	}
+	ecos := toolchainEcosystems(appConfig.Dependencies.CleanedEcosystems())
+	if len(ecos) == 0 {
+		return toolchain.Config{}
+	}
+	return toolchain.Config{
+		Enabled:    true,
+		Ecosystems: ecos,
+		Ignore:     append(toolchain.DefaultIgnore(), appConfig.Dependencies.Exclude...),
+	}
+}
+
+// toolchainEcosystems maps the activated dependency ecosystems (syft cataloger selectors) to the
+// toolchain ecosystems we have detectors for. The "language" meta-selector expands to every known
+// toolchain ecosystem; a selector that parses to an ecosystem with no detector (e.g. "java") or
+// does not parse at all is dropped. The result is deduplicated and ordered by KnownEcosystems.
+func toolchainEcosystems(depEcosystems []string) []dependency.Ecosystem {
+	known := make(map[dependency.Ecosystem]bool)
+	for _, e := range toolchain.KnownEcosystems() {
+		known[e] = true
+	}
+
+	want := make(map[dependency.Ecosystem]bool)
+	for _, sel := range depEcosystems {
+		if strings.EqualFold(strings.TrimSpace(sel), "language") {
+			for e := range known {
+				want[e] = true
+			}
+			continue
+		}
+		if e, ok := dependency.ParseEcosystem(sel); ok && known[e] {
+			want[e] = true
+		}
+	}
+
+	var out []dependency.Ecosystem
+	for _, e := range toolchain.KnownEcosystems() {
+		if want[e] {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// resolveToolchain runs toolchain detection (when enabled), drives its row in the evidence tree,
+// and attaches the result to the description. Detection is best-effort: any failure is logged and
+// does not abort changelog generation. Reconciliation/downgrade warnings are surfaced to the
+// operator log here. The leaf is nil (a no-op) when detection is disabled.
+func resolveToolchain(appConfig *createConfig, gitter git.Interface, startRelease *release.Release, untilTag string, description *release.Description, leaf *event.Leaf) {
+	cfg := toolchainConfig(appConfig)
+	if !cfg.Enabled || description == nil {
+		return
+	}
+
+	leaf.SetStage("inspecting sources")
+
+	sinceRef := appConfig.SinceTag
+	if sinceRef == "" && startRelease != nil {
+		sinceRef = startRelease.Version
+	}
+
+	untilRef := untilTag
+	if untilRef == "" {
+		untilRef = "HEAD"
+		// detection diffs committed objects, so working-tree edits to a manifest are invisible.
+		// when ending at HEAD, warn if a toolchain source file is dirty so a bump that only exists
+		// uncommitted isn't mistaken for "no change".
+		warnOnUncommittedToolchainChanges(gitter, cfg)
+	}
+
+	if sinceRef == "" {
+		// no baseline to diff against (changelog starts at the beginning of git history).
+		leaf.Skip()
+		return
+	}
+
+	data, err := toolchain.Detect(gitter, cfg, sinceRef, untilRef)
+	if err != nil {
+		leaf.Fail(err)
+		log.WithFields("error", err).Warn("toolchain detection failed")
+		return
+	}
+
+	if data == nil {
+		// detection succeeded but found no toolchain changes between the two refs.
+		leaf.Resolve(event.Count("change", 0))
+		return
+	}
+
+	description.Toolchain = data
+	// match the other evidence rows: a single named count the UI pluralizes
+	// ("1 change", "2 changes"). Downgrade/conflict detail goes to the log below.
+	leaf.Resolve(event.Count("change", len(data.Updates)))
+	logToolchainWarnings(data)
+}
+
+// logToolchainWarnings surfaces reconciliation conflicts and downgrades to the operator log,
+// beyond the inline annotations in the rendered changelog.
+func logToolchainWarnings(data *release.ToolchainData) {
+	if data == nil {
+		return
+	}
+	for _, w := range data.Warnings {
+		log.WithFields("tool", w.Tool, "files", strings.Join(w.Files, ", ")).Warn(w.Message)
+	}
+	for _, u := range data.Updates {
+		if u.Direction == release.ToolchainDowngrade {
+			log.WithFields("tool", u.Tool, "file", u.File, "from", u.From, "to", u.To).
+				Warn("toolchain minimum version was downgraded")
+		}
+	}
+}
+
+// warnOnUncommittedToolchainChanges warns when the changelog ends at HEAD but toolchain source
+// files have uncommitted working-tree changes (which the committed-history diff cannot see). The
+// check is best-effort — any failure is logged at trace level and otherwise ignored.
+func warnOnUncommittedToolchainChanges(gitter git.Interface, cfg toolchain.Config) {
+	dirty, err := toolchain.DirtySourceFiles(gitter, cfg)
+	if err != nil {
+		log.WithFields("error", err).Trace("unable to check working tree for uncommitted toolchain changes")
+		return
+	}
+	if len(dirty) == 0 {
+		return
+	}
+	log.WithFields("files", strings.Join(dirty, ", ")).
+		Warn("toolchain detection ends at HEAD but these source files have uncommitted changes; any toolchain version change in them will not appear in the changelog until committed")
+}
+
 // buildChangelogConfig assembles the ChangelogInfoConfig, including an
 // optional speculator when --speculate-next-version was set.
 func buildChangelogConfig(appConfig *createConfig, untilTag string, titles []change.TypeTitle, evidence *event.Tree, gitter git.Interface) release.ChangelogInfoConfig {
@@ -418,6 +579,11 @@ func publishEvidenceTree(appConfig *createConfig) *event.Tree {
 				Name:     "vulnerabilities",
 				Children: []string{"since", "until"},
 			})
+		}
+		if toolchainConfig(appConfig).Enabled {
+			// toolchain detection rides on the dependencies feature, so it shares the evidence
+			// tree as one more row. It stays pending until detection runs at the end of the flow.
+			evidenceSpecs = append(evidenceSpecs, event.LeafSpec{Name: "toolchain"})
 		}
 	}
 	evidence := bus.PublishTreeSpec("evidence", evidenceSpecs)

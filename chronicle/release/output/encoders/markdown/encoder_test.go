@@ -178,6 +178,40 @@ func TestMarkdownPresenter_Present_DependencyDiff(t *testing.T) {
 	)
 }
 
+func TestMarkdownPresenter_Present_DependencyDiffWithToolchain(t *testing.T) {
+	// the Toolchains rollup sits between the vulnerability rollup and the
+	// per-package change blocks, as a peer of the vuln rollup.
+	diff := dependency.NewDiff([]dependency.PackageChange{
+		{
+			Name:        "golang.org/x/net",
+			Type:        "go-module",
+			FromVersion: "v0.17.0",
+			ToVersion:   "v0.23.0",
+			Kind:        dependency.Updated,
+			Vuln: &dependency.VulnDelta{
+				Remediated: []dependency.Vulnerability{
+					{ID: "CVE-2023-44487", Severity: "high", DataSource: "https://nvd.nist.gov/vuln/detail/CVE-2023-44487"},
+				},
+			},
+		},
+		{Name: "github.com/new/dep", Type: "go-module", ToVersion: "v0.4.0", Kind: dependency.Added},
+	})
+
+	assertEncoderAgainstGoldenSnapshot(t,
+		`{{ .Version }}`,
+		release.Description{
+			Release:        release.Release{Version: "v0.20.0"},
+			VCSChangesURL:  "https://github.com/anchore/syft/compare/v0.19.0...v0.20.0",
+			DependencyDiff: &diff,
+			Toolchain: &release.ToolchainData{
+				Updates: []release.ToolchainUpdate{
+					{Tool: "go", Source: "go directive", File: "go.mod", From: "1.21", To: "1.23", Direction: release.ToolchainUpgrade},
+				},
+			},
+		},
+	)
+}
+
 func TestMarkdownPresenter_Present_DependencyDiff_MultiEcosystem(t *testing.T) {
 	// multiple ecosystems render as #### subsections; here every action is set
 	// to list so the tables are visible under each ecosystem.
@@ -316,6 +350,55 @@ func TestMarkdownPresenter_Present_DependencyDiff_ShowRemaining(t *testing.T) {
 			VCSChangesURL:    "https://example.com/compare",
 			DependencyDiff:   &diff,
 			DependencyRender: &cfg,
+		},
+	)
+}
+
+func TestMarkdownPresenter_Present_Toolchain(t *testing.T) {
+	assertEncoderAgainstGoldenSnapshot(t,
+		"Changelog",
+		release.Description{
+			SupportedChanges: []change.TypeTitle{
+				{ChangeType: change.NewType("bug", change.SemVerPatch), Title: "Bug Fixes"},
+			},
+			Release: release.Release{
+				Version: "v0.19.1",
+				Date:    time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			},
+			VCSReferenceURL: "https://github.com/anchore/syft/tree/v0.19.1",
+			VCSChangesURL:   "https://github.com/anchore/syft/compare/v0.19.0...v0.19.1",
+			Changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{change.NewType("bug", change.SemVerPatch)},
+					Text:        "Redirect cursor hide/show to stderr",
+					References:  []change.Reference{{Text: "#456", URL: "https://github.com/anchore/syft/pull/456"}},
+				},
+			},
+			Toolchain: &release.ToolchainData{
+				Updates: []release.ToolchainUpdate{
+					{Tool: "go", Source: "go directive", File: "go.mod", From: "1.21", To: "1.23", Direction: release.ToolchainUpgrade},
+				},
+			},
+		},
+	)
+}
+
+func TestMarkdownPresenter_Present_ToolchainDowngrade(t *testing.T) {
+	assertEncoderAgainstGoldenSnapshot(t,
+		"Changelog",
+		release.Description{
+			SupportedChanges: []change.TypeTitle{},
+			Release: release.Release{
+				Version: "v0.19.1",
+				Date:    time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC),
+			},
+			VCSReferenceURL: "https://github.com/anchore/syft/tree/v0.19.1",
+			VCSChangesURL:   "https://github.com/anchore/syft/compare/v0.19.0...v0.19.1",
+			Toolchain: &release.ToolchainData{
+				Updates: []release.ToolchainUpdate{
+					{Tool: "go", Source: "go directive", File: "go.mod", From: "1.23", To: "1.21", Direction: release.ToolchainDowngrade},
+				},
+			},
 		},
 	)
 }

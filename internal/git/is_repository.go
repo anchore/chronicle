@@ -196,3 +196,12 @@ func IsRepository(path string) bool {
 	_, err := openRepo(path)
 	return err == nil
 }
+
+// OpenRepository opens the git repository at path and returns the underlying go-git
+// handle. It applies the same worktree-aware, lenient-config handling as the rest of
+// this package (see openRepo), so callers that need a raw *go-git.Repository — e.g. to
+// walk a tree at a ref — get the same tolerance for branch configs that go-git's
+// validator rejects but real git accepts.
+func OpenRepository(path string) (*gogit.Repository, error) {
+	return openRepo(path)
+}

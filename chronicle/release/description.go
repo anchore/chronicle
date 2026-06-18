@@ -36,10 +36,24 @@ type Description struct {
 	// presentation, not part of the serialized changelog artifact.
 	DependencyRender *render.Config `json:"-"`
 
+	// Toolchain carries declared toolchain-requirement changes (e.g. a minimum Go
+	// version bump). Optional, populated by the worker when toolchain detection is
+	// enabled and a requirement changed. Rendered as a rollup within the
+	// Dependencies section, so it travels alongside DependencyDiff.
+	Toolchain *ToolchainData
+
 	// raw evidence totals (pre-filter), surfaced for the summary report so it
 	// can show "N (M kept)" trailers. Populated by the worker after the
 	// summarizer runs; zero when not provided.
 	PRTotal     int
 	IssueTotal  int
 	CommitTotal int
+}
+
+// HasDependencyContent reports whether the Dependencies section has anything to
+// render: either a non-empty package diff or at least one toolchain-requirement
+// change. Encoders gate the section on this so a lone toolchain bump (no package
+// changes) still surfaces.
+func (d Description) HasDependencyContent() bool {
+	return (d.DependencyDiff != nil && d.DependencyDiff.Totals.Total() > 0) || d.Toolchain.HasUpdates()
 }

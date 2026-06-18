@@ -73,3 +73,27 @@ Changes
 
 v0.18.0 → v0.18.1   (patch bump)
 ---
+
+[TestRenderSummary_NestedEvidenceAlignment - 1]
+Project: anchore/syft
+├── ✔ since   latest release → v0.14.0  a3b4c5d  Jan 15 2026
+└── ✔ until   HEAD → v0.18.0  f1e2d3c  May 4 2026
+
+Evidence
+├── ✔ commits           5          (4 dropped)
+├── ✔ pull requests     18         (17 dropped)
+├── ✔ source sbom       added=2 removed=4 updated=34 downgraded=1
+│   ├── ✔ since         373 packages
+│   └── ✔ until         371 packages
+├── ✔ vulnerabilities   remediated=13 introduced=0 remaining=145
+│   ├── ✔ since         158 vulnerabilities
+│   └── ✔ until         145 vulnerabilities
+└── ✔ toolchain         0 changes
+
+Changes
+├── major   removed=1
+├── minor   added=3 changed=5
+└── patch   fixed=11
+
+v1.44.0 → v1.45.0   (minor bump)
+---

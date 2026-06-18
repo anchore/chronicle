@@ -11,6 +11,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 
+	"github.com/anchore/chronicle/internal/git"
 	"github.com/anchore/chronicle/internal/log"
 )
 
@@ -38,7 +39,7 @@ func NewGitTarget(repoPath string) *GitTarget {
 func (g *GitTarget) Materialize(ctx context.Context, ref string) (string, func() error, error) {
 	noopCleanup := func() error { return nil }
 
-	r, err := openRepo(g.repoPath)
+	r, err := git.OpenRepository(g.repoPath)
 	if err != nil {
 		return "", noopCleanup, fmt.Errorf("open repo %q: %w", g.repoPath, err)
 	}
@@ -156,22 +157,4 @@ func writeBlob(f *object.File, dest string) error {
 	}
 
 	return nil
-}
-
-// openRepo opens the git repository at path. EnableDotGitCommonDir is required
-// for worktrees (and submodules): there ".git" is a file pointing at a
-// per-worktree git dir, while refs (including tags) and objects live in the
-// shared common dir. A plain open would succeed but yield a repo whose tags
-// can't resolve. This mirrors the convention in internal/git.
-func openRepo(path string) (*gogit.Repository, error) {
-	if r, err := gogit.PlainOpenWithOptions(path, &gogit.PlainOpenOptions{
-		EnableDotGitCommonDir: true,
-	}); err == nil {
-		return r, nil
-	}
-
-	return gogit.PlainOpenWithOptions(path, &gogit.PlainOpenOptions{
-		DetectDotGit:          true,
-		EnableDotGitCommonDir: true,
-	})
 }

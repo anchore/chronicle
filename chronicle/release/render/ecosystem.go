@@ -6,37 +6,12 @@ import (
 	"github.com/anchore/chronicle/chronicle/dependency"
 )
 
-// ecosystemOrder is the canonical display order for the most common ecosystems.
-// Titles not listed here sort alphabetically after these.
-var ecosystemOrder = []string{
-	"Go", "JavaScript", "Python", "Java", "Ruby", "Rust", "PHP", ".NET",
-	"C/C++", "Swift", "Dart", "Haskell", "Erlang/Elixir", "CocoaPods",
-}
-
-// typeTitle maps a raw syft package type to a human-friendly ecosystem label.
-// Deriving a friendly grouping name from the type is a presentation concern, so
-// it lives here rather than in the dependency core (which stays type-only).
-// Several types intentionally collapse onto one label (e.g. the JVM and
-// Erlang/Elixir families) so related packages group together; an unmapped type
-// falls back to its raw string so nothing is dropped from a group.
-var typeTitle = map[string]string{
-	"go-module":              "Go",
-	"npm":                    "JavaScript",
-	"python":                 "Python",
-	"java-archive":           "Java",
-	"jenkins-plugin":         "Java",
-	"graalvm-native-image":   "Java",
-	"gem":                    "Ruby",
-	"rust-crate":             "Rust",
-	"php-composer":           "PHP",
-	"dotnet":                 ".NET",
-	"conan":                  "C/C++",
-	"pod":                    "CocoaPods",
-	"swift":                  "Swift",
-	"dart-pub":               "Dart",
-	"hackage":                "Haskell",
-	"hex":                    "Erlang/Elixir",
-	"erlang-otp":             "Erlang/Elixir",
+// nonLanguageTitle maps raw syft package types that are NOT language ecosystems
+// (OS distros, infra, build artifacts) to a friendly grouping label. Language
+// ecosystems are handled by dependency.Ecosystem instead, so this table holds
+// only what the enum deliberately leaves out. An unmapped type falls back to its
+// raw string so a change is never dropped from a group.
+var nonLanguageTitle = map[string]string{
 	"lua-rocks":              "Lua",
 	"swiplpack":              "SWI-Prolog",
 	"terraform":              "Terraform",
@@ -53,10 +28,15 @@ var typeTitle = map[string]string{
 }
 
 // ecosystemTitle is the grouping label for a change, derived from its syft
-// package type. Unmapped types fall back to the raw type string so a change is
+// package type: a known language ecosystem resolves through dependency.Ecosystem
+// (the single source of truth for those labels), otherwise a non-language type
+// falls back to its friendly label, and finally to the raw type so a change is
 // never silently dropped from a group.
 func ecosystemTitle(c dependency.PackageChange) string {
-	if t, ok := typeTitle[c.Type]; ok {
+	if e, ok := dependency.ParseEcosystem(c.Type); ok {
+		return e.Label()
+	}
+	if t, ok := nonLanguageTitle[c.Type]; ok {
 		return t
 	}
 	return c.Type
@@ -96,16 +76,26 @@ func GroupByEcosystem(changes []dependency.PackageChange) []EcosystemGroup {
 	return groups
 }
 
-// ecosystemRank yields a sort key that places canonical ecosystems first (in
-// ecosystemOrder), then everything else alphabetically. The alphabetical tail
-// is ordered by appending the title so equal-prefix ranks stay stable.
+// languageRank is the canonical display position of each language-ecosystem
+// label, derived once from dependency.Ecosystems so the order has a single
+// source of truth.
+var languageRank = func() map[string]int {
+	m := make(map[string]int)
+	for i, e := range dependency.Ecosystems() {
+		m[e.Label()] = i
+	}
+	return m
+}()
+
+// ecosystemRank yields a sort key that places canonical language ecosystems
+// first (in dependency.Ecosystems order), then everything else alphabetically.
+// The alphabetical tail is ordered by appending the title so equal-prefix ranks
+// stay stable.
 func ecosystemRank(title string) string {
-	for i, t := range ecosystemOrder {
-		if t == title {
-			// pad the index so "10" sorts after "9"; canonical group sorts
-			// before any alphabetical title (which is prefixed with "z").
-			return "a" + string(rune('A'+i))
-		}
+	if i, ok := languageRank[title]; ok {
+		// pad the index so "10" sorts after "9"; a canonical group sorts before
+		// any alphabetical title (which is prefixed with "z").
+		return "a" + string(rune('A'+i))
 	}
 	return "z" + title
 }

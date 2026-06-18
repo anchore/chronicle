@@ -20,7 +20,7 @@ const headerTemplate = `{{if .Title }}# {{.Title}}
 
 {{ end }}{{if .Changes }}{{ formatChangeSections .Changes }}
 
-{{ end }}{{if .DependencyDiff }}{{ formatDependencies .DependencyDiff }}
+{{ end }}{{if .HasDependencyContent }}{{ formatDependencies }}
 
 {{ end }}**[(Full Changelog)]({{.VCSChangesURL}})**
 `
@@ -55,8 +55,8 @@ func (e *Encoder) Encode(w io.Writer, title string, d release.Description) error
 		"formatChangeSections": func(changes change.Changes) string {
 			return formatChangeSections(d.SupportedChanges, changes, d.ConventionalCommitTypes)
 		},
-		"formatDependencies": func(diff *dependency.Diff) string {
-			return formatDependencies(diff, d.DependencyRender, !e.NoCollapse)
+		"formatDependencies": func() string {
+			return formatDependencies(d.DependencyDiff, d.DependencyRender, d.Toolchain, !e.NoCollapse)
 		},
 	}
 
@@ -111,38 +111,86 @@ func formatSummary(summary change.Change, recognizedTypes []string) string {
 // formatDependencies renders the ### Dependencies section from a Diff. It is
 // gated by the caller (template) so it is only invoked when DependencyDiff is
 // non-nil; we guard against an empty diff for safety.
-func formatDependencies(diff *dependency.Diff, rc *render.Config, supportsCollapsed bool) string {
-	if diff == nil || diff.Totals.Total() == 0 {
+func formatDependencies(diff *dependency.Diff, rc *render.Config, tc *release.ToolchainData, supportsCollapsed bool) string {
+	hasDiff := diff != nil && diff.Totals.Total() > 0
+	hasToolchain := tc.HasUpdates()
+	if !hasDiff && !hasToolchain {
 		return ""
+	}
+	if rc == nil {
+		def := render.DefaultConfig()
+		rc = &def
 	}
 
 	var sb strings.Builder
 	sb.WriteString("### Dependencies\n\n")
-	// the summary always reports the full per-kind totals; the enumeration below
-	// honors OnlyVulnerable via VisibleChanges, so the two can differ without the
-	// diff itself ever being filtered.
-	sb.WriteString(render.SummaryLine(*diff) + "\n")
 
-	// the flat vulnerabilities rollup carries two parts. The remediated/introduced
-	// groups only earn their place when the per-package change lists are collapsed
-	// (hidden behind <details>): then they surface vulns that would otherwise be
-	// buried; when sections render expanded the inline annotations already show
-	// them, so they are omitted. The remaining group has no inline home anywhere,
-	// so it renders whenever opted in (ShowRemaining), collapsed or not.
-	sb.WriteString(vulnerabilitySection(*diff, usesCollapse(rc, supportsCollapsed), rc.ShowsRemaining()))
+	if hasDiff {
+		// the summary always reports the full per-kind totals; the enumeration below
+		// honors OnlyVulnerable via VisibleChanges, so the two can differ without the
+		// diff itself ever being filtered.
+		sb.WriteString(render.SummaryLine(*diff) + "\n")
 
-	// group the visible changes by ecosystem; with a single ecosystem render flat
-	// (no subsection header), otherwise emit a #### subsection per ecosystem.
-	groups := render.GroupByEcosystem(rc.VisibleChanges(diff.Changes))
-	multi := len(groups) > 1
-	for _, g := range groups {
-		if multi {
-			sb.WriteString("\n#### " + g.Title + "\n")
+		// the flat vulnerabilities rollup carries two parts. The remediated/introduced
+		// groups only earn their place when the per-package change lists are collapsed
+		// (hidden behind <details>): then they surface vulns that would otherwise be
+		// buried; when sections render expanded the inline annotations already show
+		// them, so they are omitted. The remaining group has no inline home anywhere,
+		// so it renders whenever opted in (ShowRemaining), collapsed or not.
+		sb.WriteString(vulnerabilitySection(*diff, usesCollapse(rc, supportsCollapsed), rc.ShowsRemaining()))
+	}
+
+	// the toolchains rollup is a peer of the vulnerabilities rollup: a flat bold
+	// group under the Dependencies heading, listing declared toolchain-requirement
+	// changes (e.g. a minimum Go version bump). It renders even when there is no
+	// package diff, so a lone toolchain bump still surfaces. The leading blank line
+	// only separates it from preceding content (summary/vuln rollup); when it is
+	// the first thing under the heading there is nothing to separate from.
+	if rollup := toolchainRollup(tc); rollup != "" {
+		if hasDiff {
+			sb.WriteString("\n")
 		}
-		sb.WriteString(formatEcosystemActions(g.Changes, rc, supportsCollapsed))
+		sb.WriteString(rollup)
+	}
+
+	if hasDiff {
+		// group the visible changes by ecosystem; with a single ecosystem render flat
+		// (no subsection header), otherwise emit a #### subsection per ecosystem.
+		groups := render.GroupByEcosystem(rc.VisibleChanges(diff.Changes))
+		multi := len(groups) > 1
+		for _, g := range groups {
+			if multi {
+				sb.WriteString("\n#### " + g.Title + "\n")
+			}
+			sb.WriteString(formatEcosystemActions(g.Changes, rc, supportsCollapsed))
+		}
 	}
 
 	return strings.TrimRight(sb.String(), "\n")
+}
+
+// toolchainRollup renders the "Toolchains" rollup: a bold-labeled group (mirroring
+// the vulnerability rollup groups) listing each declared toolchain-requirement
+// change. Reconciliation warnings are intentionally not rendered here — they are
+// operator/JSON-facing only. Returns "" when there is nothing to show.
+func toolchainRollup(tc *release.ToolchainData) string {
+	lines := tc.DisplayLines()
+	if len(lines) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "**Toolchains (%d)**\n\n", len(lines))
+	for _, l := range lines {
+		fmt.Fprintf(&sb, "- %s minimum version: %s → %s", l.Label, l.From, l.To)
+		if l.Direction == release.ToolchainDowngrade {
+			sb.WriteString(" (downgrade)")
+		}
+		if len(l.Files) > 0 {
+			fmt.Fprintf(&sb, " (%s)", strings.Join(l.Files, ", "))
+		}
+		sb.WriteString("\n")
+	}
+	return sb.String()
 }
 
 // formatEcosystemActions renders the per-change-kind blocks for one ecosystem's

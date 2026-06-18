@@ -42,7 +42,7 @@ func (e *Encoder) Encode(w io.Writer, title string, d release.Description) error
 		out.WriteString("\n\n")
 	}
 
-	if deps := formatDependencies(d.DependencyDiff, d.DependencyRender); deps != "" {
+	if deps := formatDependencies(d.DependencyDiff, d.DependencyRender, d.Toolchain); deps != "" {
 		out.WriteString(deps)
 		out.WriteString("\n\n")
 	}
@@ -186,40 +186,87 @@ func escapeMrkdwn(s string) string {
 // formatDependencies renders the dependency diff as a Slack mrkdwn block,
 // mirroring the markdown encoder's section but with `*bold*` labels and `•`
 // bullets. Returns "" when there is nothing to show.
-func formatDependencies(diff *dependency.Diff, rc *render.Config) string {
-	if diff == nil || diff.Totals.Total() == 0 {
+func formatDependencies(diff *dependency.Diff, rc *render.Config, tc *release.ToolchainData) string {
+	hasDiff := diff != nil && diff.Totals.Total() > 0
+	hasToolchain := tc.HasUpdates()
+	if !hasDiff && !hasToolchain {
 		return ""
+	}
+	if rc == nil {
+		def := render.DefaultConfig()
+		rc = &def
 	}
 
 	var sb strings.Builder
 	sb.WriteString("*Dependencies*\n\n")
-	// summary reports the full totals; enumeration honors OnlyVulnerable. Slack
-	// never collapses, so its change lists always render expanded with inline
-	// vulnerability annotations — no remediated/introduced rollup (that only
-	// earns its place above collapsed markdown sections). The remaining rollup,
-	// which has no inline home, still renders when opted in.
-	sb.WriteString(render.SummaryLine(*diff) + "\n")
 
-	if rc.ShowsRemaining() {
-		writeVulnGroup(&sb, "🟡 Remaining", render.RemainingVulns(*diff))
+	if hasDiff {
+		// summary reports the full totals; enumeration honors OnlyVulnerable. Slack
+		// never collapses, so its change lists always render expanded with inline
+		// vulnerability annotations — no remediated/introduced rollup (that only
+		// earns its place above collapsed markdown sections). The remaining rollup,
+		// which has no inline home, still renders when opted in.
+		sb.WriteString(render.SummaryLine(*diff) + "\n")
+
+		if rc.ShowsRemaining() {
+			writeVulnGroup(&sb, "🟡 Remaining", render.RemainingVulns(*diff))
+		}
 	}
 
-	// group the visible changes by ecosystem; flat for a single ecosystem,
-	// otherwise a bold ecosystem label per group (slack has no header levels).
-	// The change kinds render as a subordinate bullet list under the
-	// *Dependencies* header.
-	groups := render.GroupByEcosystem(rc.VisibleChanges(diff.Changes))
-	multi := len(groups) > 1
-	for _, g := range groups {
-		if multi {
-			sb.WriteString("\n*" + escapeMrkdwn(g.Title) + "*\n")
-		} else {
+	// the toolchains rollup is a peer of the vulnerabilities rollup, rendered as a
+	// bold group under the *Dependencies* label (slack has no header levels). It
+	// renders even when there is no package diff, so a lone toolchain bump surfaces.
+	// The leading blank line only separates it from preceding content (summary /
+	// remaining rollup); when it is first under the label there is nothing to space.
+	if rollup := toolchainRollup(tc); rollup != "" {
+		if hasDiff {
 			sb.WriteString("\n")
 		}
-		sb.WriteString(formatEcosystemActions(g.Changes, rc))
+		sb.WriteString(rollup)
+	}
+
+	if hasDiff {
+		// group the visible changes by ecosystem; flat for a single ecosystem,
+		// otherwise a bold ecosystem label per group (slack has no header levels).
+		// The change kinds render as a subordinate bullet list under the
+		// *Dependencies* header.
+		groups := render.GroupByEcosystem(rc.VisibleChanges(diff.Changes))
+		multi := len(groups) > 1
+		for _, g := range groups {
+			if multi {
+				sb.WriteString("\n*" + escapeMrkdwn(g.Title) + "*\n")
+			} else {
+				sb.WriteString("\n")
+			}
+			sb.WriteString(formatEcosystemActions(g.Changes, rc))
+		}
 	}
 
 	return strings.TrimRight(sb.String(), "\n")
+}
+
+// toolchainRollup renders the "Toolchains" rollup in Slack mrkdwn: a bold-labeled
+// group (mirroring the vulnerability rollup) listing each declared toolchain-
+// requirement change. Reconciliation warnings are not rendered (operator/JSON-
+// facing only). Returns "" when there is nothing to show.
+func toolchainRollup(tc *release.ToolchainData) string {
+	lines := tc.DisplayLines()
+	if len(lines) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "*Toolchains (%d)*\n", len(lines))
+	for _, l := range lines {
+		fmt.Fprintf(&sb, "• %s minimum version: %s → %s", escapeMrkdwn(l.Label), escapeMrkdwn(l.From), escapeMrkdwn(l.To))
+		if l.Direction == release.ToolchainDowngrade {
+			sb.WriteString(" (downgrade)")
+		}
+		if len(l.Files) > 0 {
+			fmt.Fprintf(&sb, " (%s)", escapeMrkdwn(strings.Join(l.Files, ", ")))
+		}
+		sb.WriteString("\n")
+	}
+	return sb.String()
 }
 
 // formatEcosystemActions renders the per-change-kind bullets for one ecosystem's

@@ -208,3 +208,64 @@
 **[(Full Changelog)](https://example.com/compare)**
 
 ---
+
+[TestMarkdownPresenter_Present_Toolchain - 1]
+# Changelog
+
+### Bug Fixes
+
+- Redirect cursor hide/show to stderr [PR [#456](https://github.com/anchore/syft/pull/456)]
+
+### Dependencies
+
+**Toolchains (1)**
+
+- Go minimum version: 1.21 → 1.23
+
+**[(Full Changelog)](https://github.com/anchore/syft/compare/v0.19.0...v0.19.1)**
+
+---
+
+[TestMarkdownPresenter_Present_ToolchainDowngrade - 1]
+# Changelog
+
+### Dependencies
+
+**Toolchains (1)**
+
+- Go minimum version: 1.23 → 1.21 (downgrade)
+
+**[(Full Changelog)](https://github.com/anchore/syft/compare/v0.19.0...v0.19.1)**
+
+---
+
+[TestMarkdownPresenter_Present_DependencyDiffWithToolchain - 1]
+# v0.20.0
+
+### Dependencies
+
+2 dependency changes (1 updated, 1 added). 1 vulnerability remediated.
+
+**🟢 Remediated (1)**
+
+- [CVE-2023-44487](https://nvd.nist.gov/vuln/detail/CVE-2023-44487) (high) — golang.org/x/net
+
+**Toolchains (1)**
+
+- Go minimum version: 1.21 → 1.23
+
+<details>
+<summary>Updated (1 package)</summary>
+
+- golang.org/x/net `v0.17.0` → `v0.23.0` **(🟢 remediated [CVE-2023-44487](https://nvd.nist.gov/vuln/detail/CVE-2023-44487))**
+</details>
+
+<details>
+<summary>Added (1 package)</summary>
+
+- github.com/new/dep `v0.4.0`
+</details>
+
+**[(Full Changelog)](https://github.com/anchore/syft/compare/v0.19.0...v0.20.0)**
+
+---

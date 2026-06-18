@@ -62,10 +62,10 @@ func (l leaf) View() string {
 		if cur := l.data.RunningDetail(); cur != "" {
 			b.WriteString(dimStyle.Render(cur))
 		} else {
-			b.WriteString(dimStyle.Render("waiting"))
+			b.WriteString(waitingStyle.Render("waiting"))
 		}
 	default:
-		b.WriteString(dimStyle.Render("waiting"))
+		b.WriteString(waitingStyle.Render("waiting"))
 	}
 	return b.String()
 }
