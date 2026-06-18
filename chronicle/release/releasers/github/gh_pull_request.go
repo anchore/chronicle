@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/scylladb/go-set/strset"
@@ -239,6 +240,26 @@ func prsWithoutLabel(labels ...string) prFilter {
 					return false
 				}
 			}
+		}
+
+		return true
+	}
+}
+
+// prsWithoutAuthor drops PRs whose author login matches any of the given names.
+// The match is case-insensitive and ignores a trailing "[bot]" suffix so that
+// "dependabot" matches the GitHub login "dependabot[bot]".
+func prsWithoutAuthor(authors ...string) prFilter {
+	want := strset.New()
+	for _, a := range authors {
+		want.Add(strings.ToLower(a))
+	}
+	return func(pr ghPullRequest, ctx ...*string) bool {
+		login := strings.TrimSuffix(strings.ToLower(pr.Author), "[bot]")
+		if want.Has(login) {
+			setReason(ctx, "author:excluded:"+pr.Author)
+			log.Tracef("PR #%d filtered out: excluded author %q", pr.Number, pr.Author)
+			return false
 		}
 
 		return true

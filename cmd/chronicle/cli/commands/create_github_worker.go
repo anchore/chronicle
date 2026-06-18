@@ -32,7 +32,7 @@ func createChangelogFromGithub(ctx context.Context, appConfig *createConfig) (*r
 		return nil, nil, err
 	}
 
-	ghConfig := appConfig.Github.ToGithubConfig()
+	ghConfig := buildGithubConfig(appConfig)
 
 	gitter, err := git.New(appConfig.RepoPath)
 	if err != nil {
@@ -116,6 +116,17 @@ func createChangelogFromGithub(ctx context.Context, appConfig *createConfig) (*r
 	enrichDescription(ctx, appConfig, gitter, startRelease, untilTag, description, evidence, dbRefresh, vulnLeaf)
 
 	return startRelease, description, nil
+}
+
+// buildGithubConfig derives the summarizer config from app config, suppressing
+// dependency-bot PRs when the dependencies section is enabled since it reports
+// those bumps directly (avoids double-reporting).
+func buildGithubConfig(appConfig *createConfig) github.Config {
+	ghConfig := appConfig.Github.ToGithubConfig()
+	if appConfig.Dependencies.Enabled() {
+		ghConfig.ExcludeAuthors = append(ghConfig.ExcludeAuthors, "dependabot", "renovate")
+	}
+	return ghConfig
 }
 
 // enrichDescription runs the two opt-in, description-enriching diffs concurrently.

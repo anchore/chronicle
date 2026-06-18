@@ -20,8 +20,8 @@ type PackageVulns struct {
 // annotate; a nil *VulnDelta on a PackageChange means "not annotated", distinct
 // from an empty delta meaning "annotated, no vulnerability impact".
 type VulnDelta struct {
-	Remediated []Vulnerability // present at `since` for this pkg, gone at `until`
-	Introduced []Vulnerability // present at `until`, absent at `since`
+	Remediated []Vulnerability `json:",omitempty"` // present at `since` for this pkg, gone at `until`
+	Introduced []Vulnerability `json:",omitempty"` // present at `until`, absent at `since`
 }
 
 // HasImpact reports whether the change remediated or introduced any

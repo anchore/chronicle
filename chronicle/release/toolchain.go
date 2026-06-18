@@ -6,8 +6,8 @@ import "github.com/anchore/chronicle/chronicle/dependency"
 // until refs (e.g. a bump to the minimum Go version in go.mod). It is populated only when
 // toolchain detection is enabled and at least one requirement changed.
 type ToolchainData struct {
-	Updates  []ToolchainUpdate  // each detected requirement change
-	Warnings []ToolchainWarning // reconciliation issues; surfaced to operators and JSON output, never the changelog body
+	Updates  []ToolchainUpdate  `json:",omitempty"` // each detected requirement change
+	Warnings []ToolchainWarning `json:",omitempty"` // reconciliation issues; surfaced to operators and JSON output, never the changelog body
 }
 
 // ToolchainDirection indicates whether a requirement moved up or down between refs. It is empty

@@ -40,14 +40,14 @@ type Description struct {
 	// version bump). Optional, populated by the worker when toolchain detection is
 	// enabled and a requirement changed. Rendered as a rollup within the
 	// Dependencies section, so it travels alongside DependencyDiff.
-	Toolchain *ToolchainData
+	Toolchain *ToolchainData `json:",omitempty"`
 
 	// raw evidence totals (pre-filter), surfaced for the summary report so it
 	// can show "N (M kept)" trailers. Populated by the worker after the
 	// summarizer runs; zero when not provided.
-	PRTotal     int
-	IssueTotal  int
-	CommitTotal int
+	PRTotal     int `json:"-"`
+	IssueTotal  int `json:"-"`
+	CommitTotal int `json:"-"`
 }
 
 // HasDependencyContent reports whether the Dependencies section has anything to
