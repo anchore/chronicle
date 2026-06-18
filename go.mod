@@ -7,7 +7,7 @@ require (
 	github.com/anchore/clio v0.1.0
 	github.com/anchore/fangs v0.1.0
 	github.com/anchore/go-logger v0.1.0
-	github.com/anchore/grype v0.112.0
+	github.com/anchore/grype v0.114.0
 	github.com/anchore/syft v1.45.1
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
