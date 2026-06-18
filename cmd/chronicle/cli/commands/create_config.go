@@ -58,7 +58,7 @@ func (c *createConfig) AddFlags(flags clio.FlagSet) {
 	flags.StringArrayVarP(
 		&c.Dependencies.Ecosystems,
 		"dependencies", "",
-		"scan and diff source dependencies for the given ecosystem(s) (e.g. language, go, python); repeatable or comma-separated. Enables the dependencies section.",
+		"scan and diff source dependencies for the given ecosystem(s) (e.g. language, go, python); use 'auto' to detect ecosystems from root manifests, or 'none' to disable; repeatable or comma-separated. Enables the dependencies section.",
 	)
 
 	flags.BoolVarP(

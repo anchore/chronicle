@@ -91,7 +91,7 @@
 *Dependencies*
 
 *Toolchains (1)*
-• Go minimum version: 1.21 → 1.23
+• Go minimum version: `1.21` → `1.23`
 
 *<https://github.com/anchore/syft/compare/v0.19.0...v0.19.1|Full Changelog>*
 
@@ -103,7 +103,7 @@
 *Dependencies*
 
 *Toolchains (1)*
-• Go minimum version: 1.23 → 1.21 (downgrade)
+• Go minimum version: `1.23` → `1.21` (downgrade)
 
 *<https://github.com/anchore/syft/compare/v0.19.0...v0.19.1|Full Changelog>*
 

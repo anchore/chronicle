@@ -295,6 +295,18 @@ chronicle --dependencies language
 
 Scoping to an ecosystem keeps the section focused: `--dependencies go` reports only Go modules, not the GitHub Actions, OS packages, or other manifests syft can also find in the tree.
 
+Use `auto` to detect ecosystems from manifests at the repository root and enable only those — handy for a single config that works across repos. The markers come straight from syft's own cataloger metadata, so detection matches what syft would actually catalog: it keys off the manifests/lockfiles syft's declared-language catalogers read (e.g. `go.mod` → `go`, `package-lock.json`/`yarn.lock` → `javascript`, `Cargo.lock` → `rust`), not every file an ecosystem might have. Detection is root-only; if nothing is recognized the section is simply omitted. `auto` may be combined with explicit ecosystems (`--dependencies auto,go`).
+
+```bash
+chronicle --dependencies auto
+```
+
+To disable the feature — for example to override an `auto` set in a committed config for one run — pass `none`, which wins over every other value:
+
+```bash
+chronicle --dependencies none
+```
+
 To annotate each change with the CVEs/GHSAs it remediated or introduced, add `--vulnerabilities` (this downloads/loads the grype vulnerability DB — see below):
 
 ```bash
@@ -342,7 +354,9 @@ All dependency options live under the `dependencies:` key. Default values are sh
 dependencies:
   # ecosystems to scan (syft cataloger selection, e.g. language, go, python).
   # the feature is enabled when this is non-empty. "language" selects all
-  # language ecosystems. same as --dependencies (repeatable / comma-separated).
+  # language ecosystems. "auto" detects ecosystems from root manifests; "none"
+  # disables the feature and wins over all other values. same as --dependencies
+  # (repeatable / comma-separated).
   ecosystems: []
 
   # paths to exclude from the scan (e.g. vendored or test trees), as syft

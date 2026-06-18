@@ -54,7 +54,7 @@ func (c Dependencies) Enabled() bool {
 }
 
 func (c *Dependencies) DescribeFields(descriptions clio.FieldDescriptionSet) {
-	descriptions.Add(&c.Ecosystems, "ecosystems to scan (syft cataloger selection, e.g. language, go, python); enables the feature when set")
+	descriptions.Add(&c.Ecosystems, "ecosystems to scan (syft cataloger selection, e.g. language, go, python); 'auto' detects ecosystems from root manifests, 'none' disables (wins over all); enables the feature when set")
 	descriptions.Add(&c.Exclude, "paths to exclude from dependency scanning (syft exclude patterns; each must start with ./, */, or **/, e.g. ./vendor, **/testdata)")
 	descriptions.Add(&c.AnnotateVulnerabilities, "annotate dependency changes with known vulnerability information")
 	descriptions.Add(&c.OnlyVulnerable, "only show dependency changes that remediated or introduced a vulnerability (requires annotate-vulnerabilities)")

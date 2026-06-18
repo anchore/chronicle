@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -80,6 +81,20 @@ func runCreate(ctx context.Context, appConfig *createConfig) error {
 	// until after the worker succeeds so failures don't leak temp files.
 	if err := appConfig.Check(); err != nil {
 		return err
+	}
+
+	// resolve the auto/none ecosystem sentinels against the project root before
+	// validation so Enabled() and the worker only ever see concrete selectors.
+	resolved, hadAuto, err := appConfig.Dependencies.ResolveEcosystems(appConfig.RepoPath)
+	if err != nil {
+		return err
+	}
+	if hadAuto {
+		if len(resolved) == 0 {
+			log.Infof("no dependency ecosystems detected at %q", appConfig.RepoPath)
+		} else {
+			log.Infof("detected dependency ecosystems: %s", strings.Join(resolved, ", "))
+		}
 	}
 
 	// vulnerability annotation operates on the dependency diff, so it has

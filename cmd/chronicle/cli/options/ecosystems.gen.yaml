@@ -1,0 +1,61 @@
+# Code generated from github.com/anchore/syft v1.45.1 by genecosystems; DO NOT EDIT.
+# Regenerate with `go generate ./...` after bumping syft.
+ecosystems:
+    - ecosystem: go
+      globs:
+        - '**/go.mod'
+    - ecosystem: javascript
+      globs:
+        - '**/package-lock.json'
+        - '**/pnpm-lock.yaml'
+        - '**/yarn.lock'
+    - ecosystem: python
+      globs:
+        - '**/*requirements*.txt'
+        - '**/Pipfile.lock'
+        - '**/pdm.lock'
+        - '**/poetry.lock'
+        - '**/setup.py'
+        - '**/uv.lock'
+    - ecosystem: java
+      globs:
+        - '**/gradle.lockfile*'
+    - ecosystem: ruby
+      globs:
+        - '**/*.gemspec'
+        - '**/Gemfile.lock'
+        - '**/Gemfile.next.lock'
+    - ecosystem: rust
+      globs:
+        - '**/Cargo.lock'
+    - ecosystem: php
+      globs:
+        - '**/composer.lock'
+        - '**/php/.registry/**/*.reg'
+    - ecosystem: dotnet
+      globs:
+        - '**/packages.lock.json'
+    - ecosystem: cpp
+      globs:
+        - '**/conan.lock'
+        - '**/conanfile.txt'
+    - ecosystem: swift
+      globs:
+        - '**/.package.resolved'
+        - '**/Package.resolved'
+        - '**/Podfile.lock'
+    - ecosystem: dart
+      globs:
+        - '**/pubspec.lock'
+        - '**/pubspec.yaml'
+        - '**/pubspec.yml'
+    - ecosystem: haskell
+      globs:
+        - '**/cabal.project.freeze'
+        - '**/stack.yaml'
+        - '**/stack.yaml.lock'
+    - ecosystem: elixir
+      globs:
+        - '**/*.app'
+        - '**/mix.lock'
+        - '**/rebar.lock'
