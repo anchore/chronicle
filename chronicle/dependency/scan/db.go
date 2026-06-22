@@ -1,7 +1,6 @@
 package scan
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -25,34 +24,25 @@ type DB struct {
 	provider vulnerability.Provider
 }
 
-// DBStale reports whether the locally-installed grype vulnerability DB is missing
-// or was built more than maxAge ago. It reads the on-disk DB description only — no
-// network — so the caller can decide whether to spend time updating before the
-// (potentially slow, networked) LoadDB. A missing DB reports stale=true; an
-// unreadable DB reports stale=true with the error so the caller can still choose
-// to attempt a refresh.
-func DBStale(maxAge time.Duration) (stale bool, err error) {
+// DBStatus reports the on-disk grype DB state without any network access.
+// present is false when no DB is installed or its status is unreadable; age is
+// how long ago it was built (meaningful only when present). The caller uses this
+// to decide whether to update (when enabled) and whether to warn about staleness.
+func DBStatus() (present bool, age time.Duration) {
 	desc, err := v6.ReadDescription(installation.DefaultConfig(grypeID).DBFilePath())
-	if err != nil {
-		if errors.Is(err, v6.ErrDBDoesNotExist) {
-			return true, nil
-		}
-		return true, fmt.Errorf("unable to read vulnerability DB status: %w", err)
+	if err != nil || desc == nil {
+		return false, 0
 	}
-	return time.Since(desc.Built.Time) > maxAge, nil
+	return true, time.Since(desc.Built.Time)
 }
 
 // LoadDB loads the grype vulnerability DB into a provider the scanner matches
 // against. When update is set it first downloads the latest DB (the slow, network
-// step); otherwise it opens the on-disk DB directly. A local-only load is retried
-// with an update if grype rejects the on-disk DB (e.g. it aged past grype's own
-// max-allowed age between the staleness check and here), so a stale DB never
-// fails the load outright.
+// step); otherwise it opens whatever DB is on disk directly. The on-disk DB is
+// loaded regardless of its age (see loadProvider) — staleness is the caller's
+// concern to warn about, not an error here.
 func LoadDB(update bool) (*DB, error) {
 	provider, err := loadProvider(update)
-	if err != nil && !update {
-		provider, err = loadProvider(true)
-	}
 	if err != nil {
 		return nil, fmt.Errorf("unable to load vulnerability DB: %w", err)
 	}
@@ -60,6 +50,11 @@ func LoadDB(update bool) (*DB, error) {
 }
 
 func loadProvider(update bool) (vulnerability.Provider, error) {
-	provider, _, err := grype.LoadVulnerabilityDB(distribution.DefaultConfig(), installation.DefaultConfig(grypeID), update)
+	installCfg := installation.DefaultConfig(grypeID)
+	// don't let an over-age on-disk DB turn into a load error: chronicle decides
+	// whether to update (when enabled) and warns on staleness itself. Checksum
+	// validation stays on, so a genuinely corrupt DB still errors (→ degrade).
+	installCfg.ValidateAge = false
+	provider, _, err := grype.LoadVulnerabilityDB(distribution.DefaultConfig(), installCfg, update)
 	return provider, err
 }
