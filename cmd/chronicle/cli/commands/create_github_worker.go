@@ -172,20 +172,30 @@ func attachDependencyDiff(ctx context.Context, appConfig *createConfig, gitter g
 		return
 	}
 
-	annotate := appConfig.Dependencies.AnnotateVulnerabilities
+	configured := appConfig.Dependencies.AnnotateVulnerabilities
+	annotate := configured
+	// gracefully degrade when annotation was requested but no usable DB loaded
+	// (missing/corrupt, or a failed download): behave exactly as if
+	// annotate-vulnerabilities was never passed — packages-only, with the row
+	// skipped rather than failed. The cause was already warned at load time.
+	if configured && db == nil {
+		annotate = false
+		skipVulnLeaf(vulnLeaf)
+	}
 
 	// only-vulnerable is a render-time filter that only means anything once
-	// annotation has populated the vuln deltas. Resolve it once: gate it on
-	// annotation here, and warn if the user asked for it without annotation.
+	// annotation has populated the vuln deltas. Resolve it against the effective
+	// annotate state; warn only when the user asked for it without configuring
+	// annotation at all (a DB-unavailable degrade is already explained above).
 	onlyVulnerable := appConfig.Dependencies.OnlyVulnerable && annotate
-	if appConfig.Dependencies.OnlyVulnerable && !onlyVulnerable {
+	if appConfig.Dependencies.OnlyVulnerable && !configured {
 		log.Warn("dependencies.only-vulnerable has no effect without annotate-vulnerabilities; showing all changes")
 	}
 
 	// remaining (carried-over) vulnerabilities likewise only exist once annotation
 	// has matched both refs; gate it the same way and warn on a no-op request.
 	showRemaining := appConfig.Dependencies.ShowRemainingVulnerabilities && annotate
-	if appConfig.Dependencies.ShowRemainingVulnerabilities && !showRemaining {
+	if appConfig.Dependencies.ShowRemainingVulnerabilities && !configured {
 		log.Warn("dependencies.show-remaining-vulnerabilities has no effect without annotate-vulnerabilities; omitting remaining vulnerabilities")
 	}
 
@@ -227,41 +237,47 @@ func attachDependencyDiff(ctx context.Context, appConfig *createConfig, gitter g
 }
 
 // vulnDBMaxAge is how stale the grype vulnerability DB may be before chronicle
-// refreshes it: a DB older than this (or missing) triggers a download. Matches
-// grype's own max-allowed DB age.
+// acts on it: when DB updates are enabled, a DB older than this (or missing)
+// triggers a download; when updates are disabled, an older DB is used as-is with
+// a warning. Matches grype's own max-allowed DB age.
 const vulnDBMaxAge = 5 * 24 * time.Hour
 
 // startVulnDBRefresh loads the grype vulnerability DB in the background so a
 // (possibly slow) download overlaps the commit/issue/PR fetch. It returns nil
-// when vulnerability annotation is off. A missing or stale DB spins the
-// "vulnerabilities" row on "updating DB" while it downloads (replacing the idle
-// "waiting"); a current DB just loads locally, leaving the row untouched until
-// matching. awaitVulnDB joins the loaded DB before the dependency scan matches —
-// the row's matching/resolve states are driven later, as usual.
+// when vulnerability annotation is off. With DB updates enabled (the default), a
+// missing or stale DB spins the "vulnerabilities" row on "updating DB" while it
+// downloads; with updates disabled, the on-disk DB is loaded as-is and a stale
+// one only logs a warning (a missing/unusable DB then degrades to packages-only).
+// awaitVulnDB joins the loaded DB before the dependency scan matches — the row's
+// matching/resolve states are driven later, as usual.
 func startVulnDBRefresh(appConfig *createConfig, vulnLeaf *event.Leaf) <-chan *scan.DB {
 	if !appConfig.Dependencies.AnnotateVulnerabilities || !appConfig.Dependencies.Enabled() {
 		return nil
 	}
 
-	// a quick, local status read (no network) decides whether the slow update is
-	// needed; only then do we light up the row, so it reads "updating DB" only
-	// when grype actually downloads. SetStage flips the pending row to running.
-	stale, err := scan.DBStale(vulnDBMaxAge)
-	if err != nil {
-		log.WithFields("error", err).Trace("unable to determine vulnerability DB age; refreshing")
-		stale = true
-	}
-	if stale {
+	// a quick, local status read (no network) decides whether to update and/or
+	// warn. We only download when the DB is stale/missing AND updates are enabled;
+	// otherwise a stale-but-present DB is used as-is with a warning.
+	present, age := scan.DBStatus()
+	stale := !present || age > vulnDBMaxAge
+	update := stale && appConfig.Dependencies.UpdateVulnerabilityDB
+	switch {
+	case update:
+		// light up the row only when grype actually downloads; SetStage flips the
+		// pending row to running.
 		vulnLeaf.SetStage("updating DB")
+	case present && age > vulnDBMaxAge:
+		log.WithFields("age", age.Round(time.Hour).String()).
+			Warn("vulnerability DB is older than the max recommended age and DB updates are disabled; results may be stale")
 	}
 
 	ch := make(chan *scan.DB, 1)
 	go func() {
-		db, err := scan.LoadDB(stale)
+		db, err := scan.LoadDB(update)
 		if err != nil {
 			// non-fatal: the scan degrades to packages-only and the vulnerability
-			// row is failed downstream (nil Vulns → errVulnMatchIncomplete).
-			log.WithFields("error", err).Warn("unable to load vulnerability DB; skipping vulnerability matching")
+			// row is skipped downstream (db is nil → attachDependencyDiff degrades).
+			log.WithFields("error", err).Warn("unable to load vulnerability DB; continuing without vulnerability annotations")
 		}
 		ch <- db
 	}()
@@ -276,6 +292,17 @@ func awaitVulnDB(ch <-chan *scan.DB) *scan.DB {
 		return nil
 	}
 	return <-ch
+}
+
+// skipVulnLeaf marks the "vulnerabilities" row and its since/until branches as
+// skipped so they read as intentionally-not-done (⊘) rather than being promoted
+// to a hollow resolved checkmark when the tree closes. Used when annotation was
+// requested but no usable DB loaded, so the run degrades to packages-only.
+func skipVulnLeaf(vulnLeaf *event.Leaf) {
+	for _, child := range vulnLeaf.Children() {
+		child.Skip()
+	}
+	vulnLeaf.Skip()
 }
 
 // finalizeVulnLeaf is a safety net for the "vulnerabilities" row: the DB refresh
