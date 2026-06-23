@@ -20,8 +20,9 @@ func TestDetect(t *testing.T) {
 	// default ignore set; individual tests tweak copies of this.
 	baseCfg := func() Config {
 		return Config{
-			Enabled: true,
-			Ignore:  []string{"**/vendor/**", "**/testdata/**"},
+			Enabled:   true,
+			Recursive: true,
+			Ignore:    []string{"**/vendor/**", "**/testdata/**"},
 		}
 	}
 
@@ -147,6 +148,27 @@ func TestDetect(t *testing.T) {
 			want: nil,
 		},
 		{
+			// default (non-recursive) discovery: the root go.mod bump is reported, the nested
+			// tools/go.mod bump is not, without any explicit path override.
+			name:  "non-recursive discovers only root manifests",
+			cfg:   Config{Enabled: true, Ignore: []string{"**/vendor/**", "**/testdata/**"}},
+			since: "v1",
+			until: "v2",
+			sinceFiles: []git.FileBlob{
+				{Path: "go.mod", Content: goMod("1.21")},
+				{Path: "tools/go.mod", Content: goMod("1.20")},
+			},
+			untilFiles: []git.FileBlob{
+				{Path: "go.mod", Content: goMod("1.23")},
+				{Path: "tools/go.mod", Content: goMod("1.22")},
+			},
+			want: &release.ToolchainData{
+				Updates: []release.ToolchainUpdate{
+					{Tool: "go", Source: "go directive", File: "go.mod", From: "1.21", To: "1.23", Direction: release.ToolchainUpgrade},
+				},
+			},
+		},
+		{
 			name:       "explicit ecosystem selection runs only requested",
 			cfg:        Config{Enabled: true, Ecosystems: []dependency.Ecosystem{dependency.EcosystemGo}},
 			since:      "v1",
@@ -179,7 +201,7 @@ func TestDetect(t *testing.T) {
 		},
 		{
 			name:  "explicit path override narrows discovery to root",
-			cfg:   Config{Enabled: true, Paths: map[dependency.Ecosystem][]string{dependency.EcosystemGo: {"go.mod"}}},
+			cfg:   Config{Enabled: true, Recursive: true, Paths: map[dependency.Ecosystem][]string{dependency.EcosystemGo: {"go.mod"}}},
 			since: "v1",
 			until: "v2",
 			sinceFiles: []git.FileBlob{

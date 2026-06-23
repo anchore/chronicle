@@ -31,13 +31,19 @@ func TestDirtySourceFiles(t *testing.T) {
 		},
 		{
 			name:  "matches nested module manifests",
-			cfg:   Config{Enabled: true},
+			cfg:   Config{Enabled: true, Recursive: true},
 			dirty: []string{"tools/go.mod", "internal/foo.go"},
 			want:  []string{"tools/go.mod"},
 		},
 		{
+			name:  "non-recursive ignores nested module manifests",
+			cfg:   Config{Enabled: true},
+			dirty: []string{"go.mod", "tools/go.mod"},
+			want:  []string{"go.mod"},
+		},
+		{
 			name:  "ignored paths are not flagged",
-			cfg:   Config{Enabled: true, Ignore: []string{"**/vendor/**"}},
+			cfg:   Config{Enabled: true, Recursive: true, Ignore: []string{"**/vendor/**"}},
 			dirty: []string{"vendor/dep/go.mod"},
 			want:  nil,
 		},
@@ -49,7 +55,7 @@ func TestDirtySourceFiles(t *testing.T) {
 		},
 		{
 			name:  "path override narrows matching",
-			cfg:   Config{Enabled: true, Paths: map[dependency.Ecosystem][]string{dependency.EcosystemGo: {"go.mod"}}},
+			cfg:   Config{Enabled: true, Recursive: true, Paths: map[dependency.Ecosystem][]string{dependency.EcosystemGo: {"go.mod"}}},
 			dirty: []string{"tools/go.mod"},
 			want:  nil,
 		},

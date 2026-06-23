@@ -13,6 +13,7 @@ import (
 type Dependencies struct {
 	Ecosystems                   []string          `yaml:"ecosystems" json:"ecosystems" mapstructure:"ecosystems"`
 	Exclude                      []string          `yaml:"exclude" json:"exclude" mapstructure:"exclude"`
+	Recursive                    bool              `yaml:"recursive" json:"recursive" mapstructure:"recursive"`
 	AnnotateVulnerabilities      bool              `yaml:"annotate-vulnerabilities" json:"annotate-vulnerabilities" mapstructure:"annotate-vulnerabilities"`
 	UpdateVulnerabilityDB        bool              `yaml:"update-vulnerability-db" json:"update-vulnerability-db" mapstructure:"update-vulnerability-db"`
 	OnlyVulnerable               bool              `yaml:"only-vulnerable" json:"only-vulnerable" mapstructure:"only-vulnerable"`
@@ -57,6 +58,7 @@ func (c Dependencies) Enabled() bool {
 func (c *Dependencies) DescribeFields(descriptions clio.FieldDescriptionSet) {
 	descriptions.Add(&c.Ecosystems, "ecosystems to scan (syft cataloger selection, e.g. language, go, python); 'auto' detects ecosystems from root manifests, 'none' disables (wins over all); enables the feature when set")
 	descriptions.Add(&c.Exclude, "paths to exclude from dependency scanning (syft exclude patterns; each must start with ./, */, or **/, e.g. ./vendor, **/testdata)")
+	descriptions.Add(&c.Recursive, "recurse into subdirectories when scanning for dependencies and toolchain manifests; when false (default) only the repository root is scanned")
 	descriptions.Add(&c.AnnotateVulnerabilities, "annotate dependency changes with known vulnerability information")
 	descriptions.Add(&c.UpdateVulnerabilityDB, "download the latest grype vulnerability DB when the installed one is missing or older than 5 days; when disabled, use whatever DB is installed (warning if it is stale) and skip vulnerability annotation entirely if none is usable")
 	descriptions.Add(&c.OnlyVulnerable, "only show dependency changes that remediated or introduced a vulnerability (requires annotate-vulnerabilities)")
@@ -85,8 +87,11 @@ var _ clio.FieldDescriber = (*DependencyActions)(nil)
 // collapse (e.g. slack, md-pretty) so no section is reduced to a bare count.
 func DefaultDependencies() Dependencies {
 	return Dependencies{
-		Ecosystems:              nil,
-		Exclude:                 nil,
+		Ecosystems: nil,
+		Exclude:    nil,
+		// scan only the repository root by default; subdir manifests (e.g. a
+		// vendored or tooling .make/go.mod) would otherwise leak into the diff.
+		Recursive:               false,
 		AnnotateVulnerabilities: false,
 		// updates ride on annotation; on by default so a stale/missing DB is refreshed
 		// without extra flags. Disable to use whatever DB is installed (warn if stale).

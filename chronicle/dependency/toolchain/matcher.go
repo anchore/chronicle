@@ -1,11 +1,14 @@
 package toolchain
 
+import "strings"
+
 // matcher routes file paths to the detector responsible for them, honoring per-ecosystem path
 // globs and the global ignore list. It is built once per detection run so each git ref is walked
 // a single time.
 type matcher struct {
-	ecos   []ecosystemPaths
-	ignore []string
+	ecos      []ecosystemPaths
+	ignore    []string
+	recursive bool
 }
 
 type ecosystemPaths struct {
@@ -14,7 +17,7 @@ type ecosystemPaths struct {
 }
 
 func newMatcher(detectors []Detector, cfg Config) *matcher {
-	m := &matcher{ignore: cfg.Ignore}
+	m := &matcher{ignore: cfg.Ignore, recursive: cfg.Recursive}
 	for _, d := range detectors {
 		globs := cfg.Paths[d.Tool()]
 		if len(globs) == 0 {
@@ -35,6 +38,11 @@ func (m *matcher) match(p string) bool {
 // nil. An explicitly-listed path wins over an ignore glob only when it is not itself a glob match
 // against the ignore set; ignore is applied first to keep discovery quiet by default.
 func (m *matcher) detectorFor(p string) Detector {
+	// non-recursive discovery: a manifest in any subdirectory is out of scope, so reject anything
+	// below the root regardless of the per-ecosystem globs (which default to recursive "**/...").
+	if !m.recursive && strings.Contains(strings.TrimPrefix(p, "./"), "/") {
+		return nil
+	}
 	if m.isIgnored(p) {
 		return nil
 	}

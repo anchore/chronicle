@@ -42,7 +42,7 @@ require github.com/google/uuid v1.6.0
 	sinceSha, _ := buildGoModRepo(t, repoDir, goModBase, goModBumped)
 
 	result, err := dependency.ComputeDiff(context.Background(),
-		scan.NewScanner(source.NewGitTarget(repoDir), "", nil, nil, nil),
+		scan.NewScanner(source.NewGitTarget(repoDir), "", nil, nil, true, nil),
 		dependency.DiffConfig{
 			Comparer: scan.NewVersionComparer(),
 			SinceRef: sinceSha,

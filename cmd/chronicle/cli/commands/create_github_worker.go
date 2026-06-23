@@ -211,7 +211,7 @@ func attachDependencyDiff(ctx context.Context, appConfig *createConfig, gitter g
 	// the scanner owns materialization (the git Target) and matches against the
 	// pre-loaded DB (refreshed in parallel with the GitHub fetch); a nil db scans
 	// packages only, and ComputeDiff infers whether to attribute from the data.
-	scanner := scan.NewScanner(source.NewGitTarget(appConfig.RepoPath), sourceName, ecosystems, appConfig.Dependencies.Exclude, db)
+	scanner := scan.NewScanner(source.NewGitTarget(appConfig.RepoPath), sourceName, ecosystems, appConfig.Dependencies.Exclude, appConfig.Dependencies.Recursive, db)
 	result, err := dependency.ComputeDiff(ctx, scanner, dependency.DiffConfig{
 		Comparer:    scan.NewVersionComparer(),
 		SinceRef:    sinceRef,
@@ -453,6 +453,7 @@ func toolchainConfig(appConfig *createConfig) toolchain.Config {
 		Enabled:    true,
 		Ecosystems: ecos,
 		Ignore:     append(toolchain.DefaultIgnore(), appConfig.Dependencies.Exclude...),
+		Recursive:  appConfig.Dependencies.Recursive,
 	}
 }
 
