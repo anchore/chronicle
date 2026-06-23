@@ -9,6 +9,7 @@ package scan
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -45,6 +46,7 @@ type scanner struct {
 	sourceName   string        // project name, so syft derives a stable artifact ID per ref
 	ecosystems   []string      // syft cataloger selection expressions (e.g. "language", "go")
 	excludePaths []string      // syft exclude patterns (each must start with ./, */, or **/)
+	recursive    bool          // when false, scan only the root dir (top-level subdirs are pruned)
 
 	// provider is the loaded grype vulnerability DB to match against; nil means
 	// packages-only (no matching).
@@ -62,15 +64,18 @@ var getSourceMu sync.Mutex
 // ref. ecosystems are syft cataloger selection expressions that scope cataloging
 // (e.g. ["language"] or ["go"]); empty means syft's default directory catalogers.
 // excludePaths are syft exclude patterns that prune directories from the scan
-// (each must start with ./, */, or **/); empty means scan everything. db is the
+// (each must start with ./, */, or **/); empty means scan everything. recursive
+// controls scan depth: when false, only the root dir is cataloged (every
+// top-level subdir is pruned); when true, the whole tree is scanned. db is the
 // loaded vulnerability DB to match against (from LoadDB); nil means scan packages
 // only.
-func NewScanner(target source.Target, sourceName string, ecosystems, excludePaths []string, db *DB) dependency.Scanner {
+func NewScanner(target source.Target, sourceName string, ecosystems, excludePaths []string, recursive bool, db *DB) dependency.Scanner {
 	s := &scanner{
 		target:       target,
 		sourceName:   sourceName,
 		ecosystems:   ecosystems,
 		excludePaths: excludePaths,
+		recursive:    recursive,
 	}
 	if db != nil {
 		s.provider = db.provider
@@ -126,16 +131,22 @@ func (s *scanner) scanDir(ctx context.Context, dir, ref string) (dependency.Scan
 // consumes), linking the resolved syft source to the bus so the UI can attribute
 // live cataloging progress to the right ref.
 func (s *scanner) catalog(ctx context.Context, dir, ref string) (*catalog, error) {
-	if len(s.excludePaths) > 0 {
+	if len(s.excludePaths) > 0 || !s.recursive {
 		// syft resolves symlinks when indexing the tree but derives exclusion
 		// roots from filepath.Abs (no symlink resolution), so when the scan dir
 		// sits behind a symlink (e.g. macOS /var → /private/var tmpdirs) the
 		// patterns silently match nothing. Canonicalize the root up front so the
 		// exclusions line up with the indexed paths. Best-effort: on error keep the
-		// original path (exclusions may simply not apply).
+		// original path (exclusions may simply not apply). Done before deriving the
+		// non-recursive prunes below so their names match the indexed paths too.
 		if resolved, err := filepath.EvalSymlinks(dir); err == nil {
 			dir = resolved
 		}
+	}
+
+	excludes, err := s.effectiveExcludes(dir)
+	if err != nil {
+		return nil, err
 	}
 
 	srcCfg := syft.DefaultGetSourceConfig()
@@ -145,11 +156,11 @@ func (s *scanner) catalog(ctx context.Context, dir, ref string) (*catalog, error
 		// name and version provided for directory source" warning).
 		srcCfg = srcCfg.WithAlias(syftSource.Alias{Name: s.sourceName, Version: ref})
 	}
-	if len(s.excludePaths) > 0 {
+	if len(excludes) > 0 {
 		// prune the requested paths from the index before cataloging (e.g. vendored
-		// or test trees). Patterns are relative to the scan root and resolved by
-		// syft's directory source.
-		srcCfg = srcCfg.WithExcludeConfig(syftSource.ExcludeConfig{Paths: s.excludePaths})
+		// or test trees, plus every top-level subdir when non-recursive). Patterns
+		// are relative to the scan root and resolved by syft's directory source.
+		srcCfg = srcCfg.WithExcludeConfig(syftSource.ExcludeConfig{Paths: excludes})
 	}
 
 	getSourceMu.Lock()
@@ -186,6 +197,34 @@ func (s *scanner) catalog(ctx context.Context, dir, ref string) (*catalog, error
 	}
 
 	return &catalog{packages: mapPackages(sb), sb: sb}, nil
+}
+
+// effectiveExcludes combines the user's exclude patterns with the synthetic
+// prunes that enforce non-recursive scanning. No single syft glob can express
+// "root only" — a depth-1 pattern (e.g. "*") also matches root files, which the
+// directory source can't distinguish from dirs — so instead we read the root's
+// top-level entries and emit one "./<name>" prune per subdir. syft's directory
+// source matches each against the indexed path and returns filepath.SkipDir for
+// the dir, pruning the whole subtree while leaving root files untouched. dir is
+// expected to already be symlink-resolved by the caller.
+func (s *scanner) effectiveExcludes(dir string) ([]string, error) {
+	if s.recursive {
+		return s.excludePaths, nil
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read scan root %q for non-recursive pruning: %w", dir, err)
+	}
+
+	// preserve the user's patterns, then prune every top-level subdir.
+	excludes := append([]string(nil), s.excludePaths...)
+	for _, e := range entries {
+		if e.IsDir() {
+			excludes = append(excludes, "./"+e.Name())
+		}
+	}
+	return excludes, nil
 }
 
 // mapPackages folds syft's package collection into the pure dependency.Package

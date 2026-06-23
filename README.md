@@ -364,6 +364,12 @@ dependencies:
   # matched relative to the repo root — e.g. ./vendor, **/testdata, */examples.
   exclude: []
 
+  # recurse into subdirectories when scanning for dependency and toolchain
+  # manifests. false (the default) scans only the repository root, so a manifest
+  # in a subdir (e.g. a tooling .make/go.mod) does not leak into the changelog.
+  # set true to scan the whole tree. (config-only, no flag)
+  recursive: false
+
   # annotate dependency changes with known vulnerability information
   # same as --vulnerabilities. requires at least one ecosystem above (there is
   # nothing to annotate without a dependency diff).

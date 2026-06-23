@@ -22,29 +22,49 @@ func TestScanner_Scan_Exclude(t *testing.T) {
 	writeManifest(t, filepath.Join(root, "pkg", "testdata", "requirements.txt"), "testdep==3.0.0")
 
 	tests := []struct {
-		name     string
-		exclude  []string
-		wantPkgs []string
+		name      string
+		recursive bool
+		exclude   []string
+		wantPkgs  []string
 	}{
 		{
-			name:     "no excludes scans everything",
-			exclude:  nil,
-			wantPkgs: []string{"rootdep", "testdep", "vendordep"},
+			name:      "no excludes scans everything",
+			recursive: true,
+			exclude:   nil,
+			wantPkgs:  []string{"rootdep", "testdep", "vendordep"},
 		},
 		{
-			name:     "exclude a top-level dir",
-			exclude:  []string{"./vendor"},
-			wantPkgs: []string{"rootdep", "testdep"},
+			name:      "exclude a top-level dir",
+			recursive: true,
+			exclude:   []string{"./vendor"},
+			wantPkgs:  []string{"rootdep", "testdep"},
 		},
 		{
-			name:     "exclude a nested dir by glob",
-			exclude:  []string{"**/testdata"},
-			wantPkgs: []string{"rootdep", "vendordep"},
+			name:      "exclude a nested dir by glob",
+			recursive: true,
+			exclude:   []string{"**/testdata"},
+			wantPkgs:  []string{"rootdep", "vendordep"},
 		},
 		{
-			name:     "multiple excludes",
-			exclude:  []string{"./vendor", "**/testdata"},
-			wantPkgs: []string{"rootdep"},
+			name:      "multiple excludes",
+			recursive: true,
+			exclude:   []string{"./vendor", "**/testdata"},
+			wantPkgs:  []string{"rootdep"},
+		},
+		{
+			// non-recursive prunes every top-level subdir while keeping root files,
+			// regardless of how deeply the subdir manifests are nested.
+			name:      "non-recursive scans only the root",
+			recursive: false,
+			exclude:   nil,
+			wantPkgs:  []string{"rootdep"},
+		},
+		{
+			// user excludes still compose with the synthetic subdir prunes.
+			name:      "non-recursive with a user exclude",
+			recursive: false,
+			exclude:   []string{"./vendor"},
+			wantPkgs:  []string{"rootdep"},
 		},
 	}
 
@@ -54,7 +74,7 @@ func TestScanner_Scan_Exclude(t *testing.T) {
 			// full syft catalog/exclude/symlink path without materializing a git
 			// ref (no target needed). annotate is off (nil dbReady), so this
 			// returns packages only.
-			s := &scanner{sourceName: "test", ecosystems: []string{"python"}, excludePaths: tt.exclude}
+			s := &scanner{sourceName: "test", ecosystems: []string{"python"}, excludePaths: tt.exclude, recursive: tt.recursive}
 			snap, err := s.scanDir(context.Background(), root, "v0")
 			require.NoError(t, err)
 

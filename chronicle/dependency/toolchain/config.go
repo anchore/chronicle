@@ -12,6 +12,9 @@ type Config struct {
 	Ignore []string
 	// Paths maps an ecosystem to its discovery globs, overriding the detector default.
 	Paths map[dependency.Ecosystem][]string
+	// Recursive controls discovery depth. When false (default), only root-level manifests are
+	// considered; any path in a subdirectory is ignored regardless of the per-ecosystem globs.
+	Recursive bool
 }
 
 // DefaultIgnore returns the path globs excluded from toolchain source discovery by default, so a
