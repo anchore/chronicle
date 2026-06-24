@@ -205,11 +205,13 @@ func TestFindNextUniqueVersion(t *testing.T) {
 		wantErr             require.ErrorAssertionFunc
 	}{
 		{
-			name:    "bump major version -- major conflict",
-			release: "v0.1.5",
+			// a taken major version rolls forward by minor, never by major (we never
+			// speculate a brand new major version) and never by patch.
+			name:    "bump major version -- major conflict rolls forward by minor",
+			release: "v1.5.2",
 			git: git.MockInterface{
 				MockTags: []string{
-					"v1.0.0",
+					"v2.0.0",
 				},
 			},
 			changes: []change.Change{
@@ -217,7 +219,192 @@ func TestFindNextUniqueVersion(t *testing.T) {
 					ChangeTypes: []change.Type{majorChange, minorChange, patchChange},
 				},
 			},
-			want: "v1.0.1",
+			want: "v2.1.0",
+		},
+		{
+			name:    "bump major version -- multiple major conflicts roll forward by minor",
+			release: "v1.5.2",
+			git: git.MockInterface{
+				MockTags: []string{
+					"v2.0.0",
+					"v2.1.0",
+					"v2.2.0",
+				},
+			},
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{majorChange},
+				},
+			},
+			want: "v2.3.0",
+		},
+		{
+			// a taken feature (minor) version rolls forward by minor, not patch.
+			name:    "bump feature version -- minor conflict rolls forward by minor",
+			release: "v0.12.0",
+			git: git.MockInterface{
+				MockTags: []string{
+					"v0.13.0",
+				},
+			},
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{minorChange},
+				},
+			},
+			want: "v0.14.0",
+		},
+		{
+			name:    "bump feature version -- multiple minor conflicts roll forward by minor",
+			release: "v0.12.0",
+			git: git.MockInterface{
+				MockTags: []string{
+					"v0.13.0",
+					"v0.14.0",
+				},
+			},
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{minorChange},
+				},
+			},
+			want: "v0.15.0",
+		},
+		{
+			// a taken patch version rolls forward by patch.
+			name:    "bump patch version -- patch conflict rolls forward by patch",
+			release: "v0.13.0",
+			git: git.MockInterface{
+				MockTags: []string{
+					"v0.13.1",
+				},
+			},
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{patchChange},
+				},
+			},
+			want: "v0.13.2",
+		},
+		{
+			name:    "no conflict returns the ideal version",
+			release: "v0.12.0",
+			git: git.MockInterface{
+				MockTags: []string{
+					"v0.12.0",
+				},
+			},
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{minorChange},
+				},
+			},
+			want: "v0.13.0",
+		},
+		{
+			// breaking changes on a v0.x project with EnforceV0 are minor bumps, so a
+			// conflict rolls forward by minor.
+			name:      "bump major version -- enforce v0 conflict rolls forward by minor",
+			release:   "v0.12.0",
+			enforceV0: true,
+			git: git.MockInterface{
+				MockTags: []string{
+					"v0.13.0",
+				},
+			},
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{majorChange},
+				},
+			},
+			want: "v0.14.0",
+		},
+		{
+			// when there are no existing tags the ideal version is returned unchanged.
+			name:    "no tags returns the ideal version",
+			release: "v0.12.0",
+			git:     git.MockInterface{},
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{minorChange},
+				},
+			},
+			want: "v0.13.0",
+		},
+		{
+			// multiple consecutive patch conflicts roll forward by patch.
+			name:    "bump patch version -- multiple patch conflicts roll forward by patch",
+			release: "v0.13.0",
+			git: git.MockInterface{
+				MockTags: []string{
+					"v0.13.1",
+					"v0.13.2",
+				},
+			},
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{patchChange},
+				},
+			},
+			want: "v0.13.3",
+		},
+		{
+			// a version without a "v" prefix keeps its prefix-less form when rolling forward.
+			name:    "no prefix conflict rolls forward without prefix",
+			release: "0.12.0",
+			git: git.MockInterface{
+				MockTags: []string{
+					"0.13.0",
+				},
+			},
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{minorChange},
+				},
+			},
+			want: "0.14.0",
+		},
+		{
+			// no changes with NoChangesBumpsPatch yields a patch bump, so a conflict rolls
+			// forward by patch (the default bump kind for an unknown significance).
+			name:                "no changes bump patch conflict rolls forward by patch",
+			release:             "v0.13.0",
+			bumpPatchOnNoChange: true,
+			git: git.MockInterface{
+				MockTags: []string{
+					"v0.13.1",
+				},
+			},
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{},
+				},
+			},
+			want: "v0.13.2",
+		},
+		{
+			// an error from the underlying ideal-version computation is propagated.
+			name:    "error on bad version is propagated",
+			release: "a10",
+			git:     git.MockInterface{},
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{patchChange},
+				},
+			},
+			wantErr: require.Error,
+		},
+		{
+			// no changes without NoChangesBumpsPatch errors out at the ideal-version step.
+			name:    "no changes without bump patch errors",
+			release: "v0.13.0",
+			git:     git.MockInterface{},
+			changes: []change.Change{
+				{
+					ChangeTypes: []change.Type{},
+				},
+			},
+			wantErr: require.Error,
 		},
 	}
 	for _, tt := range tests {
@@ -232,6 +419,9 @@ func TestFindNextUniqueVersion(t *testing.T) {
 
 			got, err := s.NextUniqueVersion(tt.release, tt.changes)
 			tt.wantErr(t, err)
+			if err != nil {
+				return
+			}
 			assert.Equal(t, tt.want, got)
 		})
 	}
