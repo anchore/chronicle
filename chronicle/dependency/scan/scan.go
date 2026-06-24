@@ -217,14 +217,44 @@ func (s *scanner) effectiveExcludes(dir string) ([]string, error) {
 		return nil, fmt.Errorf("unable to read scan root %q for non-recursive pruning: %w", dir, err)
 	}
 
-	// preserve the user's patterns, then prune every top-level subdir.
+	// preserve the user's patterns, then prune every top-level subdir. Track the
+	// patterns already seen so a user exclude that coincides with a synthetic
+	// subdir prune (e.g. a user "./vendor" plus the vendor/ dir) isn't emitted
+	// twice.
 	excludes := append([]string(nil), s.excludePaths...)
+	seen := make(map[string]struct{}, len(excludes))
+	for _, p := range excludes {
+		seen[p] = struct{}{}
+	}
 	for _, e := range entries {
-		if e.IsDir() {
-			excludes = append(excludes, "./"+e.Name())
+		if !isDir(dir, e) {
+			continue
 		}
+		pattern := "./" + e.Name()
+		if _, dup := seen[pattern]; dup {
+			continue
+		}
+		seen[pattern] = struct{}{}
+		excludes = append(excludes, pattern)
 	}
 	return excludes, nil
+}
+
+// isDir reports whether the top-level entry e is a directory, resolving symlinks.
+// DirEntry.IsDir is false for a symlink even when it points at a directory, but
+// syft resolves symlinks while indexing — so a root-level dir symlink would
+// otherwise escape the non-recursive prune and leak its manifests. Best-effort:
+// a symlink we can't stat is treated as a non-dir (left in the scan), matching
+// the lenient symlink handling in catalog.
+func isDir(dir string, e os.DirEntry) bool {
+	if e.IsDir() {
+		return true
+	}
+	if e.Type()&os.ModeSymlink == 0 {
+		return false
+	}
+	info, err := os.Stat(filepath.Join(dir, e.Name()))
+	return err == nil && info.IsDir()
 }
 
 // mapPackages folds syft's package collection into the pure dependency.Package
