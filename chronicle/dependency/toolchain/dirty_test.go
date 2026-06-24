@@ -12,10 +12,11 @@ import (
 
 func TestDirtySourceFiles(t *testing.T) {
 	tests := []struct {
-		name  string
-		cfg   Config
-		dirty []string
-		want  []string
+		name    string
+		cfg     Config
+		dirty   []string
+		want    []string
+		wantErr require.ErrorAssertionFunc
 	}{
 		{
 			name:  "disabled returns nothing",
@@ -63,10 +64,18 @@ func TestDirtySourceFiles(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.wantErr == nil {
+				tt.wantErr = require.NoError
+			}
+
 			gitter := git.MockInterface{MockDirtyPaths: tt.dirty}
 
 			got, err := DirtySourceFiles(gitter, tt.cfg)
-			require.NoError(t, err)
+			tt.wantErr(t, err)
+
+			if err != nil {
+				return
+			}
 			assert.Equal(t, tt.want, got)
 		})
 	}

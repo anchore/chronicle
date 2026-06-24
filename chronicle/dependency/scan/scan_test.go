@@ -88,6 +88,69 @@ func TestScanner_Scan_Exclude(t *testing.T) {
 	}
 }
 
+// TestScanner_effectiveExcludes covers the synthetic prune derivation directly,
+// without the heavy syft cataloging path: recursive passes the user patterns
+// through untouched, while non-recursive appends one "./<name>" prune per
+// top-level subdir (including dir symlinks, but not file symlinks) and dedupes
+// against the user's patterns.
+func TestScanner_effectiveExcludes(t *testing.T) {
+	// fixture: a root file, two real subdirs, a symlink to a dir, and a symlink
+	// to a file. only the directories (real + symlinked) should be pruned.
+	root := t.TempDir()
+	writeManifest(t, filepath.Join(root, "requirements.txt"), "rootdep==1.0.0")
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "vendor"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "pkg"), 0o755))
+	require.NoError(t, os.Symlink(filepath.Join(root, "vendor"), filepath.Join(root, "linkdir")))
+	require.NoError(t, os.Symlink(filepath.Join(root, "requirements.txt"), filepath.Join(root, "linkfile")))
+
+	tests := []struct {
+		name      string
+		recursive bool
+		exclude   []string
+		want      []string
+	}{
+		{
+			name:      "recursive passes user patterns through",
+			recursive: true,
+			exclude:   []string{"./vendor", "**/testdata"},
+			want:      []string{"./vendor", "**/testdata"},
+		},
+		{
+			name:      "recursive with no excludes is empty",
+			recursive: true,
+			exclude:   nil,
+			want:      nil,
+		},
+		{
+			name:      "non-recursive prunes every top-level dir including dir symlinks",
+			recursive: false,
+			exclude:   nil,
+			want:      []string{"./linkdir", "./pkg", "./vendor"},
+		},
+		{
+			name:      "non-recursive dedupes a user exclude against the synthetic prune",
+			recursive: false,
+			exclude:   []string{"./vendor"},
+			want:      []string{"./vendor", "./linkdir", "./pkg"},
+		},
+		{
+			name:      "non-recursive keeps unrelated user excludes",
+			recursive: false,
+			exclude:   []string{"**/testdata"},
+			want:      []string{"**/testdata", "./linkdir", "./pkg", "./vendor"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &scanner{excludePaths: tt.exclude, recursive: tt.recursive}
+			got, err := s.effectiveExcludes(root)
+			require.NoError(t, err)
+			require.ElementsMatch(t, tt.want, got)
+		})
+	}
+}
+
 func writeManifest(t *testing.T, path, content string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
