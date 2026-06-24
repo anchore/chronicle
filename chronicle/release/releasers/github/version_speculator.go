@@ -9,6 +9,7 @@ import (
 	"github.com/anchore/chronicle/chronicle/release"
 	"github.com/anchore/chronicle/chronicle/release/change"
 	"github.com/anchore/chronicle/internal/git"
+	"github.com/anchore/chronicle/internal/log"
 )
 
 var _ release.VersionSpeculator = (*VersionSpeculator)(nil)
@@ -91,31 +92,58 @@ func (s VersionSpeculator) NextUniqueVersion(currentVersion string, changes chan
 	if err != nil {
 		return "", err
 	}
-retry:
+
+	taken := make(map[string]struct{}, len(tags))
+	for _, t := range tags {
+		taken[t.Name] = struct{}{}
+	}
+
+	// when the ideal version's tag is already taken (e.g. from a failed release that can't be
+	// rolled back in the go ecosystem) we must roll forward to the next unused version. we roll
+	// forward along the same field that the release bumped: a feature release rolls to the next
+	// minor (v0.13.0 -> v0.14.0, never v0.13.1) and a patch release rolls to the next patch
+	// (v0.13.1 -> v0.13.2). major releases are special: we never speculate a brand new major
+	// version, so a taken major rolls forward by minor instead (v2.0.0 -> v2.1.0).
+	bumpKind := s.effectiveBumpKind(changes)
+
 	for {
-		for _, t := range tags {
-			if t.Name == nextReleaseVersion {
-				// looks like there is already a tag for this speculative release, let's choose a patch variant of this
-				verObj, err := semver.NewVersion(strings.TrimLeft(nextReleaseVersion, "v"))
-				if err != nil {
-					return "", err
-				}
-				verObj.BumpPatch()
-
-				var prefix string
-				if strings.HasPrefix(nextReleaseVersion, "v") {
-					prefix = "v"
-				}
-
-				releaseVersionCandidate := prefix + verObj.String()
-
-				nextReleaseVersion = releaseVersionCandidate
-				continue retry
-			}
+		if _, ok := taken[nextReleaseVersion]; !ok {
+			break
 		}
-		// we've checked that there are no existing tags that match the next release
-		break
+
+		verObj, err := semver.NewVersion(strings.TrimLeft(nextReleaseVersion, "v"))
+		if err != nil {
+			return "", err
+		}
+
+		switch bumpKind {
+		case change.SemVerMinor, change.SemVerMajor:
+			verObj.BumpMinor()
+		default:
+			verObj.BumpPatch()
+		}
+
+		var prefix string
+		if strings.HasPrefix(nextReleaseVersion, "v") {
+			prefix = "v"
+		}
+
+		takenVersion := nextReleaseVersion
+		nextReleaseVersion = prefix + verObj.String()
+
+		log.WithFields("taken", takenVersion, "next", nextReleaseVersion).
+			Warnf("speculated release version %q already has a tag; rolling forward to %q", takenVersion, nextReleaseVersion)
 	}
 
 	return nextReleaseVersion, nil
+}
+
+// effectiveBumpKind reports the highest-significance semver field that the given changes would
+// bump, honoring EnforceV0 (which downgrades a major bump to a minor bump for v0.x projects).
+func (s VersionSpeculator) effectiveBumpKind(changes change.Changes) change.SemVerKind {
+	kind := change.Significance(changes)
+	if kind == change.SemVerMajor && s.EnforceV0 {
+		kind = change.SemVerMinor
+	}
+	return kind
 }
