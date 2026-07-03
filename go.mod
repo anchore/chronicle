@@ -5,7 +5,7 @@ go 1.26.3
 require (
 	github.com/anchore/bubbly v0.2.1
 	github.com/anchore/clio v0.1.0
-	github.com/anchore/fangs v0.1.0
+	github.com/anchore/fangs v0.1.1
 	github.com/anchore/go-logger v0.1.1
 	github.com/anchore/grype v0.114.0
 	github.com/anchore/syft v1.45.1
@@ -66,7 +66,7 @@ require (
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/alecthomas/chroma/v2 v2.20.0 // indirect
 	github.com/anchore/go-collections v0.1.0 // indirect
-	github.com/anchore/go-homedir v0.1.0 // indirect
+	github.com/anchore/go-homedir v0.1.1 // indirect
 	github.com/anchore/go-lzo v0.1.0 // indirect
 	github.com/anchore/go-macholibre v0.1.0 // indirect
 	github.com/anchore/go-rpmdb v0.1.0 // indirect
