@@ -6,7 +6,7 @@ require (
 	github.com/anchore/bubbly v0.2.1
 	github.com/anchore/clio v0.1.0
 	github.com/anchore/fangs v0.1.0
-	github.com/anchore/go-logger v0.1.0
+	github.com/anchore/go-logger v0.1.1
 	github.com/anchore/grype v0.114.0
 	github.com/anchore/syft v1.45.1
 	github.com/bmatcuk/doublestar/v4 v4.10.0
