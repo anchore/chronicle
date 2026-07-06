@@ -13,6 +13,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -164,17 +165,23 @@ func writeOutput(entries []ecosystemEntry, version string) error {
 }
 
 // syftModule returns the module cache directory and version of the pinned syft
-// dependency via `go list`, avoiding any assumptions about GOMODCACHE layout.
+// dependency, avoiding any assumptions about GOMODCACHE layout. `go mod download`
+// both fetches the module and reports where it landed — a fresh checkout or a
+// stale CI module cache won't have syft extracted, and `go list -m` alone reports
+// an empty Dir in that case rather than downloading it.
 func syftModule() (dir, version string, err error) {
-	out, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}\t{{.Version}}", "github.com/anchore/syft").Output()
+	out, err := exec.Command("go", "mod", "download", "-json", "github.com/anchore/syft").Output()
 	if err != nil {
-		return "", "", fmt.Errorf("locating syft module: %w", err)
+		return "", "", fmt.Errorf("downloading syft module: %w", err)
 	}
-	parts := strings.SplitN(strings.TrimSpace(string(out)), "\t", 2)
-	if len(parts) != 2 || parts[0] == "" {
-		return "", "", fmt.Errorf("unexpected `go list` output: %q", string(out))
+	var m struct {
+		Dir     string
+		Version string
 	}
-	return parts[0], parts[1], nil
+	if err := json.Unmarshal(out, &m); err != nil || m.Dir == "" || m.Version == "" {
+		return "", "", fmt.Errorf("unexpected `go mod download` output: %q", string(out))
+	}
+	return m.Dir, m.Version, nil
 }
 
 func globCriteria(parsers []struct {
