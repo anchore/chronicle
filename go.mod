@@ -4,7 +4,7 @@ go 1.26.3
 
 require (
 	github.com/anchore/bubbly v0.2.1
-	github.com/anchore/clio v0.1.0
+	github.com/anchore/clio v0.1.1
 	github.com/anchore/fangs v0.1.1
 	github.com/anchore/go-logger v0.1.1
 	github.com/anchore/grype v0.114.0
