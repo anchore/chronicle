@@ -15,7 +15,7 @@ require (
 	github.com/charmbracelet/glamour v1.0.0
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/coreos/go-semver v0.3.1
-	github.com/gkampitakis/go-snaps v0.5.22
+	github.com/gkampitakis/go-snaps v0.5.23
 	github.com/go-git/go-billy/v5 v5.9.0
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/google/go-cmp v0.7.0
