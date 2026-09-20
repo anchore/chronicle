@@ -386,9 +386,9 @@ func fetchMergedPRs(user, repo string, since *time.Time, leaf *event.Leaf) ([]gh
 			RateLimit rateLimit
 		}
 		variables := map[string]interface{}{
-			"repositoryOwner": githubv4.String(user),
-			"repositoryName":  githubv4.String(repo),
-			"prCursor":        (*githubv4.String)(nil), // Null after argument to get first page.
+			graphqlVarRepositoryOwner: githubv4.String(user),
+			graphqlVarRepositoryName:  githubv4.String(repo),
+			"prCursor":                (*githubv4.String)(nil), // Null after argument to get first page.
 		}
 
 		// var limit rateLimit

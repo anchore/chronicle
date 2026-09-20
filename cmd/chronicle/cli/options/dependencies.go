@@ -34,6 +34,9 @@ type DependencyActions struct {
 	Removed    string `yaml:"removed" json:"removed" mapstructure:"removed"`
 }
 
+// defaultActionMode is the default fallback list for every DependencyActions field.
+const defaultActionMode = "collapsed,list"
+
 // CleanedEcosystems normalizes the configured ecosystem values: each entry may
 // itself be comma-separated, so flatten, trim, and drop blanks. This is the
 // single source for both feature enablement and the selectors handed to syft.
@@ -103,10 +106,10 @@ func DefaultDependencies() Dependencies {
 		// ecosystems; on by default so a go-directive bump surfaces without extra flags.
 		DetectToolchain: true,
 		Actions: DependencyActions{
-			Updated:    "collapsed,list",
-			Downgraded: "collapsed,list",
-			Added:      "collapsed,list",
-			Removed:    "collapsed,list",
+			Updated:    defaultActionMode,
+			Downgraded: defaultActionMode,
+			Added:      defaultActionMode,
+			Removed:    defaultActionMode,
 		},
 	}
 }

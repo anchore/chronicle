@@ -5,6 +5,12 @@ import (
 	"strings"
 )
 
+// GraphQL variable names shared across issue, pull request, and release queries.
+const (
+	graphqlVarRepositoryOwner = "repositoryOwner"
+	graphqlVarRepositoryName  = "repositoryName"
+)
+
 // explainGithubAPIError adds an actionable hint for common GitHub API failure modes.
 // The shurcooL/githubv4 client returns errors like:
 //
