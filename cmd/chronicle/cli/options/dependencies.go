@@ -23,6 +23,10 @@ type Dependencies struct {
 	Actions                      DependencyActions `yaml:"actions" json:"actions" mapstructure:"actions"`
 }
 
+// defaultActionModes is the fallback mode list every change kind defaults to:
+// collapse where the format supports it, otherwise enumerate as a full list.
+const defaultActionModes = "collapsed,list"
+
 // DependencyActions sets how each kind of dependency change is displayed. Each
 // value is a comma-separated fallback list of modes (hide, summary, list,
 // collapsed); the encoder uses the first mode it supports — e.g. "collapsed,list"
@@ -103,10 +107,10 @@ func DefaultDependencies() Dependencies {
 		// ecosystems; on by default so a go-directive bump surfaces without extra flags.
 		DetectToolchain: true,
 		Actions: DependencyActions{
-			Updated:    "collapsed,list",
-			Downgraded: "collapsed,list",
-			Added:      "collapsed,list",
-			Removed:    "collapsed,list",
+			Updated:    defaultActionModes,
+			Downgraded: defaultActionModes,
+			Added:      defaultActionModes,
+			Removed:    defaultActionModes,
 		},
 	}
 }

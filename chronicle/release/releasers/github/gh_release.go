@@ -60,11 +60,8 @@ func fetchLatestNonDraftRelease(user, repo string) (*ghRelease, error) {
 
 		RateLimit rateLimit
 	}
-	variables := map[string]interface{}{
-		"repositoryOwner": githubv4.String(user),
-		"repositoryName":  githubv4.String(repo),
-		"releasesCursor":  (*githubv4.String)(nil), // null after argument to get first page.
-	}
+	variables := repoQueryVariables(user, repo)
+	variables["releasesCursor"] = (*githubv4.String)(nil) // null after argument to get first page.
 
 	for {
 		err := client.Query(context.Background(), &query, variables)
@@ -121,11 +118,8 @@ func fetchRelease(user, repo, tag string) (*ghRelease, error) {
 
 		RateLimit rateLimit
 	}
-	variables := map[string]interface{}{
-		"repositoryOwner": githubv4.String(user),
-		"repositoryName":  githubv4.String(repo),
-		"tagName":         githubv4.String(tag), // Null after argument to get first page.
-	}
+	variables := repoQueryVariables(user, repo)
+	variables["tagName"] = githubv4.String(tag)
 
 	err := client.Query(context.Background(), &query, variables)
 	if err != nil {
