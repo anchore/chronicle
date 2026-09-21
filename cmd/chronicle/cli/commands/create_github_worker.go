@@ -24,6 +24,14 @@ import (
 	"github.com/anchore/chronicle/internal/log"
 )
 
+// slot names for the two ends of the release range. They identify the "range"
+// group's slots and the since/until branches under the evidence tree leaves, and
+// double as the user-visible labels.
+const (
+	slotSince = "since"
+	slotUntil = "until"
+)
+
 func createChangelogFromGithub(ctx context.Context, appConfig *createConfig) (*release.Release, *release.Description, error) {
 	// pre-flight: the trunk format encodes commit-level data that is only
 	// populated when consider-pr-merge-commits is enabled. Fail fast before
@@ -59,8 +67,8 @@ func createChangelogFromGithub(ctx context.Context, appConfig *createConfig) (*r
 	// flip slots to running immediately so the spinner is visible while the
 	// since/until lookups and tag-discovery work runs. Resolve/Fail later will
 	// transition them out.
-	rng.Slot("since").Start()
-	rng.Slot("until").Start()
+	rng.Slot(slotSince).Start()
+	rng.Slot(slotUntil).Start()
 
 	evidence := publishEvidenceTree(appConfig)
 	defer evidence.Close()
@@ -81,7 +89,7 @@ func createChangelogFromGithub(ctx context.Context, appConfig *createConfig) (*r
 	if untilTag == "" {
 		untilTag, err = github.FindChangelogEndTag(summer, gitter)
 		if err != nil {
-			rng.Slot("until").Fail(err)
+			rng.Slot(slotUntil).Fail(err)
 			return nil, nil, err
 		}
 	}
@@ -344,15 +352,15 @@ func resolveDependencyRefs(description *release.Description, gitter git.Interfac
 // route syft's live package count onto the right branch (it publishes its
 // resolved source to the bus from deep inside), then kicks the spinners.
 func startDependencyLeaves(sbomLeaf, vulnLeaf *event.Leaf, sinceRef, untilRef string, annotate bool) {
-	bus.RegisterSBOMLeaf(sinceRef, sbomLeaf.Child("since"))
-	bus.RegisterSBOMLeaf(untilRef, sbomLeaf.Child("until"))
+	bus.RegisterSBOMLeaf(sinceRef, sbomLeaf.Child(slotSince))
+	bus.RegisterSBOMLeaf(untilRef, sbomLeaf.Child(slotUntil))
 	sbomLeaf.SetStage("cataloging…")
-	sbomLeaf.Child("since").Start()
-	sbomLeaf.Child("until").Start()
+	sbomLeaf.Child(slotSince).Start()
+	sbomLeaf.Child(slotUntil).Start()
 	if annotate {
 		vulnLeaf.SetStage("matching…")
-		vulnLeaf.Child("since").Start()
-		vulnLeaf.Child("until").Start()
+		vulnLeaf.Child(slotSince).Start()
+		vulnLeaf.Child(slotUntil).Start()
 	}
 }
 
@@ -362,14 +370,14 @@ func startDependencyLeaves(sbomLeaf, vulnLeaf *event.Leaf, sinceRef, untilRef st
 // come back as data, mirroring how resolveEvidenceLeaves resolves from the
 // returned description.
 func resolveDependencyLeaves(sbomLeaf, vulnLeaf *event.Leaf, diff *dependency.Diff, annotate bool) {
-	sbomLeaf.Child("since").Resolve(event.Count("package", diff.Since.DistinctPackages()))
-	sbomLeaf.Child("until").Resolve(event.Count("package", diff.Until.DistinctPackages()))
+	sbomLeaf.Child(slotSince).Resolve(event.Count("package", diff.Since.DistinctPackages()))
+	sbomLeaf.Child(slotUntil).Resolve(event.Count("package", diff.Until.DistinctPackages()))
 	sbomLeaf.Resolve(diffMetrics(diff)...)
 	if !annotate {
 		return
 	}
-	resolveVulnBranch(vulnLeaf.Child("since"), diff.Since)
-	resolveVulnBranch(vulnLeaf.Child("until"), diff.Until)
+	resolveVulnBranch(vulnLeaf.Child(slotSince), diff.Since)
+	resolveVulnBranch(vulnLeaf.Child(slotUntil), diff.Until)
 	// the rollup is only meaningful when both refs matched; a nil Vulns map means
 	// matching didn't complete for that ref, so fail the parent rather than show
 	// a hollow 0/0.
@@ -611,12 +619,12 @@ func publishEvidenceTree(appConfig *createConfig) *event.Tree {
 	if appConfig.Dependencies.Enabled() {
 		evidenceSpecs = append(evidenceSpecs, event.LeafSpec{
 			Name:     "source sbom",
-			Children: []string{"since", "until"},
+			Children: []string{slotSince, slotUntil},
 		})
 		if appConfig.Dependencies.AnnotateVulnerabilities {
 			evidenceSpecs = append(evidenceSpecs, event.LeafSpec{
 				Name:     "vulnerabilities",
-				Children: []string{"since", "until"},
+				Children: []string{slotSince, slotUntil},
 			})
 		}
 		if toolchainConfig(appConfig).Enabled {
@@ -683,8 +691,8 @@ func publishRangeGroup(appConfig *createConfig) *event.Group {
 		untilIntent = "HEAD"
 	}
 	return bus.PublishGroup("range", []event.GroupSlotInit{
-		{Name: "since", Label: "since", Intent: sinceIntent},
-		{Name: "until", Label: "until", Intent: untilIntent},
+		{Name: slotSince, Label: slotSince, Intent: sinceIntent},
+		{Name: slotUntil, Label: slotUntil, Intent: untilIntent},
 	})
 }
 
@@ -699,33 +707,33 @@ func resolveRangeSlots(rng *event.Group, gitter git.Interface, sinceTag, untilTa
 	switch {
 	case sinceTag != "":
 		if t, err := gitter.SearchForTag(sinceTag); err == nil && t != nil {
-			rng.Slot("since").Resolve(event.Text(t.Name), event.SHA(t.Commit), event.Date(t.Timestamp))
+			rng.Slot(slotSince).Resolve(event.Text(t.Name), event.SHA(t.Commit), event.Date(t.Timestamp))
 		} else {
-			rng.Slot("since").Resolve(event.Text(sinceTag))
+			rng.Slot(slotSince).Resolve(event.Text(sinceTag))
 		}
 	case desc != nil && desc.PreviousRelease != nil:
 		ver := desc.PreviousRelease.Version
 		if t, err := gitter.SearchForTag(ver); err == nil && t != nil {
-			rng.Slot("since").Resolve(event.Text(ver), event.SHA(t.Commit), event.Date(desc.PreviousRelease.Date))
+			rng.Slot(slotSince).Resolve(event.Text(ver), event.SHA(t.Commit), event.Date(desc.PreviousRelease.Date))
 		} else {
-			rng.Slot("since").Resolve(event.Text(ver), event.Date(desc.PreviousRelease.Date))
+			rng.Slot(slotSince).Resolve(event.Text(ver), event.Date(desc.PreviousRelease.Date))
 		}
 	default:
 		// no prior release: since the beginning of git history.
 		if sha, err := gitter.FirstCommit(); err == nil {
-			rng.Slot("since").Resolve(event.SHA(sha))
+			rng.Slot(slotSince).Resolve(event.SHA(sha))
 		}
 	}
 
 	// until: prefer the resolved tag; otherwise show HEAD.
 	if untilTag != "" {
 		if t, err := gitter.SearchForTag(untilTag); err == nil && t != nil {
-			rng.Slot("until").Resolve(event.Text(t.Name), event.SHA(t.Commit), event.Date(t.Timestamp))
+			rng.Slot(slotUntil).Resolve(event.Text(t.Name), event.SHA(t.Commit), event.Date(t.Timestamp))
 		} else {
-			rng.Slot("until").Resolve(event.Text(untilTag))
+			rng.Slot(slotUntil).Resolve(event.Text(untilTag))
 		}
 	} else if sha, err := gitter.HeadTagOrCommit(); err == nil {
-		rng.Slot("until").Resolve(event.SHA(sha))
+		rng.Slot(slotUntil).Resolve(event.SHA(sha))
 	}
 }
 
