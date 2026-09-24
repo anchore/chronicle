@@ -18,6 +18,7 @@ func main() {
 		goreleaser.Tasks(),
 		gotest.Tasks(),
 		gotest.FixtureTasks().RunOn("unit"),
+		generateTask(),
 		verifyGeneratedTask(),
 	)
 }
@@ -28,17 +29,29 @@ var generatedFiles = []string{
 	"cmd/chronicle/cli/options/ecosystems.gen.yaml",
 }
 
+// generateTask regenerates the syft-derived ecosystem detection table. Run it
+// after bumping syft (or from automation that keeps it current).
+func generateTask() Task {
+	return Task{
+		Name:        "generate",
+		Description: "regenerate ecosystem detection artifacts via `go generate`",
+		Run: func() {
+			Run("go generate ./cmd/chronicle/cli/options/...")
+		},
+	}
+}
+
 // verifyGeneratedTask re-runs code generation and fails if a committed artifact
 // drifted — guarding the syft-derived ecosystem detection table against a stale
 // check-in (e.g. a syft bump landed without re-running `go generate`). It hooks
 // into static-analysis so CI enforces it on every PR.
 func verifyGeneratedTask() Task {
 	return Task{
-		Name:        "verify-generated",
-		Description: "ensure committed generated files match `go generate` output",
-		RunsOn:      lang.List("static-analysis"),
+		Name:         "verify-generated",
+		Description:  "ensure committed generated files match `go generate` output",
+		Dependencies: Deps("generate"),
+		RunsOn:       lang.List("static-analysis"),
 		Run: func() {
-			Run("go generate ./cmd/chronicle/cli/options/...")
 			args := strings.Join(generatedFiles, " ")
 			if dirty := strings.TrimSpace(Run("git status --porcelain -- "+args, run.NoFail())); dirty != "" {
 				lang.Throw(fmt.Errorf("generated files are out of date; run `go generate ./...` and commit:\n%s", dirty))
