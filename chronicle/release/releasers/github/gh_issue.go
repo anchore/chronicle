@@ -23,6 +23,7 @@ type ghIssue struct {
 	Closed     bool
 	NotPlanned bool
 	Labels     []string
+	Assignees  []string
 	URL        string
 }
 
@@ -219,7 +220,8 @@ func fetchClosedIssues(user, repo string, since *time.Time, leaf *event.Leaf) ([
 							ClosedAt    githubv4.DateTime
 							UpdatedAt   githubv4.DateTime
 							StateReason githubv4.String
-							Labels      labelConnection `graphql:"labels(first:100)"`
+							Labels      labelConnection    `graphql:"labels(first:100)"`
+							Assignees   assigneeConnection `graphql:"assignees(first:10)"`
 						}
 					}
 				} `graphql:"issues(first:100, states:CLOSED, after:$issuesCursor, orderBy:{field: UPDATED_AT, direction: DESC})"`
@@ -260,6 +262,7 @@ func fetchClosedIssues(user, repo string, since *time.Time, leaf *event.Leaf) ([
 					ClosedAt:   iEdge.Node.ClosedAt.Time,
 					Closed:     bool(iEdge.Node.Closed),
 					Labels:     iEdge.Node.Labels.names(),
+					Assignees:  iEdge.Node.Assignees.logins(),
 					URL:        string(iEdge.Node.URL),
 					Number:     int(iEdge.Node.Number),
 					NotPlanned: strings.EqualFold("NOT_PLANNED", string(iEdge.Node.StateReason)),

@@ -441,6 +441,11 @@ func Test_formatReferences(t *testing.T) {
 			want: " [Issue [#10](https://github.com/o/r/issues/10)]",
 		},
 		{
+			name: "issue assignee is linked by profile",
+			refs: []change.Reference{iss1, change.Reference{Text: "Assignee: @alice", URL: "https://github.com/alice"}},
+			want: " [Issue [#10](https://github.com/o/r/issues/10)] [[Assignee: @alice](https://github.com/alice)]",
+		},
+		{
 			name: "handle alone (no issue, no PR) renders standalone",
 			refs: []change.Reference{handleGH},
 			want: " [@alice]",

@@ -839,6 +839,16 @@ func createChangesFromIssues(config Config, allMergedPRs []ghPullRequest, issues
 			},
 		}
 
+		for _, assignee := range issue.Assignees {
+			if assignee == "" {
+				continue
+			}
+			references = append(references, change.Reference{
+				Text: fmt.Sprintf("Assignee: @%s", assignee),
+				URL:  fmt.Sprintf("https://%s/%s", config.Host, assignee),
+			})
+		}
+
 		if config.IncludeIssuePRs || config.IncludeIssuePRAuthors {
 			for _, pr := range getLinkedPRs(allMergedPRs, issue) {
 				if config.IncludeIssuePRs {

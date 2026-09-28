@@ -960,11 +960,12 @@ func Test_createChangesFromIssues(t *testing.T) {
 	}
 
 	issue1 := ghIssue{
-		Title:    "Issue 1",
-		Number:   1,
-		URL:      "issue-1-url",
-		ClosedAt: timeStart,
-		Labels:   []string{"bug"},
+		Title:     "Issue 1",
+		Number:    1,
+		URL:       "issue-1-url",
+		ClosedAt:  timeStart,
+		Labels:    []string{"bug"},
+		Assignees: []string{"issue-owner-1"},
 	}
 
 	issue2 := ghIssue{
@@ -1050,6 +1051,10 @@ func Test_createChangesFromIssues(t *testing.T) {
 						{
 							Text: "#1",
 							URL:  "issue-1-url",
+						},
+						{
+							Text: "Assignee: @issue-owner-1",
+							URL:  "https://some-host/issue-owner-1",
 						},
 						{
 							Text: "#1",
