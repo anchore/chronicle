@@ -1,4 +1,4 @@
-# Code generated from github.com/anchore/syft v1.45.1 by genecosystems; DO NOT EDIT.
+# Code generated from github.com/anchore/syft v1.52.0 by genecosystems; DO NOT EDIT.
 # Regenerate with `go generate ./...` after bumping syft.
 ecosystems:
     - ecosystem: go
@@ -6,11 +6,14 @@ ecosystems:
         - '**/go.mod'
     - ecosystem: javascript
       globs:
+        - '**/bun.lock'
+        - '**/deno.lock'
         - '**/package-lock.json'
         - '**/pnpm-lock.yaml'
         - '**/yarn.lock'
     - ecosystem: python
       globs:
+        - '**/*.py.lock'
         - '**/*requirements*.txt'
         - '**/Pipfile.lock'
         - '**/pdm.lock'
@@ -39,6 +42,7 @@ ecosystems:
       globs:
         - '**/conan.lock'
         - '**/conanfile.txt'
+        - '**/vcpkg.json'
     - ecosystem: swift
       globs:
         - '**/.package.resolved'
