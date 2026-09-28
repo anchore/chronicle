@@ -20,6 +20,7 @@ func main() {
 		gotest.FixtureTasks().RunOn("unit"),
 		generateTask(),
 		verifyGeneratedTask(),
+		updateSyftTask(),
 	)
 }
 
@@ -29,14 +30,35 @@ var generatedFiles = []string{
 	"cmd/chronicle/cli/options/ecosystems.gen.yaml",
 }
 
+// generate runs code generation for the syft-derived ecosystem detection table.
+// Shared by generateTask and updateSyftTask so the two can't drift apart.
+func generate() {
+	Run("go generate ./cmd/chronicle/cli/options/...")
+}
+
 // generateTask regenerates the syft-derived ecosystem detection table. Run it
-// after bumping syft (or from automation that keeps it current).
+// after bumping syft; `update-syft` does both.
 func generateTask() Task {
 	return Task{
 		Name:        "generate",
 		Description: "regenerate ecosystem detection artifacts via `go generate`",
+		Run:         generate,
+	}
+}
+
+// updateSyftTask bumps syft to its latest release and regenerates the artifacts
+// derived from it. A weekly job runs it so the bump and the regenerated file land
+// together, ahead of Dependabot's syft bump (which can't regenerate and so fails
+// verify-generated). Generation runs after the bump, so this can't depend on
+// `generate` (dependencies run first).
+func updateSyftTask() Task {
+	return Task{
+		Name:        "update-syft",
+		Description: "bump syft to the latest release and regenerate derived artifacts",
 		Run: func() {
-			Run("go generate ./cmd/chronicle/cli/options/...")
+			Run("go get github.com/anchore/syft@latest")
+			Run("go mod tidy")
+			generate()
 		},
 	}
 }
