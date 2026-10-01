@@ -42,6 +42,37 @@ func (c *GithubSummarizer) DescribeFields(descriptions clio.FieldDescriptionSet)
 
 var _ clio.FieldDescriber = (*GithubSummarizer)(nil)
 
+// PostLoad backfills user-defined change types from the built-in default of the same name. A
+// configured `changes` list replaces the default list wholesale, so without this any field the
+// user omits (most notably `prefixes`, which predates many existing configs) is silently dropped.
+// Only unset fields are filled: an explicit empty list (e.g. `prefixes: []`) is kept as an opt-out.
+func (c *GithubSummarizer) PostLoad() error {
+	defaults := make(map[string]GithubChange)
+	for _, d := range DefaultGithubSimmarizer().Changes {
+		defaults[d.Type] = d
+	}
+	for i, ch := range c.Changes {
+		d, ok := defaults[ch.Type]
+		if !ok {
+			continue
+		}
+		if ch.Title == "" {
+			ch.Title = d.Title
+		}
+		if ch.SemVerKind == "" {
+			ch.SemVerKind = d.SemVerKind
+		}
+		if ch.Labels == nil {
+			ch.Labels = d.Labels
+		}
+		if ch.Prefixes == nil {
+			ch.Prefixes = d.Prefixes
+		}
+		c.Changes[i] = ch
+	}
+	return nil
+}
+
 type GithubChange struct {
 	Type       string   `yaml:"name" json:"name" mapstructure:"name"`
 	Title      string   `yaml:"title" json:"title" mapstructure:"title"`
@@ -138,7 +169,7 @@ func DefaultGithubSimmarizer() GithubSummarizer {
 			{
 				Type:       "breaking-feature",
 				Title:      "Breaking Changes",
-				Labels:     []string{"breaking", "backwards-incompatible", "breaking-change", "breaking-feature", "major"},
+				Labels:     []string{"breaking", "backwards-incompatible", "breaking-change", "breaking-feature", "major", "detected-breaking-change"},
 				Prefixes:   []string{change.BreakingChangePrefix},
 				SemVerKind: change.SemVerMajor.String(),
 			},
