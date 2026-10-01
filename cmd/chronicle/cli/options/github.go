@@ -12,6 +12,7 @@ type GithubSummarizer struct {
 	Host                            string         `yaml:"host" json:"host" mapstructure:"host"`
 	ExcludeLabels                   []string       `yaml:"exclude-labels" json:"exclude-labels" mapstructure:"exclude-labels"`
 	IncludeIssuePRAuthors           bool           `yaml:"include-issue-pr-authors" json:"include-issue-pr-authors" mapstructure:"include-issue-pr-authors"`
+	IncludeIssueAssignees           bool           `yaml:"include-issue-assignees" json:"include-issue-assignees" mapstructure:"include-issue-assignees"`
 	IncludeIssuePRs                 bool           `yaml:"include-issue-prs" json:"include-issue-prs" mapstructure:"include-issue-prs"`
 	IncludeIssuesClosedAsNotPlanned bool           `yaml:"include-issues-not-planned" json:"include-issues-not-planned" mapstructure:"include-issues-not-planned"`
 	IncludePRs                      bool           `yaml:"include-prs" json:"include-prs" mapstructure:"include-prs"`
@@ -28,6 +29,7 @@ func (c *GithubSummarizer) DescribeFields(descriptions clio.FieldDescriptionSet)
 	descriptions.Add(&c.Host, "the github host to use")
 	descriptions.Add(&c.ExcludeLabels, "labels to exclude from changelog")
 	descriptions.Add(&c.IncludeIssuePRAuthors, "include PR authors in change description")
+	descriptions.Add(&c.IncludeIssueAssignees, "include issue assignees in change description")
 	descriptions.Add(&c.IncludeIssuePRs, "include PR link in change description")
 	descriptions.Add(&c.IncludeIssuesClosedAsNotPlanned, "include issues closed as not planned")
 	descriptions.Add(&c.IncludePRs, "include PRs, including those without linked issues")
@@ -109,6 +111,7 @@ func (c GithubSummarizer) ToGithubConfig() github.Config {
 	return github.Config{
 		Host:                                c.Host,
 		IncludeIssuePRAuthors:               c.IncludeIssuePRAuthors,
+		IncludeIssueAssignees:               c.IncludeIssueAssignees,
 		IncludeIssuePRs:                     c.IncludeIssuePRs,
 		IncludeIssues:                       c.IncludeIssues,
 		IncludeIssuesClosedAsNotPlanned:     c.IncludeIssuesClosedAsNotPlanned,
@@ -132,6 +135,7 @@ func DefaultGithubSimmarizer() GithubSummarizer {
 		InferChangeTypeFromTitle:        true,
 		IncludePRs:                      true,
 		IncludeIssuePRAuthors:           true,
+		IncludeIssueAssignees:           false,
 		IncludeIssuePRs:                 true,
 		IncludeIssues:                   true,
 		IncludeIssuesClosedAsNotPlanned: false,

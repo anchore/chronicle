@@ -316,25 +316,26 @@ func vulnLink(v dependency.Vulnerability) string {
 }
 
 // formatReferences groups references by kind and renders them as space-prefixed
-// bracketed groups: `[Issue ...] [PR ... @handles] [other]`. See package docs
-// for the full bundling rules.
+// bracketed groups: `[Issue ...] [Assignee ...] [PR ... @handles] [other]`. Author
+// handles join the PR group, else the Issue group, else stand alone.
 func formatReferences(refs []change.Reference) string {
 	if len(refs) == 0 {
 		return ""
 	}
 
-	var issues, prs, handles, others []string
+	var issues, prs, handles, assignees, others []string
 	for _, ref := range refs {
-		frag := renderRef(ref)
-		switch {
-		case strings.HasPrefix(ref.Text, "@"):
-			handles = append(handles, frag)
-		case strings.Contains(ref.URL, "/issues/"):
-			issues = append(issues, frag)
-		case strings.Contains(ref.URL, "/pull/"):
-			prs = append(prs, frag)
+		switch refKind(ref) {
+		case change.AuthorReference:
+			handles = append(handles, renderRef(ref))
+		case change.AssigneeReference:
+			assignees = append(assignees, renderAssignee(ref))
+		case change.IssueReference:
+			issues = append(issues, renderRef(ref))
+		case change.PRReference:
+			prs = append(prs, renderRef(ref))
 		default:
-			others = append(others, frag)
+			others = append(others, renderRef(ref))
 		}
 	}
 
@@ -352,6 +353,9 @@ func formatReferences(refs []change.Reference) string {
 	if len(issues) > 0 {
 		fmt.Fprintf(&out, " [Issue %s]", strings.Join(issues, " "))
 	}
+	if len(assignees) > 0 {
+		fmt.Fprintf(&out, " [Assignee %s]", strings.Join(assignees, " "))
+	}
 	if len(prs) > 0 {
 		fmt.Fprintf(&out, " [PR %s]", strings.Join(prs, " "))
 	}
@@ -364,18 +368,42 @@ func formatReferences(refs []change.Reference) string {
 	return out.String()
 }
 
+// refKind returns the reference's kind, inferring it from Text and URL when the reference was built without one.
+func refKind(ref change.Reference) change.ReferenceKind {
+	switch {
+	case ref.Kind != "":
+		return ref.Kind
+	case strings.HasPrefix(ref.Text, "@"):
+		return change.AuthorReference
+	case strings.Contains(ref.URL, "/issues/"):
+		return change.IssueReference
+	case strings.Contains(ref.URL, "/pull/"):
+		return change.PRReference
+	}
+	return ""
+}
+
 // renderRef renders a single reference to its markdown fragment, preserving
-// the bare-text behavior for @-handles linked to a github user page (so the
+// the bare-text behavior for author handles linked to a github user page (so the
 // github release page can still auto-credit contributors).
 func renderRef(ref change.Reference) string {
-	switch {
-	case ref.URL == "":
+	if refKind(ref) == change.AuthorReference && strings.HasPrefix(ref.URL, "https://github.com/") {
 		return ref.Text
-	case strings.HasPrefix(ref.Text, "@") && strings.HasPrefix(ref.URL, "https://github.com/"):
-		return ref.Text
-	default:
-		return fmt.Sprintf("[%s](%s)", ref.Text, ref.URL)
 	}
+	return renderLink(ref)
+}
+
+// renderAssignee always links the handle. A bare handle would have the github release page credit
+// the assignee as a contributor, and being assigned an issue doesn't mean having worked on it.
+func renderAssignee(ref change.Reference) string {
+	return renderLink(ref)
+}
+
+func renderLink(ref change.Reference) string {
+	if ref.URL == "" {
+		return ref.Text
+	}
+	return fmt.Sprintf("[%s](%s)", ref.Text, ref.URL)
 }
 
 func endsWithPunctuation(s string) bool {

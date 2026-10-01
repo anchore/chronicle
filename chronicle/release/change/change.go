@@ -23,7 +23,19 @@ type Change struct {
 type Reference struct {
 	Text string
 	URL  string
+	// Kind is the role this reference plays for the change. When empty, encoders infer it from Text and URL.
+	Kind ReferenceKind `json:",omitempty"`
 }
+
+// ReferenceKind is the role a Reference plays for a change, which encoders use to group and render it.
+type ReferenceKind string
+
+const (
+	IssueReference    ReferenceKind = "issue"
+	PRReference       ReferenceKind = "pr"
+	AuthorReference   ReferenceKind = "author"
+	AssigneeReference ReferenceKind = "assignee"
+)
 
 // ByChangeType returns the set of changes that match one of the given change types.
 func (s Changes) ByChangeType(types ...Type) (result Changes) {
