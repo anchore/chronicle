@@ -612,10 +612,10 @@ func Test_buildKeptTrunkIssues(t *testing.T) {
 	filteredURL := "https://github.com/owner/repo/issues/2"
 
 	tests := []struct {
-		name     string
-		issues   []ghIssue
-		keptURLs map[string]bool
-		config   Config
+		name      string
+		issues    []ghIssue
+		keptTypes map[string][]change.Type
+		config    Config
 		// wantEmpty is true when the result should be nil or empty
 		wantEmpty  bool
 		wantResult []release.TrunkIssue
@@ -631,19 +631,31 @@ func Test_buildKeptTrunkIssues(t *testing.T) {
 			issues: []ghIssue{
 				{Number: 3, Title: "still open", URL: "u3", Labels: []string{"bug"}, Closed: false},
 			},
-			keptURLs:  map[string]bool{},
+			keptTypes: map[string][]change.Type{},
 			config:    Config{ChangeTypesByLabel: trunkChangeTypes},
 			wantEmpty: true,
 		},
 		{
-			name: "kept issue — Filtered=false with change types from config",
+			name: "kept issue — Filtered=false with change types from the kept change",
 			issues: []ghIssue{
 				{Number: 1, Title: "bug fix", URL: keptURL, Labels: []string{"bug"}, Closed: true, ClosedAt: trunkBaseTime},
 			},
-			keptURLs: map[string]bool{keptURL: true},
-			config:   Config{ChangeTypesByLabel: trunkChangeTypes},
+			keptTypes: map[string][]change.Type{keptURL: {trunkPatch}},
+			config:    Config{ChangeTypesByLabel: trunkChangeTypes},
 			wantResult: []release.TrunkIssue{
 				{Number: 1, Title: "bug fix", URL: keptURL, Labels: []string{"bug"}, ChangeTypes: []change.Type{trunkPatch}, Filtered: false},
+			},
+		},
+		{
+			// the kept change is the source of truth, so a linked copy whose labels disagree cannot drift the display
+			name: "kept issue — change types come from the kept change, not the linked copy's labels",
+			issues: []ghIssue{
+				{Number: 1, Title: "bug fix", URL: keptURL, Labels: []string{"enhancement"}, Closed: true, ClosedAt: trunkBaseTime},
+			},
+			keptTypes: map[string][]change.Type{keptURL: {trunkPatch}},
+			config:    Config{ChangeTypesByLabel: trunkChangeTypes},
+			wantResult: []release.TrunkIssue{
+				{Number: 1, Title: "bug fix", URL: keptURL, Labels: []string{"enhancement"}, ChangeTypes: []change.Type{trunkPatch}, Filtered: false},
 			},
 		},
 		{
@@ -651,7 +663,7 @@ func Test_buildKeptTrunkIssues(t *testing.T) {
 			issues: []ghIssue{
 				{Number: 2, Title: "excluded", URL: filteredURL, Labels: []string{"bug", "chore"}, Closed: true, ClosedAt: trunkBaseTime},
 			},
-			keptURLs: map[string]bool{},
+			keptTypes: map[string][]change.Type{},
 			config: Config{
 				ChangeTypesByLabel: trunkChangeTypes,
 				ExcludeLabels:      []string{"chore"},
@@ -666,7 +678,7 @@ func Test_buildKeptTrunkIssues(t *testing.T) {
 				{Number: 1, Title: "good", URL: keptURL, Labels: []string{"bug"}, Closed: true, ClosedAt: trunkBaseTime},
 				{Number: 2, Title: "excluded", URL: filteredURL, Labels: []string{"bug", "chore"}, Closed: true, ClosedAt: trunkBaseTime},
 			},
-			keptURLs: map[string]bool{keptURL: true},
+			keptTypes: map[string][]change.Type{keptURL: {trunkPatch}},
 			config: Config{
 				ChangeTypesByLabel: trunkChangeTypes,
 				ExcludeLabels:      []string{"chore"},
@@ -680,7 +692,7 @@ func Test_buildKeptTrunkIssues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildKeptTrunkIssues(tt.config, tt.issues, tt.keptURLs, sinceTag, untilTag)
+			got := buildKeptTrunkIssues(tt.config, tt.issues, tt.keptTypes, sinceTag, untilTag)
 
 			if tt.wantEmpty {
 				require.Empty(t, got)
@@ -748,6 +760,23 @@ func Test_explainPRNotKept(t *testing.T) {
 				ExcludeLabels:      []string{"chore"},
 			},
 			wantReason: "label:excluded:chore",
+		},
+		{
+			// the linked issue is the contribution path and is judged on its own labels, so the PR's exclusion is not the reason
+			name: "PR with excluded label and closed linked issue — reason comes from the issue",
+			pr: ghPullRequest{
+				Number:   5,
+				Labels:   []string{"chore"},
+				MergedAt: trunkBaseTime,
+				LinkedIssues: []ghIssue{
+					{Number: 98, Labels: []string{"documentation"}, Closed: true, ClosedAt: trunkBaseTime},
+				},
+			},
+			config: Config{
+				ChangeTypesByLabel: trunkChangeTypes,
+				ExcludeLabels:      []string{"chore"},
+			},
+			wantReason: "linked-issue:label:missing-required",
 		},
 		{
 			// PR has a closed linked issue whose issue lacks a change-type label;

@@ -732,10 +732,65 @@ func Test_changesFromIssuesExtractedFromPRs(t *testing.T) {
 		LinkedIssues: []ghIssue{issueClosedAfterLastRelease3},
 	}
 
+	issueClosedAfterLastRelease4 := ghIssue{
+		Title:    "issue feature (closed after last release) -- 4",
+		Number:   17,
+		ClosedAt: timeAfter,
+		Closed:   true,
+		Labels:   []string{"feature"},
+	}
+
+	prIgnoredAfterLastReleaseWithClosedLinkedIssue := ghPullRequest{
+		Title:        "pr ignored after starting tag (w/ closed linked issue)",
+		Number:       16,
+		MergedAt:     timeAfter,
+		Labels:       []string{"changelog-ignore"},
+		LinkedIssues: []ghIssue{issueClosedAfterLastRelease4},
+	}
+
+	prByBotAfterLastReleaseWithClosedLinkedIssue := ghPullRequest{
+		Title:        "pr by bot after starting tag (w/ closed linked issue)",
+		Number:       18,
+		Author:       "dependabot",
+		MergedAt:     timeAfter,
+		LinkedIssues: []ghIssue{issueClosedAfterLastRelease4},
+	}
+
+	issueIgnoredClosedAfterLastRelease := ghIssue{
+		Title:    "issue bug ignored (closed after last release)",
+		Number:   19,
+		ClosedAt: timeAfter,
+		Closed:   true,
+		Labels:   []string{"bug", "changelog-ignore"},
+	}
+
+	prAfterLastReleaseWithIgnoredClosedLinkedIssue := ghPullRequest{
+		Title:        "pr after starting tag (w/ ignored closed linked issue)",
+		Number:       20,
+		MergedAt:     timeAfter,
+		LinkedIssues: []ghIssue{issueIgnoredClosedAfterLastRelease},
+	}
+
+	issueUnlabeledClosedAfterLastRelease := ghIssue{
+		Title:    "issue unlabeled (closed after last release)",
+		Number:   21,
+		ClosedAt: timeAfter,
+		Closed:   true,
+	}
+
+	prFeatureAfterLastReleaseWithUnlabeledClosedLinkedIssue := ghPullRequest{
+		Title:        "pr feature after starting tag (w/ unlabeled closed linked issue)",
+		Number:       22,
+		MergedAt:     timeAfter,
+		Labels:       []string{"feature"},
+		LinkedIssues: []ghIssue{issueUnlabeledClosedAfterLastRelease},
+	}
+
 	input := []ghPullRequest{
 		// keep
-		prAfterLastReleaseWithClosedLinkedIssue, // = issue "issueClosedAfterLastRelease2"
-		prAfterEndTagWithClosedLinkedIssue,      // = issue "issueClosedAfterLastRelease3"
+		prAfterLastReleaseWithClosedLinkedIssue,    // = issue "issueClosedAfterLastRelease2"
+		prAfterEndTagWithClosedLinkedIssue,         // = issue "issueClosedAfterLastRelease3"
+		prBugAfterLastReleaseWithClosedLinkedIssue, // = issue "issueClosedAfterLastRelease" (the PR's own labels do not matter)
 		// filter out
 		prAfterLastRelease,
 		prBugAtLastRelease, // edge case
@@ -746,8 +801,6 @@ func Test_changesFromIssuesExtractedFromPRs(t *testing.T) {
 		prBugAtEndTag, // edge case
 		prAfterLastReleaseWithClosedLinkedIssue,
 		prFeatureAfterEndTag,
-		// why not this one? PRs with these labels should explicitly be used in the changelog directly (not the corresponding linked issue)
-		prBugAfterLastReleaseWithClosedLinkedIssue, // = issue "issueClosedAfterLastRelease",
 	}
 
 	tests := []struct {
@@ -770,6 +823,7 @@ func Test_changesFromIssuesExtractedFromPRs(t *testing.T) {
 			},
 			inputPrs: input,
 			expectedIssues: []ghIssue{
+				issueClosedAfterLastRelease,
 				issueClosedAfterLastRelease2,
 			},
 		},
@@ -783,8 +837,71 @@ func Test_changesFromIssuesExtractedFromPRs(t *testing.T) {
 			},
 			inputPrs: input,
 			expectedIssues: []ghIssue{
+				issueClosedAfterLastRelease,
 				issueClosedAfterLastRelease2,
 				issueClosedAfterLastRelease3,
+			},
+		},
+		{
+			// matches changesFromIssues, which never sees the closing PR
+			name:  "PR exclude labels do not hide the linked issue",
+			since: sinceTag,
+			until: untilTag,
+			config: Config{
+				ExcludeLabels:      []string{"changelog-ignore"},
+				ChangeTypesByLabel: changeTypeSet,
+			},
+			inputPrs: []ghPullRequest{prIgnoredAfterLastReleaseWithClosedLinkedIssue},
+			expectedIssues: []ghIssue{
+				issueClosedAfterLastRelease4,
+			},
+		},
+		{
+			name:  "PR exclude authors do not hide the linked issue",
+			since: sinceTag,
+			until: untilTag,
+			config: Config{
+				ExcludeAuthors:     []string{"dependabot"},
+				ChangeTypesByLabel: changeTypeSet,
+			},
+			inputPrs: []ghPullRequest{prByBotAfterLastReleaseWithClosedLinkedIssue},
+			expectedIssues: []ghIssue{
+				issueClosedAfterLastRelease4,
+			},
+		},
+		{
+			name:  "issue exclude labels hide the linked issue",
+			since: sinceTag,
+			until: untilTag,
+			config: Config{
+				ExcludeLabels:      []string{"changelog-ignore"},
+				ChangeTypesByLabel: changeTypeSet,
+			},
+			inputPrs:       []ghPullRequest{prAfterLastReleaseWithIgnoredClosedLinkedIssue},
+			expectedIssues: nil,
+		},
+		{
+			// the PR's change-type label must not stand in for the issue's
+			name:  "PR change-type labels do not qualify an unlabeled linked issue",
+			since: sinceTag,
+			until: untilTag,
+			config: Config{
+				ChangeTypesByLabel: changeTypeSet,
+			},
+			inputPrs:       []ghPullRequest{prFeatureAfterLastReleaseWithUnlabeledClosedLinkedIssue},
+			expectedIssues: nil,
+		},
+		{
+			name:  "issue linked from several PRs is reported once",
+			since: sinceTag,
+			until: untilTag,
+			config: Config{
+				ExcludeLabels:      []string{"changelog-ignore"},
+				ChangeTypesByLabel: changeTypeSet,
+			},
+			inputPrs: []ghPullRequest{prIgnoredAfterLastReleaseWithClosedLinkedIssue, prByBotAfterLastReleaseWithClosedLinkedIssue},
+			expectedIssues: []ghIssue{
+				issueClosedAfterLastRelease4,
 			},
 		},
 		{
@@ -807,6 +924,30 @@ func Test_changesFromIssuesExtractedFromPRs(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedIssues, issuesExtractedFromPRs(tt.config, tt.inputPrs, tt.since, tt.until, tt.commits))
 		})
 	}
+
+	// when every closing PR is in range, issues-require-linked-prs on (linked) and off (closed issue scan) must agree
+	t.Run("linked and unlinked issue modes agree", func(t *testing.T) {
+		config := Config{
+			ExcludeLabels:      []string{"changelog-ignore"},
+			ExcludeAuthors:     []string{"dependabot"},
+			ChangeTypesByLabel: changeTypeSet,
+		}
+		prs := []ghPullRequest{
+			prBugAfterLastReleaseWithClosedLinkedIssue,
+			prAfterLastReleaseWithClosedLinkedIssue,
+			prIgnoredAfterLastReleaseWithClosedLinkedIssue,
+			prByBotAfterLastReleaseWithClosedLinkedIssue,
+			prAfterLastReleaseWithIgnoredClosedLinkedIssue,
+			prFeatureAfterLastReleaseWithUnlabeledClosedLinkedIssue,
+		}
+		closedIssues := uniqueIssuesFromPRs(prs)
+
+		linked := changesFromIssuesLinkedToPrs(config, prs, sinceTag, untilTag, nil)
+		unlinked := changesFromIssues(config, prs, closedIssues, sinceTag, untilTag)
+
+		assert.ElementsMatch(t, unlinked, linked)
+		assert.Len(t, linked, 3) // #4, #13, #17
+	})
 }
 
 func Test_createChangesFromIssues(t *testing.T) {

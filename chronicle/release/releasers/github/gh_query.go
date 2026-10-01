@@ -12,6 +12,23 @@ const (
 	varRepositoryName  = "repositoryName"
 )
 
+// labelConnection is the `labels(...)` connection shape shared by every PR and issue query.
+type labelConnection struct {
+	Edges []struct {
+		Node struct {
+			Name githubv4.String
+		}
+	}
+}
+
+func (l labelConnection) names() []string {
+	var names []string
+	for _, e := range l.Edges {
+		names = append(names, string(e.Node.Name))
+	}
+	return names
+}
+
 // repoQueryVariables returns the variable bindings shared by every repository-scoped
 // query. Callers add their own pagination cursor to the returned map.
 func repoQueryVariables(user, repo string) map[string]interface{} {
