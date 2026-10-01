@@ -219,13 +219,7 @@ func fetchClosedIssues(user, repo string, since *time.Time, leaf *event.Leaf) ([
 							ClosedAt    githubv4.DateTime
 							UpdatedAt   githubv4.DateTime
 							StateReason githubv4.String
-							Labels      struct {
-								Edges []struct {
-									Node struct {
-										Name githubv4.String
-									}
-								}
-							} `graphql:"labels(first:100)"`
+							Labels      labelConnection `graphql:"labels(first:100)"`
 						}
 					}
 				} `graphql:"issues(first:100, states:CLOSED, after:$issuesCursor, orderBy:{field: UPDATED_AT, direction: DESC})"`
@@ -260,16 +254,12 @@ func fetchClosedIssues(user, repo string, since *time.Time, leaf *event.Leaf) ([
 					continue
 				}
 
-				var labels []string
-				for _, lEdge := range iEdge.Node.Labels.Edges {
-					labels = append(labels, string(lEdge.Node.Name))
-				}
 				allIssues = append(allIssues, ghIssue{
 					Title:      string(iEdge.Node.Title),
 					Author:     string(iEdge.Node.Author.Login),
 					ClosedAt:   iEdge.Node.ClosedAt.Time,
 					Closed:     bool(iEdge.Node.Closed),
-					Labels:     labels,
+					Labels:     iEdge.Node.Labels.names(),
 					URL:        string(iEdge.Node.URL),
 					Number:     int(iEdge.Node.Number),
 					NotPlanned: strings.EqualFold("NOT_PLANNED", string(iEdge.Node.StateReason)),

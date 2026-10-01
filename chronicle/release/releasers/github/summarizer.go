@@ -607,11 +607,11 @@ func logCommits(commits []string) {
 	}
 }
 
+// issuesExtractedFromPRs returns the closed issues linked to merged PRs in range. Only the issue is judged on
+// its own labels, never the closing PR's labels or author, so this matches what changesFromIssues would keep
+// for the same issue when issues-require-linked-prs is off.
 func issuesExtractedFromPRs(config Config, allMergedPRs []ghPullRequest, sinceTag, untilTag *git.Tag, includeCommits []string) []ghIssue {
-	// this represents the traits we wish to filter down to (not out).
 	prFilters := []prFilter{
-		// PRs with these labels should explicitly be used in the changelog directly (not the corresponding linked issue)
-		prsWithoutLabel(config.ChangeTypesByLabel.Names()...),
 		prsWithClosedLinkedIssue(),
 	}
 
@@ -624,23 +624,8 @@ func issuesExtractedFromPRs(config Config, allMergedPRs []ghPullRequest, sinceTa
 	}
 
 	includedPRs := applyPRFilters(allMergedPRs, config, sinceTag, untilTag, includeCommits, prFilters...)
-	extractedIssues := uniqueIssuesFromPRs(includedPRs)
 
-	// this represents the traits we wish to filter down to (not out).
-	issueFilters := []issueFilter{
-		issuesWithLabel(config.ChangeTypesByLabel.Names()...),
-		issuesWithoutLabel(config.ExcludeLabels...),
-	}
-
-	if sinceTag != nil {
-		issueFilters = append([]issueFilter{issuesAfter(sinceTag.Timestamp)}, issueFilters...)
-	}
-
-	if untilTag != nil {
-		issueFilters = append(issueFilters, issuesAtOrBefore(untilTag.Timestamp))
-	}
-
-	return filterIssues(extractedIssues, issueFilters...)
+	return filterIssues(uniqueIssuesFromPRs(includedPRs), standardIssueFilters(config, sinceTag, untilTag)...)
 }
 
 func uniqueIssuesFromPRs(prs []ghPullRequest) []ghIssue {

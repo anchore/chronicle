@@ -556,3 +556,79 @@ func Test_checkSearchTermination(t *testing.T) {
 		})
 	}
 }
+
+func Test_prFromNode(t *testing.T) {
+	labels := func(names ...string) labelConnection {
+		var l labelConnection
+		for _, n := range names {
+			l.Edges = append(l.Edges, struct {
+				Node struct{ Name githubv4.String }
+			}{Node: struct{ Name githubv4.String }{Name: githubv4.String(n)}})
+		}
+		return l
+	}
+
+	merged := time.Date(2021, time.September, 16, 19, 34, 0, 0, time.UTC)
+	closed := merged.Add(time.Minute)
+
+	var n prNode
+	n.Title = "fix the thing"
+	n.Number = 10
+	n.URL = "https://github.com/owner/repo/pull/10"
+	n.Author.Login = "someone"
+	n.MergeCommit.OID = "abc123"
+	n.MergedAt = githubv4.DateTime{Time: merged}
+	n.Labels = labels("dependencies")
+	n.ClosingIssuesReferences.TotalCount = 3
+
+	const repoID = githubv4.Int(42)
+
+	var bug, unlabeled, otherRepo closingIssueNode
+	bug.Title = "it is broken"
+	bug.Number = 7
+	bug.URL = "https://github.com/owner/repo/issues/7"
+	bug.Author.Login = "reporter"
+	bug.Closed = true
+	bug.ClosedAt = githubv4.DateTime{Time: closed}
+	bug.Labels = labels("bug", "priority")
+
+	bug.Repository.DatabaseID = repoID
+
+	unlabeled.Number = 8
+	unlabeled.Closed = true
+	unlabeled.Repository.DatabaseID = repoID
+
+	// issues in other repos never show up in this repo's changelog, so they are not linked
+	otherRepo.Number = 9
+	otherRepo.Closed = true
+	otherRepo.Labels = labels("bug")
+	otherRepo.Repository.DatabaseID = 7
+
+	n.ClosingIssuesReferences.Nodes = []closingIssueNode{bug, unlabeled, otherRepo}
+
+	// each linked issue must carry its own labels, never the PR's
+	assert.Equal(t, ghPullRequest{
+		Title:       "fix the thing",
+		Number:      10,
+		Author:      "someone",
+		MergedAt:    merged,
+		Labels:      []string{"dependencies"},
+		URL:         "https://github.com/owner/repo/pull/10",
+		MergeCommit: "abc123",
+		LinkedIssues: []ghIssue{
+			{
+				Title:    "it is broken",
+				Number:   7,
+				Author:   "reporter",
+				ClosedAt: closed,
+				Closed:   true,
+				Labels:   []string{"bug", "priority"},
+				URL:      "https://github.com/owner/repo/issues/7",
+			},
+			{
+				Number: 8,
+				Closed: true,
+			},
+		},
+	}, prFromNode(n, repoID))
+}

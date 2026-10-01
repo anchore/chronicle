@@ -160,13 +160,13 @@ func buildTrunkPRMap(config Config, allMergedPRs []ghPullRequest, commitHashSet 
 // itself, or one or more linked issues, or both).
 func buildKeptTrunkPR(config Config, pr ghPullRequest, keptForCommit []change.Change, sinceTag, untilTag *git.Tag) *release.TrunkPR {
 	typeSet := make(map[string]change.Type)
-	keptIssueURLs := make(map[string]bool)
+	keptIssueTypes := make(map[string][]change.Type)
 	for _, kc := range keptForCommit {
 		for _, t := range kc.ChangeTypes {
 			typeSet[t.Name] = t
 		}
 		if issue, ok := kc.Entry.(ghIssue); ok {
-			keptIssueURLs[issue.URL] = true
+			keptIssueTypes[issue.URL] = kc.ChangeTypes
 		}
 	}
 
@@ -182,15 +182,15 @@ func buildKeptTrunkPR(config Config, pr ghPullRequest, keptForCommit []change.Ch
 		Author:      pr.Author,
 		Labels:      pr.Labels,
 		ChangeTypes: changeTypes,
-		Issues:      buildKeptTrunkIssues(config, pr.LinkedIssues, keptIssueURLs, sinceTag, untilTag),
+		Issues:      buildKeptTrunkIssues(config, pr.LinkedIssues, keptIssueTypes, sinceTag, untilTag),
 		Filtered:    false,
 	}
 }
 
 // buildKeptTrunkIssues classifies each linked issue: kept if its URL is in
-// keptURLs (meaning it contributed to the changelog), otherwise filtered with
-// a diagnostic reason. Open linked issues are skipped — they don't ship.
-func buildKeptTrunkIssues(config Config, linkedIssues []ghIssue, keptURLs map[string]bool, sinceTag, untilTag *git.Tag) []release.TrunkIssue {
+// keptTypes (meaning it contributed to the changelog, with those change types),
+// otherwise filtered with a diagnostic reason. Open linked issues are skipped — they don't ship.
+func buildKeptTrunkIssues(config Config, linkedIssues []ghIssue, keptTypes map[string][]change.Type, sinceTag, untilTag *git.Tag) []release.TrunkIssue {
 	if len(linkedIssues) == 0 {
 		return nil
 	}
@@ -208,8 +208,8 @@ func buildKeptTrunkIssues(config Config, linkedIssues []ghIssue, keptURLs map[st
 			Labels: issue.Labels,
 		}
 
-		if keptURLs[issue.URL] {
-			ti.ChangeTypes = config.ChangeTypesByLabel.ChangeTypes(issue.Labels...)
+		if types, ok := keptTypes[issue.URL]; ok {
+			ti.ChangeTypes = types
 			result = append(result, ti)
 			continue
 		}
@@ -233,14 +233,8 @@ func explainPRNotKept(pr ghPullRequest, config Config, sinceTag, untilTag *git.T
 		}
 	}
 
-	exclFilter := prsWithoutLabel(config.ExcludeLabels...)
-	var r string
-	if !exclFilter(pr, &r) {
-		return r
-	}
-
 	if hasClosedLinkedIssue(pr) {
-		// expected contribution path is via the linked issue
+		// expected contribution path is via the linked issue, which is judged on its own labels (not the PR's)
 		for _, linked := range pr.LinkedIssues {
 			if !linked.Closed {
 				continue
@@ -248,6 +242,12 @@ func explainPRNotKept(pr ghPullRequest, config Config, sinceTag, untilTag *git.T
 			return "linked-issue:" + explainIssueNotKept(linked, config, sinceTag, untilTag)
 		}
 		return "linked-issue:not-included"
+	}
+
+	exclFilter := prsWithoutLabel(config.ExcludeLabels...)
+	var r string
+	if !exclFilter(pr, &r) {
+		return r
 	}
 
 	if !hasChangeTypeLabel(pr.Labels, config) {

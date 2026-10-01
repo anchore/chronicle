@@ -340,48 +340,7 @@ func fetchMergedPRs(user, repo string, since *time.Time, leaf *event.Leaf) ([]gh
 						HasNextPage bool
 					}
 					Edges []struct {
-						Node struct {
-							Title  githubv4.String
-							Number githubv4.Int
-							URL    githubv4.String
-							Author struct {
-								Login githubv4.String
-							}
-							MergeCommit struct {
-								OID githubv4.String
-							}
-							UpdatedAt githubv4.DateTime
-							MergedAt  githubv4.DateTime
-							Labels    struct {
-								Edges []struct {
-									Node struct {
-										Name githubv4.String
-									}
-								}
-							} `graphql:"labels(first:50)"`
-							ClosingIssuesReferences struct {
-								Nodes []struct {
-									Title  githubv4.String
-									Number githubv4.Int
-									URL    githubv4.String
-									Author struct {
-										Login githubv4.String
-									}
-									ClosedAt   githubv4.DateTime
-									Closed     githubv4.Boolean
-									Repository struct {
-										DatabaseID githubv4.Int
-									}
-									Labels struct {
-										Edges []struct {
-											Node struct {
-												Name githubv4.String
-											}
-										}
-									} `graphql:"labels(first:50)"`
-								}
-							} `graphql:"closingIssuesReferences(last:10)"`
-						}
+						Node prNode
 					}
 				} `graphql:"pullRequests(first:100, states:MERGED, after:$prCursor, orderBy:{field: UPDATED_AT, direction: DESC})"`
 			} `graphql:"repository(owner:$repositoryOwner, name:$repositoryName)"`
@@ -415,41 +374,7 @@ func fetchMergedPRs(user, repo string, since *time.Time, leaf *event.Leaf) ([]gh
 					continue
 				}
 
-				var labels []string
-				for _, lEdge := range prEdge.Node.Labels.Edges {
-					labels = append(labels, string(lEdge.Node.Name))
-				}
-
-				var linkedIssues []ghIssue
-				for _, iNodes := range prEdge.Node.ClosingIssuesReferences.Nodes {
-					// a PR can close issues in other repos (e.g. a stereoscope PR closing a syft issue). Those issues
-					// are not part of this repo's changelog, so treating them as linked would hide the PR in favor of
-					// an issue that never shows up here.
-					if iNodes.Repository.DatabaseID != query.Repository.DatabaseID {
-						log.Tracef("PR #%d: ignoring linked issue from another repo: %s", prEdge.Node.Number, iNodes.URL)
-						continue
-					}
-					linkedIssues = append(linkedIssues, ghIssue{
-						Title:    string(iNodes.Title),
-						Author:   string(iNodes.Author.Login),
-						ClosedAt: iNodes.ClosedAt.Time,
-						Closed:   bool(iNodes.Closed),
-						Labels:   labels,
-						URL:      string(iNodes.URL),
-						Number:   int(iNodes.Number),
-					})
-				}
-
-				allPRs = append(allPRs, ghPullRequest{
-					Title:        string(prEdge.Node.Title),
-					Author:       string(prEdge.Node.Author.Login),
-					MergedAt:     prEdge.Node.MergedAt.Time,
-					Labels:       labels,
-					URL:          string(prEdge.Node.URL),
-					Number:       int(prEdge.Node.Number),
-					LinkedIssues: linkedIssues,
-					MergeCommit:  string(prEdge.Node.MergeCommit.OID),
-				})
+				allPRs = append(allPRs, prFromNode(prEdge.Node, query.Repository.DatabaseID))
 			}
 
 			// emit a stage update after each successfully fetched page so the UI
@@ -467,6 +392,83 @@ func fetchMergedPRs(user, repo string, since *time.Time, leaf *event.Leaf) ([]gh
 	log.WithFields("kept", len(allPRs), "saw", saw, "pages", pages, "since", since).Trace("merged PRs fetched from github.com")
 
 	return allPRs, nil
+}
+
+// maxClosingIssues bounds closingIssuesReferences per PR. Must match the literal in the prNode graphql tag.
+const maxClosingIssues = 10
+
+// prNode is a single merged PR as returned by the GraphQL query in fetchMergedPRs.
+type prNode struct {
+	Title  githubv4.String
+	Number githubv4.Int
+	URL    githubv4.String
+	Author struct {
+		Login githubv4.String
+	}
+	MergeCommit struct {
+		OID githubv4.String
+	}
+	UpdatedAt               githubv4.DateTime
+	MergedAt                githubv4.DateTime
+	Labels                  labelConnection `graphql:"labels(first:100)"`
+	ClosingIssuesReferences struct {
+		TotalCount githubv4.Int
+		Nodes      []closingIssueNode
+	} `graphql:"closingIssuesReferences(first:10)"`
+}
+
+// closingIssueNode is an issue the PR closes. It carries its own labels, which are distinct from the PR's.
+type closingIssueNode struct {
+	Title  githubv4.String
+	Number githubv4.Int
+	URL    githubv4.String
+	Author struct {
+		Login githubv4.String
+	}
+	ClosedAt   githubv4.DateTime
+	Closed     githubv4.Boolean
+	Repository struct {
+		DatabaseID githubv4.Int
+	}
+	Labels labelConnection `graphql:"labels(first:100)"`
+}
+
+// prFromNode maps a PR node to a ghPullRequest. repoID is the database ID of the repo being released.
+func prFromNode(n prNode, repoID githubv4.Int) ghPullRequest {
+	if int(n.ClosingIssuesReferences.TotalCount) > maxClosingIssues {
+		log.WithFields("pr", int(n.Number), "linked", int(n.ClosingIssuesReferences.TotalCount), "limit", maxClosingIssues).Debug("PR closes more issues than fetched, the rest are ignored")
+	}
+
+	var linkedIssues []ghIssue
+	for _, in := range n.ClosingIssuesReferences.Nodes {
+		// a PR can close issues in other repos (e.g. a stereoscope PR closing a syft issue). Those issues
+		// are not part of this repo's changelog, so treating them as linked would hide the PR in favor of
+		// an issue that never shows up here.
+		if in.Repository.DatabaseID != repoID {
+			log.Tracef("PR #%d: ignoring linked issue from another repo: %s", n.Number, in.URL)
+			continue
+		}
+		linkedIssues = append(linkedIssues, ghIssue{
+			Title:    string(in.Title),
+			Author:   string(in.Author.Login),
+			ClosedAt: in.ClosedAt.Time,
+			Closed:   bool(in.Closed),
+			Labels:   in.Labels.names(),
+			URL:      string(in.URL),
+			Number:   int(in.Number),
+		})
+	}
+
+	return ghPullRequest{
+		Title:        string(n.Title),
+		Author:       string(n.Author.Login),
+		MergedAt:     n.MergedAt.Time,
+		Labels:       n.Labels.names(),
+		URL:          string(n.URL),
+		Number:       int(n.Number),
+		LinkedIssues: linkedIssues,
+		MergeCommit:  string(n.MergeCommit.OID),
+	}
 }
 
 func checkSearchTermination(since *time.Time, updatedAt, closedAt *githubv4.DateTime) (process bool, terminate bool) {
