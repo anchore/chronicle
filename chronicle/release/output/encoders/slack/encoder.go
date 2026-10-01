@@ -97,25 +97,26 @@ func formatSummary(summary change.Change, recognizedTypes []string) string {
 }
 
 // formatReferences groups references by kind and renders them as space-prefixed
-// bracketed groups: `[Issue ...] [PR ... @handles] [other]`, matching the
+// bracketed groups: `[Issue ...] [Assignee ...] [PR ... @handles] [other]`, matching the
 // markdown encoder's bundling rules but with Slack link syntax.
 func formatReferences(refs []change.Reference) string {
 	if len(refs) == 0 {
 		return ""
 	}
 
-	var issues, prs, handles, others []string
+	var issues, prs, handles, assignees, others []string
 	for _, ref := range refs {
-		frag := renderRef(ref)
-		switch {
-		case strings.HasPrefix(ref.Text, "@"):
-			handles = append(handles, frag)
-		case strings.Contains(ref.URL, "/issues/"):
-			issues = append(issues, frag)
-		case strings.Contains(ref.URL, "/pull/"):
-			prs = append(prs, frag)
+		switch refKind(ref) {
+		case change.AuthorReference:
+			handles = append(handles, renderRef(ref))
+		case change.AssigneeReference:
+			assignees = append(assignees, renderAssignee(ref))
+		case change.IssueReference:
+			issues = append(issues, renderRef(ref))
+		case change.PRReference:
+			prs = append(prs, renderRef(ref))
 		default:
-			others = append(others, frag)
+			others = append(others, renderRef(ref))
 		}
 	}
 
@@ -133,6 +134,9 @@ func formatReferences(refs []change.Reference) string {
 	if len(issues) > 0 {
 		fmt.Fprintf(&out, " [Issue %s]", strings.Join(issues, " "))
 	}
+	if len(assignees) > 0 {
+		fmt.Fprintf(&out, " [Assignee %s]", strings.Join(assignees, " "))
+	}
 	if len(prs) > 0 {
 		fmt.Fprintf(&out, " [PR %s]", strings.Join(prs, " "))
 	}
@@ -145,6 +149,21 @@ func formatReferences(refs []change.Reference) string {
 	return out.String()
 }
 
+// refKind returns the reference's kind, inferring it from Text and URL when the reference was built without one.
+func refKind(ref change.Reference) change.ReferenceKind {
+	switch {
+	case ref.Kind != "":
+		return ref.Kind
+	case strings.HasPrefix(ref.Text, "@"):
+		return change.AuthorReference
+	case strings.Contains(ref.URL, "/issues/"):
+		return change.IssueReference
+	case strings.Contains(ref.URL, "/pull/"):
+		return change.PRReference
+	}
+	return ""
+}
+
 // renderRef renders a single reference to its Slack fragment. Unlike the
 // markdown encoder, @-handles are rendered as backticked plain text rather
 // than links: Slack only auto-credits contributors when it recognizes a real
@@ -152,13 +171,18 @@ func formatReferences(refs []change.Reference) string {
 // linked handle adds nothing. Backticks set the handle apart visually instead.
 func renderRef(ref change.Reference) string {
 	switch {
-	case strings.HasPrefix(ref.Text, "@"):
+	case refKind(ref) == change.AuthorReference:
 		return fmt.Sprintf("`%s`", escapeMrkdwn(ref.Text))
 	case ref.URL == "":
 		return escapeMrkdwn(ref.Text)
 	default:
 		return fmt.Sprintf("<%s|%s>", ref.URL, escapeMrkdwn(ref.Text))
 	}
+}
+
+// renderAssignee renders an assignee the same way as an author handle, since slack has no auto-credit to avoid.
+func renderAssignee(ref change.Reference) string {
+	return fmt.Sprintf("`%s`", escapeMrkdwn(ref.Text))
 }
 
 // vulnLink renders a vulnerability ID as a Slack link to its data source

@@ -28,6 +28,7 @@ var _ release.Summarizer = (*Summarizer)(nil)
 type Config struct {
 	Host                            string
 	IncludeIssuePRAuthors           bool
+	IncludeIssueAssignees           bool
 	IncludeIssues                   bool
 	IncludeIssuePRs                 bool
 	IncludeIssuesClosedAsNotPlanned bool
@@ -732,10 +733,12 @@ func createChangesFromPRs(config Config, prs []ghPullRequest) []change.Change {
 				{
 					Text: fmt.Sprintf("#%d", pr.Number),
 					URL:  pr.URL,
+					Kind: change.PRReference,
 				},
 				{
 					Text: fmt.Sprintf("@%s", pr.Author),
 					URL:  fmt.Sprintf("https://%s/%s", config.Host, pr.Author),
+					Kind: change.AuthorReference,
 				},
 			},
 			EntryType: "githubPR",
@@ -836,7 +839,18 @@ func createChangesFromIssues(config Config, allMergedPRs []ghPullRequest, issues
 			{
 				Text: fmt.Sprintf("#%d", issue.Number),
 				URL:  issue.URL,
+				Kind: change.IssueReference,
 			},
+		}
+
+		if config.IncludeIssueAssignees {
+			for _, assignee := range issue.Assignees {
+				references = append(references, change.Reference{
+					Text: fmt.Sprintf("@%s", assignee),
+					URL:  fmt.Sprintf("https://%s/%s", config.Host, assignee),
+					Kind: change.AssigneeReference,
+				})
+			}
 		}
 
 		if config.IncludeIssuePRs || config.IncludeIssuePRAuthors {
@@ -845,12 +859,14 @@ func createChangesFromIssues(config Config, allMergedPRs []ghPullRequest, issues
 					references = append(references, change.Reference{
 						Text: fmt.Sprintf("#%d", pr.Number),
 						URL:  pr.URL,
+						Kind: change.PRReference,
 					})
 				}
 				if config.IncludeIssuePRAuthors && pr.Author != "" {
 					references = append(references, change.Reference{
 						Text: fmt.Sprintf("@%s", pr.Author),
 						URL:  fmt.Sprintf("https://%s/%s", config.Host, pr.Author),
+						Kind: change.AuthorReference,
 					})
 				}
 			}

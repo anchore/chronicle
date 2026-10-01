@@ -430,7 +430,8 @@ type closingIssueNode struct {
 	Repository struct {
 		DatabaseID githubv4.Int
 	}
-	Labels labelConnection `graphql:"labels(first:100)"`
+	Labels    labelConnection    `graphql:"labels(first:100)"`
+	Assignees assigneeConnection `graphql:"assignees(first:10)"`
 }
 
 // prFromNode maps a PR node to a ghPullRequest. repoID is the database ID of the repo being released.
@@ -449,13 +450,14 @@ func prFromNode(n prNode, repoID githubv4.Int) ghPullRequest {
 			continue
 		}
 		linkedIssues = append(linkedIssues, ghIssue{
-			Title:    string(in.Title),
-			Author:   string(in.Author.Login),
-			ClosedAt: in.ClosedAt.Time,
-			Closed:   bool(in.Closed),
-			Labels:   in.Labels.names(),
-			URL:      string(in.URL),
-			Number:   int(in.Number),
+			Title:     string(in.Title),
+			Author:    string(in.Author.Login),
+			ClosedAt:  in.ClosedAt.Time,
+			Closed:    bool(in.Closed),
+			Labels:    in.Labels.names(),
+			Assignees: in.Assignees.logins(),
+			URL:       string(in.URL),
+			Number:    int(in.Number),
 		})
 	}
 

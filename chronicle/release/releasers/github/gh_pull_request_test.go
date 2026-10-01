@@ -591,6 +591,7 @@ func Test_prFromNode(t *testing.T) {
 	bug.Closed = true
 	bug.ClosedAt = githubv4.DateTime{Time: closed}
 	bug.Labels = labels("bug", "priority")
+	bug.Assignees.Nodes = []struct{ Login githubv4.String }{{Login: "fixer"}, {Login: ""}}
 
 	bug.Repository.DatabaseID = repoID
 
@@ -617,13 +618,14 @@ func Test_prFromNode(t *testing.T) {
 		MergeCommit: "abc123",
 		LinkedIssues: []ghIssue{
 			{
-				Title:    "it is broken",
-				Number:   7,
-				Author:   "reporter",
-				ClosedAt: closed,
-				Closed:   true,
-				Labels:   []string{"bug", "priority"},
-				URL:      "https://github.com/owner/repo/issues/7",
+				Title:     "it is broken",
+				Number:    7,
+				Author:    "reporter",
+				ClosedAt:  closed,
+				Closed:    true,
+				Labels:    []string{"bug", "priority"},
+				Assignees: []string{"fixer"},
+				URL:       "https://github.com/owner/repo/issues/7",
 			},
 			{
 				Number: 8,

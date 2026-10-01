@@ -419,6 +419,8 @@ func Test_formatReferences(t *testing.T) {
 	handleOther := change.Reference{Text: "@bob", URL: "https://example.com/bob"}
 	noURL := change.Reference{Text: "CVE-2024-0001", URL: ""}
 	weird := change.Reference{Text: "release-notes", URL: "https://example.com/notes"}
+	assignee1 := change.Reference{Text: "@carol", URL: "https://github.com/carol", Kind: change.AssigneeReference}
+	assignee2 := change.Reference{Text: "@dave", URL: "https://github.com/dave", Kind: change.AssigneeReference}
 
 	tests := []struct {
 		name string
@@ -439,6 +441,11 @@ func Test_formatReferences(t *testing.T) {
 			name: "single issue",
 			refs: []change.Reference{iss1},
 			want: " [Issue [#10](https://github.com/o/r/issues/10)]",
+		},
+		{
+			name: "assignees group after the issue and stay linked on github.com",
+			refs: []change.Reference{iss1, assignee1, assignee2, pr1, handleGH},
+			want: " [Issue [#10](https://github.com/o/r/issues/10)] [Assignee [@carol](https://github.com/carol) [@dave](https://github.com/dave)] [PR [#1](https://github.com/o/r/pull/1) @alice]",
 		},
 		{
 			name: "handle alone (no issue, no PR) renders standalone",

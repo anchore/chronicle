@@ -960,11 +960,12 @@ func Test_createChangesFromIssues(t *testing.T) {
 	}
 
 	issue1 := ghIssue{
-		Title:    "Issue 1",
-		Number:   1,
-		URL:      "issue-1-url",
-		ClosedAt: timeStart,
-		Labels:   []string{"bug"},
+		Title:     "Issue 1",
+		Number:    1,
+		URL:       "issue-1-url",
+		ClosedAt:  timeStart,
+		Labels:    []string{"bug"},
+		Assignees: []string{"issue-owner-1", "issue-owner-2"},
 	}
 
 	issue2 := ghIssue{
@@ -1050,22 +1051,27 @@ func Test_createChangesFromIssues(t *testing.T) {
 						{
 							Text: "#1",
 							URL:  "issue-1-url",
+							Kind: change.IssueReference,
 						},
 						{
 							Text: "#1",
 							URL:  "pr-1-url",
+							Kind: change.PRReference,
 						},
 						{
 							Text: "@some-author-1",
 							URL:  "https://some-host/some-author-1",
+							Kind: change.AuthorReference,
 						},
 						{
 							Text: "#2",
 							URL:  "pr-2-url",
+							Kind: change.PRReference,
 						},
 						{
 							Text: "@some-author-2",
 							URL:  "https://some-host/some-author-2",
+							Kind: change.AuthorReference,
 						},
 					},
 					EntryType: "githubIssue",
@@ -1079,14 +1085,17 @@ func Test_createChangesFromIssues(t *testing.T) {
 						{
 							Text: "#2",
 							URL:  "issue-2-url",
+							Kind: change.IssueReference,
 						},
 						{
 							Text: "#2",
 							URL:  "pr-2-url",
+							Kind: change.PRReference,
 						},
 						{
 							Text: "@some-author-2",
 							URL:  "https://some-host/some-author-2",
+							Kind: change.AuthorReference,
 						},
 					},
 					EntryType: "githubIssue",
@@ -1100,10 +1109,47 @@ func Test_createChangesFromIssues(t *testing.T) {
 						{
 							Text: "#3",
 							URL:  "issue-3-url",
+							Kind: change.IssueReference,
 						},
 					},
 					EntryType: "githubIssue",
 					Entry:     issue3,
+				},
+			},
+		},
+		{
+			name: "includes assignees for issues",
+			config: Config{
+				IncludeIssueAssignees: true,
+				ChangeTypesByLabel:    changeTypeSet,
+				Host:                  "some-host",
+			},
+			inputPrs: []ghPullRequest{prWithLinkedIssues1},
+			issues:   []ghIssue{issue1},
+			expectedChanges: []change.Change{
+				{
+					Text:        "Issue 1",
+					ChangeTypes: []change.Type{patch},
+					Timestamp:   timeStart,
+					References: []change.Reference{
+						{
+							Text: "#1",
+							URL:  "issue-1-url",
+							Kind: change.IssueReference,
+						},
+						{
+							Text: "@issue-owner-1",
+							URL:  "https://some-host/issue-owner-1",
+							Kind: change.AssigneeReference,
+						},
+						{
+							Text: "@issue-owner-2",
+							URL:  "https://some-host/issue-owner-2",
+							Kind: change.AssigneeReference,
+						},
+					},
+					EntryType: "githubIssue",
+					Entry:     issue1,
 				},
 			},
 		},
@@ -1190,10 +1236,12 @@ func Test_changesFromUnlabeledPRs(t *testing.T) {
 						{
 							Text: "#6",
 							URL:  "some-url",
+							Kind: change.PRReference,
 						},
 						{
 							Text: "@some-author",
 							URL:  "https://some-host/some-author",
+							Kind: change.AuthorReference,
 						},
 					},
 					EntryType: "githubPR",
@@ -1207,10 +1255,12 @@ func Test_changesFromUnlabeledPRs(t *testing.T) {
 						{
 							Text: "#7",
 							URL:  "some-url-2",
+							Kind: change.PRReference,
 						},
 						{
 							Text: "@some-author-2",
 							URL:  "https://some-host/some-author-2",
+							Kind: change.AuthorReference,
 						},
 					},
 					EntryType: "githubPR",
@@ -1251,10 +1301,12 @@ func Test_changesFromUnlabeledPRs(t *testing.T) {
 						{
 							Text: "#6",
 							URL:  "some-url",
+							Kind: change.PRReference,
 						},
 						{
 							Text: "@some-author",
 							URL:  "https://some-host/some-author",
+							Kind: change.AuthorReference,
 						},
 					},
 					EntryType: "githubPR",
@@ -1364,14 +1416,17 @@ func Test_changesFromUnlabeledIssues(t *testing.T) {
 						{
 							Text: "#6",
 							URL:  "some-url",
+							Kind: change.IssueReference,
 						},
 						{
 							Text: "#1",
 							URL:  "pr-1-url",
+							Kind: change.PRReference,
 						},
 						{
 							Text: "@pr-1-author",
 							URL:  "https://some-host/pr-1-author",
+							Kind: change.AuthorReference,
 						},
 					},
 					EntryType: "githubIssue",
@@ -1385,6 +1440,7 @@ func Test_changesFromUnlabeledIssues(t *testing.T) {
 						{
 							Text: "#7",
 							URL:  "some-url-2",
+							Kind: change.IssueReference,
 						},
 					},
 					EntryType: "githubIssue",

@@ -37,3 +37,21 @@ func repoQueryVariables(user, repo string) map[string]interface{} {
 		varRepositoryName:  githubv4.String(repo),
 	}
 }
+
+// assigneeConnection is the `assignees(...)` connection shape shared by every issue query. Github caps
+// issues at 10 assignees, so `assignees(first:10)` always holds all of them.
+type assigneeConnection struct {
+	Nodes []struct {
+		Login githubv4.String
+	}
+}
+
+func (a assigneeConnection) logins() []string {
+	var logins []string
+	for _, n := range a.Nodes {
+		if n.Login != "" {
+			logins = append(logins, string(n.Login))
+		}
+	}
+	return logins
+}
