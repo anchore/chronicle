@@ -209,6 +209,8 @@ The `github.changes` configurable is a list of mappings, each that take the foll
 - `labels`: _[list of strings]_ all issue or PR labels that should match this change section.
 - `prefixes`: _[list of strings]_ [conventional-commit](https://www.conventionalcommits.org/en/v1.0.0/#specification) type prefixes that map to this change section when `github.infer-change-type-from-title` is enabled and a PR carries no change-type label (e.g. `feat`, `fix`). Prefixes are matched case-insensitively. Use the special value `!` to match the conventional-commit breaking-change marker (e.g. a `feat!: ...` title); if a PR title carries a `!` marker but no change section declares the `!` prefix, chronicle logs a warning and falls back to the base type (so the breaking change won't bump the major version). Only applies to PRs, not issues; an explicit label always takes precedence over an inferred prefix.
 
+If you define your own `github.changes` list it replaces the default list, but any entry whose `name` matches a default change type inherits the default value for each field it leaves unset (e.g. an entry with only `name: bug-fix` and `labels` still gets `prefixes: [fix]`). Set a field to an empty value explicitly (e.g. `prefixes: []`) to opt out.
+
 The default value for `github.changes` is:
 
 ```yaml
@@ -258,6 +260,7 @@ The default value for `github.changes` is:
     - breaking-change
     - breaking-feature
     - major
+    - detected-breaking-change
   prefixes:
     - "!"
     
