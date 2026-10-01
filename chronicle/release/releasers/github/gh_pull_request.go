@@ -367,9 +367,12 @@ func fetchMergedPRs(user, repo string, since *time.Time, leaf *event.Leaf) ([]gh
 									Author struct {
 										Login githubv4.String
 									}
-									ClosedAt githubv4.DateTime
-									Closed   githubv4.Boolean
-									Labels   struct {
+									ClosedAt   githubv4.DateTime
+									Closed     githubv4.Boolean
+									Repository struct {
+										DatabaseID githubv4.Int
+									}
+									Labels struct {
 										Edges []struct {
 											Node struct {
 												Name githubv4.String
@@ -419,6 +422,13 @@ func fetchMergedPRs(user, repo string, since *time.Time, leaf *event.Leaf) ([]gh
 
 				var linkedIssues []ghIssue
 				for _, iNodes := range prEdge.Node.ClosingIssuesReferences.Nodes {
+					// a PR can close issues in other repos (e.g. a stereoscope PR closing a syft issue). Those issues
+					// are not part of this repo's changelog, so treating them as linked would hide the PR in favor of
+					// an issue that never shows up here.
+					if iNodes.Repository.DatabaseID != query.Repository.DatabaseID {
+						log.Tracef("PR #%d: ignoring linked issue from another repo: %s", prEdge.Node.Number, iNodes.URL)
+						continue
+					}
 					linkedIssues = append(linkedIssues, ghIssue{
 						Title:    string(iNodes.Title),
 						Author:   string(iNodes.Author.Login),
