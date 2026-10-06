@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	. "github.com/anchore/go-make"
+	"github.com/anchore/go-make/file"
 	"github.com/anchore/go-make/lang"
 	"github.com/anchore/go-make/run"
 	"github.com/anchore/go-make/tasks/golint"
@@ -21,6 +22,7 @@ func main() {
 		generateTask(),
 		verifyGeneratedTask(),
 		updateSyftTask(),
+		installTestTasks(),
 	)
 }
 
@@ -78,6 +80,21 @@ func verifyGeneratedTask() Task {
 			if dirty := strings.TrimSpace(Run("git status --porcelain -- "+args, run.NoFail())); dirty != "" {
 				lang.Throw(fmt.Errorf("generated files are out of date; run `go generate ./...` and commit:\n%s", dirty))
 			}
+		},
+	}
+}
+
+// installTestTasks runs install.sh tests inside docker containers (driven by test/install/Makefile).
+func installTestTasks() Task {
+	inDir := func(target string) func() {
+		return func() { file.InDir("test/install", func() { Run("make " + target) }) }
+	}
+	return Task{
+		Tasks: []Task{
+			{Name: "install-test", Description: "run install.sh unit and acceptance tests", Run: inDir("test")},
+			{Name: "install-test-cache-save", Description: "save install.sh test image cache", Run: inDir("save")},
+			{Name: "install-test-cache-load", Description: "load install.sh test image cache", Run: inDir("load")},
+			{Name: "install-test-ci-mac", Description: "run install.sh tests on mac (CI)", Run: inDir("ci-test-mac")},
 		},
 	}
 }
