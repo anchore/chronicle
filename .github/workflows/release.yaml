@@ -33,7 +33,7 @@ jobs:
       checks: read # required for getting the status of specific check names
     uses: anchore/workflows/.github/workflows/check-gate.yaml@7212994dc8fc3a53fe9c8e766ab5b4ddd16ea3d4 # v0.8.0
     with:
-      checks: '["Static analysis", "Unit tests", "Build snapshot artifacts"]'
+      checks: '["Acceptance tests (Linux)", "Acceptance tests (Mac)", "Build snapshot artifacts", "Static analysis", "Unit tests"]'
 
   release:
     needs: [check-gate, version-available]
