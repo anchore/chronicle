@@ -158,8 +158,8 @@ github.com/anchore/go-sync v0.1.2 h1:RDD5RCanrWqhbtBulqPSZpERadUlgcYjpybYzYd3Uk8
 github.com/anchore/go-sync v0.1.2/go.mod h1:grjZH059bCHM6f6jh+Y7VYvX/q8YcjkDJqG6nplHGkE=
 github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4 h1:rmZG77uXgE+o2gozGEBoUMpX27lsku+xrMwlmBZJtbg=
 github.com/anchore/go-version v1.2.2-0.20210903204242-51efa5b487c4/go.mod h1:Bkc+JYWjMCF8OyZ340IMSIi2Ebf3uwByOk6ho4wne1E=
-github.com/anchore/grype v0.119.0 h1:I3HWCabq05m1fLyXPnwwD2GgG+8M/P2s9ylLX6lnA6w=
-github.com/anchore/grype v0.119.0/go.mod h1:laniqopjnSNpQepRGDMs/r8F9dceobb5YW3l07fMd4g=
+github.com/anchore/grype v0.120.0 h1:pCcaM7JtAglG0vSTmxvkTdA25E/kirCh/YAiEqBhqR8=
+github.com/anchore/grype v0.120.0/go.mod h1:Ad+K+kHtVbh8WA98Fmo19MD4Zj7CJXDuFYbi81Hux/Q=
 github.com/anchore/packageurl-go v0.2.0 h1:CkrM4RMUwrEGAiE1OVlxaZNzWj0TuHRey7o4T/EAErk=
 github.com/anchore/packageurl-go v0.2.0/go.mod h1:2JCgOQMIsqZ7TmliXG4PnUthPJAKE3mWQbsW2XHjAOE=
 github.com/anchore/stereoscope v0.3.3 h1:sur8G2THAOnOrSXDjIc1SXzQwco8hjFBtGFq1jFvNVA=
@@ -852,11 +852,11 @@ github.com/opencontainers/runtime-spec v1.3.0 h1:YZupQUdctfhpZy3TM39nN9Ika5CBWT5
 github.com/opencontainers/runtime-spec v1.3.0/go.mod h1:jwyrGlmzljRJv/Fgzds9SsS/C5hL+LL3ko9hs6T5lQ0=
 github.com/opencontainers/selinux v1.15.1 h1:ERxeh5caJvCzNAKdI8WQbJmB1LDTn4BuaAg8wihLBpA=
 github.com/opencontainers/selinux v1.15.1/go.mod h1:LenyElirjUHszfxrjuFqC85HIeXZKumHcKMQtnaDlQQ=
-github.com/openvex/go-vex v0.2.8 h1:m/iH6+0fc7QXwfx7vJ0UeT8Z1oN1zVcyHjcVK+UO11Y=
-github.com/openvex/go-vex v0.2.8/go.mod h1:V09jOICYN/3VS4oU2hthSN8wGI6UAv3FvvYbpYS1xCE=
+github.com/openvex/go-vex v0.2.9 h1:InBYPjk5FQtDjnSQ12RUyQcnMlDO5QAg4QK848LIFm8=
+github.com/openvex/go-vex v0.2.9/go.mod h1:K7NfMaPzwZHZjg5xBvDzl4Wul4ojoNN4ICR5s4xbNHw=
 github.com/orisano/pixelmatch v0.0.0-20220722002657-fb0b55479cde/go.mod h1:nZgzbfBr3hhjoZnS66nKrHmduYNpc34ny7RK4z5/HM0=
-github.com/package-url/packageurl-go v0.1.5 h1:O4efRXja2XQ5CtiiYiCZ22k/m7i5ugLiAghgcC+eDgk=
-github.com/package-url/packageurl-go v0.1.5/go.mod h1:nKAWB8E6uk1MHqiS/lQb9pYBGH2+mdJ2PJc2s50dQY0=
+github.com/package-url/packageurl-go v0.1.7 h1:iFWg6tzAjLA6F/qX3M5nZaiMHJgc+p2zxVyr/fY+sZY=
+github.com/package-url/packageurl-go v0.1.7/go.mod h1:nKAWB8E6uk1MHqiS/lQb9pYBGH2+mdJ2PJc2s50dQY0=
 github.com/pandatix/go-cvss v0.6.4 h1:9w2RCO/Q4UTiJyEgpCHRiVc6CfrsFEnkoX+OtATqKio=
 github.com/pandatix/go-cvss v0.6.4/go.mod h1:/ukvQnYlrKl3o/DVp7/GO2UZyZheuo/maOK0U1nBEhQ=
 github.com/pascaldekloe/goe v0.0.0-20180627143212-57f6aae5913c/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=

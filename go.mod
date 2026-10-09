@@ -7,7 +7,7 @@ require (
 	github.com/anchore/clio v0.1.1
 	github.com/anchore/fangs v0.1.1
 	github.com/anchore/go-logger v0.2.0
-	github.com/anchore/grype v0.119.0
+	github.com/anchore/grype v0.120.0
 	github.com/anchore/syft v1.54.0
 	github.com/bmatcuk/doublestar/v4 v4.10.2
 	github.com/charmbracelet/bubbles v1.0.0
@@ -257,8 +257,8 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/opencontainers/runtime-spec v1.3.0 // indirect
 	github.com/opencontainers/selinux v1.15.1 // indirect
-	github.com/openvex/go-vex v0.2.8 // indirect
-	github.com/package-url/packageurl-go v0.1.5 // indirect
+	github.com/openvex/go-vex v0.2.9 // indirect
+	github.com/package-url/packageurl-go v0.1.7 // indirect
 	github.com/pandatix/go-cvss v0.6.4 // indirect
 	github.com/pborman/indent v1.2.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
