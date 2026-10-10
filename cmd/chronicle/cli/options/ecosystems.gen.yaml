@@ -1,4 +1,4 @@
-# Code generated from github.com/anchore/syft v1.54.0 by genecosystems; DO NOT EDIT.
+# Code generated from github.com/anchore/syft v1.54.2-0.20261009134252-33419c8f397e by genecosystems; DO NOT EDIT.
 # Regenerate with `go generate ./...` after bumping syft.
 ecosystems:
     - ecosystem: go
