@@ -9,7 +9,7 @@ require (
 	github.com/anchore/go-logger v0.2.0
 	github.com/anchore/grype v0.120.1
 	github.com/anchore/syft v1.54.1
-	github.com/bmatcuk/doublestar/v4 v4.10.2
+	github.com/bmatcuk/doublestar/v4 v4.10.3
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/glamour v1.0.0
