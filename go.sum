@@ -136,8 +136,8 @@ github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf/go.mod h1:ybxpYRF
 github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=
 github.com/anchore/bubbly v0.2.2 h1:53JHRlpaNZjMcUYdz7n1U7+kOhy0zsJv9gpGEXvTcz8=
 github.com/anchore/bubbly v0.2.2/go.mod h1:M4twoFkczlfuNdU8QV7oQjVJwPbxdUWRMfKydcLba0U=
-github.com/anchore/clio v0.1.1 h1:9bkYnaFbpT0J3G0qSHyQqa/lpK5zV0C9Gtgh82H/jj0=
-github.com/anchore/clio v0.1.1/go.mod h1:CFPIopJlakJbBpKtAL/EPpj4W9hgBO7PfFc8N2FAtlE=
+github.com/anchore/clio v0.1.2 h1:kCWNUkJsRJ5A103fFSLG+CSqIP9bOIFX2X5GEnup0HM=
+github.com/anchore/clio v0.1.2/go.mod h1:LqoM9TUMDolUMaPV4hslLvuooqIjpTN8J7V/rBqk/Zc=
 github.com/anchore/fangs v0.1.1 h1:NBTHocmWM2/0gNhebpoE/wEB0Z0nxh2lESww2o/Uf5M=
 github.com/anchore/fangs v0.1.1/go.mod h1:82oZuk4+RynOvAoxnXKmI1zO5xk/kbOw+5t4fAAPSsk=
 github.com/anchore/go-collections v0.1.1 h1:kGlmSehs+ctTBZr+98F2+taHeolHy+XDx1Nczl8GZc8=
@@ -603,8 +603,8 @@ github.com/googleapis/gax-go/v2 v2.24.1/go.mod h1:bWeBei0NVwaNZKb2y1HUBS7gLXIF3/
 github.com/gookit/assert v0.1.1 h1:lh3GcawXe/p+cU7ESTZ5Ui3Sm/x8JWpIis4/1aF0mY0=
 github.com/gookit/assert v0.1.1/go.mod h1:jS5bmIVQZTIwk42uXl4lyj4iaaxx32tqH16CFj0VX2E=
 github.com/gookit/color v1.2.5/go.mod h1:AhIE+pS6D4Ql0SQWbBeXPHw7gY0/sjHoA4s/n1KB7xg=
-github.com/gookit/color v1.6.2 h1:M6TJRJMuDFPYkrWmjOvMj+E0xIjcHq8lMPy7+vv0z1Y=
-github.com/gookit/color v1.6.2/go.mod h1:9ACFc7/1IpHGBW8RwuDm/0YEnhg3dwwXpoMsmtyHfjs=
+github.com/gookit/color v1.6.3 h1:m6E49x+KftGaspcLtPLMsyci2ARhWIUW0PUV1owMlhs=
+github.com/gookit/color v1.6.3/go.mod h1:9ACFc7/1IpHGBW8RwuDm/0YEnhg3dwwXpoMsmtyHfjs=
 github.com/gorilla/css v1.0.1 h1:ntNaBIghp6JmvWnxbZKANoLyuXTPZ4cAMlo6RyhlbO8=
 github.com/gorilla/css v1.0.1/go.mod h1:BvnYkspnSzMmwRK+b8/xgNPLiIuNZr6vbZBTPQ2A3b0=
 github.com/gorilla/mux v1.8.1 h1:TuBL49tXwgrFYWhqrNgrUNEY92u81SPhu7sTdzQEiWY=
