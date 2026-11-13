@@ -4,7 +4,7 @@ go 1.26.8
 
 require (
 	github.com/anchore/bubbly v0.2.2
-	github.com/anchore/clio v0.1.1
+	github.com/anchore/clio v0.1.2
 	github.com/anchore/fangs v0.1.1
 	github.com/anchore/go-logger v0.2.0
 	github.com/anchore/grype v0.121.0
@@ -182,7 +182,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.22 // indirect
 	github.com/googleapis/gax-go/v2 v2.24.1 // indirect
-	github.com/gookit/color v1.6.2 // indirect
+	github.com/gookit/color v1.6.3 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/gpustack/gguf-parser-go v0.26.4 // indirect
 	github.com/hako/durafmt v0.0.0-20210608085754-5c1018a4e16b // indirect
