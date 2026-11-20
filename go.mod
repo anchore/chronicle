@@ -27,7 +27,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/wagoodman/go-partybus v0.0.0-20230516145632-8ccac152c651
 	github.com/wagoodman/go-progress v0.0.0-20260303201901-10176f79b2c0
-	golang.org/x/mod v0.42.0
+	golang.org/x/mod v0.43.0
 	golang.org/x/oauth2 v0.38.0
 	golang.org/x/sync v0.25.0
 	golang.org/x/term v0.47.0
@@ -344,7 +344,7 @@ require (
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
-	golang.org/x/tools v0.51.0 // indirect
+	golang.org/x/tools v0.52.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/api v0.299.0 // indirect
