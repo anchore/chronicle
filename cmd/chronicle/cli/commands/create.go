@@ -75,6 +75,15 @@ func repoPathArgs(cfg *createConfig) cobra.PositionalArgs {
 	}
 }
 
+// checkSpeculationRange returns an error when a next-version speculation is requested for a range
+// whose end is already pinned by --until-tag, where the speculated version can never be used.
+func checkSpeculationRange(appConfig *createConfig) error {
+	if appConfig.SpeculateNextVersion && appConfig.UntilTag != "" {
+		return fmt.Errorf("--speculate-next-version cannot be used with --until-tag: the changelog range already ends at %q, which pins the version", appConfig.UntilTag)
+	}
+	return nil
+}
+
 func runCreate(ctx context.Context, appConfig *createConfig) error {
 	// fast-fail on misconfigured -o values before the worker hits the
 	// network; sink construction (which creates temp files) is still deferred
@@ -107,6 +116,12 @@ func runCreate(ctx context.Context, appConfig *createConfig) error {
 	// as "no filter" (which is how the annotator interprets an unknown value).
 	if !dependency.ValidSeverity(appConfig.Dependencies.MinSeverity) {
 		return fmt.Errorf("invalid dependencies.min-severity %q; valid values: negligible, low, medium, high, critical", appConfig.Dependencies.MinSeverity)
+	}
+
+	// --speculate-next-version guesses a version only when the range has no semver tag to end on;
+	// --until-tag already pins the end of the range, so the speculated version is silently ignored.
+	if err := checkSpeculationRange(appConfig); err != nil {
+		return err
 	}
 
 	startRelease, description, err := selectWorker(appConfig.RepoPath)(ctx, appConfig)
